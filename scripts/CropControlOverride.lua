@@ -6,8 +6,7 @@ CropControlOverride = {}
 -- Custom crop order to enforce across PDA, prices, and contracts
 CropControlOverride.fruitOrder = {
     "WHEAT", "BARLEY", "OAT", "CANOLA", "MAIZE",
-    "SORGHUM", "SOYBEAN", "GRASS", "ALFALFA", "CLOVER",
-    "PEA", "LENTILS", "RYE", "FLAX", "TRITICALE", "BEANS", "CHICKPEAS", "DRYPEAS", "FIELDGRASS", "OILSEEDRADISH"
+    "SORGHUM", "SOYBEAN", "GRASS", "PEA", "OILSEEDRADISH"
 }
 
 -- Disallowed crops for AI and players
