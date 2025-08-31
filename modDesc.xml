@@ -1,14 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modDesc descVersion="100">
     <author>SimGamerJen</author>
-    <version>1.0.0.1</version>
+    <version>1.0.0.2</version>
     <title>
 		<en>Crop Control Override</en>
 	</title>
     <description>
-		<en>Overrides crop display order and disables certain crops globally in FS25.</en>
+		<en><![CDATA[Overrides crop display order and disables certain crops globally in FS25.
+		v1.0.0.2 Updated modDesc.XML to allow MP
+		v1.0.0.1 mod icon,
+		]]></en>
 	</description>
 	<iconFilename>CropControlOverride.png</iconFilename>
+    <multiplayer supported="true"/>
     <extraSourceFiles>
         <sourceFile filename="scripts/CropControlOverride.lua"/>
     </extraSourceFiles>
