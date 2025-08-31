@@ -2,9 +2,6 @@
 
 A lightweight Farming Simulator 25 script mod that **overrides crop (fruit) order and disables selected crops** globally — without editing the base game or map XMLs.
 
-> Author: **Sim Gamer Jen**  
-> Version: **1.0.0.0**
-
 ---
 
 ## ✨ What it does
