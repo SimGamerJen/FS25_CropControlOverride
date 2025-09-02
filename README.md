@@ -37,6 +37,8 @@ Key parts:
   ```
   Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/config.xml
   ```
+### NOTE. It is assumed that you are starting a new save and not retrofitting this mod into an existing save, otherwise the modSettings folder will not be created
+
 - When you start a save, it ensures a **per-save config** exists at:
   ```
   Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/saves/<savegameId>.xml
