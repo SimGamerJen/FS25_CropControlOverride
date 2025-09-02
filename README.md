@@ -33,7 +33,7 @@ Key parts:
 ## 🧠 How it works
 
 - Hooks into **`FruitTypeManager:loadMapData`** to apply disables *before* AI/jobs/UI cache fruit data.
-- Ensures a **template config** exists at:
+- Ensures a **template config** exists at (you can manually create this file using the example snippet detail in the Structure section):
   ```
   Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/config.xml
   ```
@@ -64,6 +64,7 @@ You can edit these with any text/XML editor.
 
 ### Structure
 ```xml
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
 <cropControl>
   <order>
     <fruit name="WHEAT"/>
