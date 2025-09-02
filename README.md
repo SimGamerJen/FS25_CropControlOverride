@@ -1,6 +1,6 @@
 # FS25_CropControlOverride
 
-A lightweight Farming Simulator 25 script mod that **overrides crop (fruit) order and disables selected crops** globally — without editing the base game or map XMLs.
+A lightweight Farming Simulator 25 script mod that **overrides crop (fruit) order and disables selected crops** globally — without editing the base game or map XMLs. Configuration is externalised to `modSettings`, with **per-save files** supported.
 
 ---
 
@@ -8,8 +8,9 @@ A lightweight Farming Simulator 25 script mod that **overrides crop (fruit) orde
 
 - Enforces a **custom fruit display order** across PDA/price lists/contracts.
 - **Disables specified crops** for players and AI contracts.
-- Optionally removes disallowed crops from the **economy/price display** (see `removeFromEconomyDisplay()` call).
-- Runs at map load; no savegame editing required.
+- Hides disallowed crops from the **economy/price display** and PDA calendar/map.
+- Runs at map load; no map editing required.
+- Supports **per-save configuration files** that persist separately from the savegame (so they are not deleted when saving).
 
 ---
 
@@ -22,116 +23,84 @@ FS25_CropControlOverride/
    └─ CropControlOverride.lua
 ```
 
-Key parts detected:
+Key parts:
 
-- `modDesc.xml` registers the Lua with `<extraSourceFiles>`.
-- `scripts/CropControlOverride.lua` contains the logic and debug prints.
+- `modDesc.xml` registers the Lua.
+- `scripts/CropControlOverride.lua` contains the logic and settings loader.
 
 ---
 
-## 🧠 How it works (Lifecycle & Hooks)
+## 🧠 How it works
 
-At startup the mod appends a post-load hook to the mission:
-
-```lua
--- In CropControlOverride.lua
-function CropControlOverride.init()
-    print("CropControlOverride: init() called")
-    FSBaseMission.loadMapFinished = Utils.appendedFunction(FSBaseMission.loadMapFinished, function(self)
-        CropControlOverride:onLoadMap()
-    end)
-end
-
-CropControlOverride.init()
-```
-
-When the map finishes loading, `onLoadMap()` is invoked. From the visible calls, it is expected to:
-
-```lua
-function CropControlOverride:onLoadMap()
-    print("CropControlOverride: onLoadMap() triggered")
-    self:applyFruitOrder()
-    self:disableDisallowedCrops()
-    self:removeFromEconomyDisplay()
-end
-```
-
-> **Note:** If you don’t want to hide disallowed crops from the economy UI, comment out the `removeFromEconomyDisplay()` line.
+- Hooks into **`FruitTypeManager:loadMapData`** to apply disables *before* AI/jobs/UI cache fruit data.
+- Ensures a **template config** exists at:
+  ```
+  Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/config.xml
+  ```
+- When you start a save, it ensures a **per-save config** exists at:
+  ```
+  Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/saves/<savegameId>.xml
+  ```
+- That file is then used for all future loads of that save. The game’s own save process will not delete it.
+- UI hooks filter crop lists in PDA calendar, map, and price/statistics pages.
 
 ---
 
 ## ⚙️ Configuration
 
-There are two primary tables in `CropControlOverride.lua` you can tailor:
-
-### 1) Fruit order (top → bottom in PDA/price lists)
-
-```lua
-CropControlOverride.fruitOrder = {
-    "WHEAT","BARLEY","OAT","CANOLA","MAIZE",
-    "SORGHUM","SOYBEAN","GRASS","ALFALFA","CLOVER",
-    "PEA","LENTILS","RYE","FLAX","TRITICALE","BEANS",
-    -- add/remove/swap as needed; keep names matching fruitType names
-}
+### Template (global fallback)
+The template file is created automatically on first run:
+```
+modSettings/FS25_CropControlOverride/config.xml
 ```
 
-**Tips:**  
-- Use **fruit type names** exactly as defined by the map or mods.  
-- Unknown names are safely ignored by your implementation strategy if you add a guard; otherwise make sure all entries exist on your map.
-
-### 2) Disallowed crops (boolean map)
-
-```lua
-CropControlOverride.disallowedCrops = {
-    POTATO = true, RICE = true, SUGARBEET = true,
-    SUGARCANE = true, COTTON = true, GRAPE = true, OLIVE = true,
-    -- set to true to disable, or remove / set to false to allow
-}
+### Per-save files
+Each save gets its own file under:
+```
+modSettings/FS25_CropControlOverride/saves/<savegameId>.xml
 ```
 
-**What “disable” does:** Typically prevents player/AI usage and can be combined with hiding in the economy UI (see below). Exact effects depend on your internal implementation of `disableDisallowedCrops()`.
+You can edit these with any text/XML editor.
 
----
+### Structure
+```xml
+<cropControl>
+  <order>
+    <fruit name="WHEAT"/>
+    <fruit name="BARLEY"/>
+    <fruit name="OAT"/>
+    <!-- etc -->
+  </order>
+  <fruits>
+    <fruit name="POTATO" enabled="false"/>
+    <fruit name="COTTON" enabled="false"/>
+    <!-- set enabled="true" to allow, false to disable -->
+  </fruits>
+</cropControl>
+```
 
-## 🧩 Expected internal helpers
-
-The mod references these helper methods (names inferred from calls):
-
-- `applyFruitOrder()` – Rebuilds the fruit display order used by HUD/PDA/price pages.
-- `disableDisallowedCrops()` – Marks configured fruits as unavailable for players/AI.
-- `removeFromEconomyDisplay()` – Hides disallowed fruits from the economy price list.
-
-If you’re extending the mod, you’ll typically interact with **`g_fruitTypeManager`**, **`g_fillTypeManager`**, and PDA/price/economy widgets to implement those behaviors.
+- **`<order>`** controls PDA/price list order.
+- **`<fruits>`** controls which crops are enabled/disabled.
 
 ---
 
 ## 🔍 Logging & Verification
 
-You should see these console lines when things are working:
-
+Look for these lines in your log:
 ```
-CropControlOverride: init() called
-CropControlOverride: onLoadMap() triggered
+CCO: using config -> .../modSettings/FS25_CropControlOverride/saves/savegame10.xml
+CCO: disabled POTATO
+CCO: PDA order applied (20 items)
 ```
-
-Optional (if you add prints inside your helpers):
-
-```
-CropControlOverride: applyFruitOrder() – applied N fruits
-CropControlOverride: disableDisallowedCrops() – disabled: POTATO, COTTON, ...
-CropControlOverride: removeFromEconomyDisplay() – hidden: POTATO, COTTON, ...
-```
-
-> If you **do not** see the first two lines, ensure the mod is enabled and `modDesc.xml` lists `scripts/CropControlOverride.lua` under `<extraSourceFiles>`.
 
 ---
 
 ## 📥 Install
 
-1. Copy the `FS25_CropControlOverride` folder (or ZIP) to your mods folder:
+1. Copy `FS25_CropControlOverride` (or ZIP) to your mods folder:
    - **Windows:** `Documents/My Games/FarmingSimulator2025/mods/`
 2. Enable **Crop Control Override** in the in‑game Mod Manager.
-3. Load your save. Changes apply at map load.
+3. Start a save. The mod will create config files under `modSettings`. Edit them to your liking.
 
 ---
 
@@ -139,16 +108,16 @@ CropControlOverride: removeFromEconomyDisplay() – hidden: POTATO, COTTON, ...
 
 - Designed for **FS25**; no FS22 legacy hooks.
 - Intended to be **map‑agnostic**. Custom fruits are fine as long as you use correct names.
-- Works alongside calendar/growth mods; this only reorders and disables fruit visibility/usage.
+- Works alongside growth/calendar mods.
 
 ---
 
 ## 🤝 Contributing
 
-Issues and PRs welcome! Suggestions for per‑map config files and automatic fruit discovery are especially appreciated.
+Issues and PRs welcome! Suggestions for GUI editors or in-game config menus are especially appreciated.
 
 ---
 
 ## 📜 License
 
-MIT (see `LICENSE` if included in your repo).
+MIT (see `LICENSE`).
