@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modDesc descVersion="100">
     <author>SimGamerJen</author>
-    <version>1.0.0.3</version>
+    <version>1.0.0.4</version>
     <title>
 		<en>Crop Control Override</en>
 	</title>
@@ -16,5 +16,6 @@
     <multiplayer supported="true"/>
     <extraSourceFiles>
         <sourceFile filename="scripts/CropControlOverride.lua"/>
+        <sourceFile filename="scripts/Debug.lua"/>
     </extraSourceFiles>
 </modDesc>
