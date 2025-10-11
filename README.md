@@ -48,7 +48,6 @@ Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/sav
   <fruit name="COTTON" enabled="false"/>
 </fruits>
 </cropControl>
-```xml
 
     Crop names must match the fruitType name (case-insensitive).
 
