@@ -48,6 +48,7 @@ Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/sav
   <fruit name="COTTON" enabled="false"/>
 </fruits>
 </cropControl>
+```xml
 
     Crop names must match the fruitType name (case-insensitive).
 
@@ -107,7 +108,6 @@ MIT
 # (Optional) `modDesc.xml` description tweak
 Update the `<description>` so testers don’t expect PDA changes:
 
-```xml
 <description>
   <![CDATA[
   Disables selected crops for AI field jobs (useForFieldJob) based on config files in modSettings.
