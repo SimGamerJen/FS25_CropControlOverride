@@ -40,7 +40,6 @@ Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/sav
 ## ⚙️ Configuration
 
 ### Structure
-```xml
 <cropControl>
 <fruits>
   <!-- enabled="true" allows AI jobs; enabled="false" disables AI jobs -->
@@ -107,7 +106,6 @@ MIT
 # (Optional) `modDesc.xml` description tweak
 Update the `<description>` so testers don’t expect PDA changes:
 
-```xml
 <description>
   <![CDATA[
   Disables selected crops for AI field jobs (useForFieldJob) based on config files in modSettings.
