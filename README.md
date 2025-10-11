@@ -1,142 +1,118 @@
 # FS25_CropControlOverride
 
-A lightweight Farming Simulator 25 script mod that **overrides crop (fruit) order and disables selected crops** globally — without editing the base game or map XMLs. Configuration is externalised to `modSettings`, with **per-save files** supported.
+A lightweight Farming Simulator 25 script mod that **disables selected crops for AI use** globally — without editing the base game or map XMLs. Configuration is externalised to `modSettings`, with **per-save files** supported.
+
+> **Scope:** AI-only toggle (`useForFieldJob`). No PDA re-ordering or hiding.  
+> **Policy:** New-save only for newly added fruits (engine limitation).
 
 ---
 
 ## ✨ Features
 
-- **Disable crops**: prevent them from being seeded, harvested, used in jobs, or shown in the PDA.
-- **Custom PDA order**: (optional) reorder crops in the PDA calendar, map, and statistics.
-- **Template + per-save configs**:  
-  - Global template at `modSettings/FS25_CropControlOverride/config.xml`  
-  - Per-save configs stored in `modSettings/FS25_CropControlOverride/saves/<saveId>.xml`  
-  - Safe location (not deleted when the game saves).
-- **Automatic config creation**: generates a config on first run if missing (uses defaults baked into Lua).
-- **Safe XML I/O**: no risky `io.open` — uses GIANTS’ XMLFile API only.
-- **UI filtering**: hides disabled crops from PDA calendar, price list, and map.
-- **Debug system**: centralised logging with log levels, runtime toggles, and optional file output.
-
----
-
-## 📂 Contents
-
-```
-FS25_CropControlOverride/
-├─ modDesc.xml
-└─ scripts/
-   ├─ CropControlOverride.lua
-   └─ Debug.lua
-```
+- **Disable crops for AI**: prevents them from being used in field jobs (`useForFieldJob = false`).
+- **Template + per-save configs**  
+  - Template: `modSettings/FS25_CropControlOverride/config.xml`  
+  - Per-save: `modSettings/FS25_CropControlOverride/saves/<saveId>.xml`
+- **Automatic config creation** on first run (seeded from the map’s currently registered fruit types).
+- **Safe XML I/O** via GIANTS `XMLFile` API (no `io.open` for config).
+- **Console helpers**:
+  - `ccoReload` — re-read and apply the current save’s config.
+  - `ccoWhichConfig` — show which XML file is being used right now.
+  - `ccoListAI` — list all fruit types with their current `useForFieldJob` flag.
 
 ---
 
 ## 🧠 How it works
 
-- Hooks into **`FruitTypeManager:loadMapData`** to apply disables *before* AI/jobs/UI cache fruit data.
-- Ensures a **template config** exists at:
-  ```
-  Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/config.xml
-  ```
-- When you start a save, it ensures a **per-save config** exists at:
-  ```
-  Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/saves/<saveId>.xml
-  ```
-- That file is then used for all future loads of that save. The game’s own save process will not delete it.
-- UI hooks filter crop lists in PDA calendar, map, and price/statistics pages.
-- Debug logging goes both to the GIANTS log and to per-save log files under:
-  ```
-  Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/logs/<saveId>.log
-  ```
+- Hooks into **`FSBaseMission:loadMapFinished`** and applies AI toggles once all fruit types are registered.
+- Ensures a **template** exists at:
+
+Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/config.xml
+
+- Ensures a **per-save config** exists at:
+
+Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/saves/<saveId>.xml
+
+- The **per-save file** (if present) is always used. The template is only a fallback/seed.
 
 ---
 
 ## ⚙️ Configuration
 
-### Template (global fallback)
-The template file is created automatically on first run:
-```
-modSettings/FS25_CropControlOverride/config.xml
-```
-
-### Per-save files
-Each save gets its own file under:
-```
-modSettings/FS25_CropControlOverride/saves/<saveId>.xml
-```
-
-You can edit these with any text/XML editor.
-
 ### Structure
 ```xml
 <cropControl>
-  <order>
-    <fruit name="WHEAT"/>
-    <fruit name="BARLEY"/>
-    <fruit name="OAT"/>
-    <!-- etc -->
-  </order>
-  <fruits>
-    <fruit name="POTATO" enabled="false"/>
-    <fruit name="COTTON" enabled="false"/>
-    <!-- set enabled="true" to allow, false to disable -->
-  </fruits>
+<fruits>
+  <!-- enabled="true" allows AI jobs; enabled="false" disables AI jobs -->
+  <fruit name="WHEAT" enabled="true"/>
+  <fruit name="COTTON" enabled="false"/>
+</fruits>
 </cropControl>
-```
 
-- **`<order>`** controls PDA/price list order (applied in hooks).  
-- **`<fruits>`** controls which crops are enabled/disabled.
+    Crop names must match the fruitType name (case-insensitive).
+
+    If you omit a crop from the XML, it defaults to enabled (AI uses the map’s original setting).
+
+Editing which file?
+
+    For an existing save, edit:
+    modSettings/FS25_CropControlOverride/saves/<saveId>.xml
+
+    For new saves, edit the template first:
+    modSettings/FS25_CropControlOverride/config.xml
+    (that file is copied when the per-save file is created on first load)
+
+Use ccoWhichConfig to confirm which file is active.
+⚠️ Limitations
+
+    New-save only for newly added fruits: When a map adds new fruit types, an old save won’t gain the new fruit density layers automatically. Those fruits will only appear in the PDA/machinery on a new save created after the map update. This is an FS engine limitation and out of scope for this mod.
+
+    No PDA/UI changes: The mod doesn’t reorder or hide crops in the PDA. It only toggles whether AI can use them.
+
+🔍 Debugging
+
+    ccoWhichConfig — shows the exact path the mod is currently reading.
+
+    Edit that XML (enabled="true/false").
+
+    ccoReload — reapply without restarting.
+
+    ccoListAI — confirm the useForFieldJob flags changed.
+
+📥 Install
+
+    Drop the mod (folder or ZIP) into:
+
+        Windows: Documents/My Games/FarmingSimulator2025/mods/
+
+    Enable Crop Control Override in the in-game Mod Manager.
+
+    Start or load a save. The mod creates config files in modSettings on first run.
+
+🧪 Compatibility
+
+    Built for FS25 (no FS22 legacy hooks).
+
+    Map-agnostic. Custom fruits are fine as long as they’re properly registered by the map.
+
+    Coexists with growth/calendar/economy mods (those determine PDA/Prices).
+
+📝 License
+
+MIT
+
 
 ---
 
-## 🔍 Logging & Debugging
+# (Optional) `modDesc.xml` description tweak
+Update the `<description>` so testers don’t expect PDA changes:
 
-The mod ships with a centralised `Debug.lua` system.
-
-### Log levels
-- **DEBUG**: Very verbose; includes crop disables and table dumps.
-- **INFO**: Normal operational messages.
-- **WARN**: Warnings (flushes log file immediately).
-- **ERROR**: Errors (always logged, even if debug disabled).
-
-### Log destinations
-- Always goes to the GIANTS log.
-- Also cached and written to:
-  ```
-  modSettings/FS25_CropControlOverride/logs/<saveId>.log
-  ```
-
-### Console commands
-- `ccoDebug` — toggle all debug on/off
-- `ccoLogLevel DEBUG|INFO|WARN|ERROR` — set verbosity
-- `ccoFlush` — force-flush the in-memory buffer to the log file
-- `ccoReload` — reloads the config XML for the current save and reapplies it immediately
-
----
-
-## 📥 Install
-
-1. Copy `FS25_CropControlOverride` (or ZIP) to your mods folder:
-   - **Windows:** `Documents/My Games/FarmingSimulator2025/mods/`
-2. Enable **Crop Control Override** in the in-game Mod Manager.
-3. Start a save. The mod will create config files under `modSettings`. Edit them to your liking.
-
----
-
-## 🧪 Compatibility
-
-- Designed for **FS25**; no FS22 legacy hooks.
-- Intended to be **map-agnostic**. Custom fruits are fine as long as you use correct names.
-- Works alongside growth/calendar mods.
-
----
-
-## 🤝 Contributing
-
-Issues and PRs welcome! Suggestions for GUI editors or in-game config menus are especially appreciated.
-
----
-
-## 📜 License
-
-MIT (see `LICENSE`).
+```xml
+<description>
+  <![CDATA[
+  Disables selected crops for AI field jobs (useForFieldJob) based on config files in modSettings.
+  Template: modSettings/FS25_CropControlOverride/config.xml
+  Per-save: modSettings/FS25_CropControlOverride/saves/&lt;saveId&gt;.xml
+  Note: New-save only for newly added fruits. No PDA reordering or hiding.
+  ]]>
+</description>
