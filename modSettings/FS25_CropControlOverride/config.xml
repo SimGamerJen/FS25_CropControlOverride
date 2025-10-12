@@ -11,19 +11,20 @@
     <fruit name="GRASS" 		enabled="true"/>
     <fruit name="PEA" 			enabled="true"/>
     <fruit name="OILSEEDRADISH" enabled="true"/>
-    <fruit name="POTATO"        enabled="false"/>
-    <fruit name="RICE"          enabled="false"/>
-    <fruit name="RICELONGGRAIN" enabled="false"/>
-    <fruit name="SUGARBEET"     enabled="false"/>
-    <fruit name="SUGARCANE"     enabled="false"/>
-    <fruit name="COTTON"        enabled="false"/>
-    <fruit name="GRAPE"         enabled="false"/>
-    <fruit name="OLIVE"         enabled="false"/>
-    <fruit name="POPLAR"        enabled="false"/>
-    <fruit name="BEETROOT"      enabled="false"/>
-    <fruit name="CARROT"        enabled="false"/>
-    <fruit name="PARSNIP"       enabled="false"/>
+    <fruit name="POTATO"        enabled="true"/>
+    <fruit name="RICE"          enabled="true"/>
+    <fruit name="RICELONGGRAIN" enabled="true"/>
+    <fruit name="SUGARBEET"     enabled="true"/>
+    <fruit name="SUGARCANE"     enabled="true"/>
+    <fruit name="COTTON"        enabled="true"/>
+    <fruit name="GRAPE"         enabled="true"/>
+    <fruit name="OLIVE"         enabled="true"/>
+    <fruit name="POPLAR"        enabled="true"/>
+    <fruit name="BEETROOT"      enabled="true"/>
+    <fruit name="CARROT"        enabled="true"/>
+    <fruit name="PARSNIP"       enabled="true"/>
     <fruit name="GREENBEAN"     enabled="true"/>
-    <fruit name="SPINACH"       enabled="false"/>
+    <fruit name="SPINACH"       enabled="true"/>
+    <fruit name="SUNFLOWER"     enabled="true"/>
   </fruits>
 </cropControl>
