@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<cropControl version="1">
+  <fruits>
+    <fruit name="WHEAT" 		enabled="true"/>
+    <fruit name="BARLEY" 		enabled="true"/>
+    <fruit name="OAT" 			enabled="true"/>
+    <fruit name="CANOLA" 		enabled="true"/>
+    <fruit name="MAIZE" 		enabled="true"/>
+    <fruit name="SORGHUM" 		enabled="true"/>
+    <fruit name="SOYBEAN" 		enabled="true"/>
+    <fruit name="GRASS" 		enabled="true"/>
+    <fruit name="PEA" 			enabled="true"/>
+    <fruit name="OILSEEDRADISH" enabled="true"/>
+    <fruit name="POTATO"        enabled="false"/>
+    <fruit name="RICE"          enabled="false"/>
+    <fruit name="RICELONGGRAIN" enabled="false"/>
+    <fruit name="SUGARBEET"     enabled="false"/>
+    <fruit name="SUGARCANE"     enabled="false"/>
+    <fruit name="COTTON"        enabled="false"/>
+    <fruit name="GRAPE"         enabled="false"/>
+    <fruit name="OLIVE"         enabled="false"/>
+    <fruit name="POPLAR"        enabled="false"/>
+    <fruit name="BEETROOT"      enabled="false"/>
+    <fruit name="CARROT"        enabled="false"/>
+    <fruit name="PARSNIP"       enabled="false"/>
+    <fruit name="GREENBEAN"     enabled="true"/>
+    <fruit name="SPINACH"       enabled="false"/>
+  </fruits>
+</cropControl>
