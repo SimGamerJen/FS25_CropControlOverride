@@ -25,7 +25,7 @@ A lightweight Farming Simulator 25 script mod that **disables selected crops for
 ## 🧠 How it works
 
 - Hooks into **`FSBaseMission:loadMapFinished`** and applies AI toggles once all fruit types are registered.
-- Ensures a **template** exists at:
+- Ensures a **template** exists at (a template is available for download from this repository, but is not included within the mod ZIP):
 
 Documents/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/config.xml
 
