@@ -27,5 +27,6 @@
     <fruit name="GREENBEAN"     enabled="true"/>
     <fruit name="SPINACH"       enabled="true"/>
     <fruit name="SUNFLOWER"     enabled="true"/>
+    <fruit name="ONION"         enabled="true"/>
   </fruits>
 </cropControl>
