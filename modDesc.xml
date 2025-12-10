@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modDesc descVersion="100">
     <author>SimGamerJen</author>
-    <version>1.0.0.4</version>
+    <version>1.0.0.5</version>
     <title>
 		<en>Crop Control Override</en>
 	</title>
     <description>
 		<en><![CDATA[Overrides crop display order and disables certain crops globally in FS25.
+		v1.0.0.5 Updated to support the new ONION fruitType added by the Highlands Fishing Expansion DLC
         v1.0.0.4 Fixed config.xml not applying immediately on starting a new save if the savegameX.xml doesn't exist
 		v1.0.0.3 Introduce crop control management XML per savegame outside the mod ZIP
 		v1.0.0.2 Updated modDesc.XML to allow MP

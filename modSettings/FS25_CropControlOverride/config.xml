@@ -11,6 +11,7 @@
     <fruit name="GRASS" 		enabled="true"/>
     <fruit name="PEA" 			enabled="true"/>
     <fruit name="OILSEEDRADISH" enabled="true"/>
+	<fruit name="ONION"        	enabled="true"/>
     <fruit name="POTATO"        enabled="true"/>
     <fruit name="RICE"          enabled="true"/>
     <fruit name="RICELONGGRAIN" enabled="true"/>
