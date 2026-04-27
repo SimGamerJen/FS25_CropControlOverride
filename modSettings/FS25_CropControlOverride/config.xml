@@ -28,5 +28,26 @@
     <fruit name="SPINACH"       enabled="true"/>
     <fruit name="SUNFLOWER"     enabled="true"/>
     <fruit name="ONION"         enabled="true"/>
+
+<!-- Optional crops added with custom maps or custom fruit bundles
+	Uncomment this entire section of cut/copy and paste specific fruits to the section above
+	Alternatively, build your own savegame?.xml file ready to implement upon starting a new game
+
+	<fruit name="GREENRYE"		enabled="true"/>
+    <fruit name="LINSEED"		enabled="true"/>
+    <fruit name="MUSTARD"		enabled="true"/>
+	<fruit name="POPPY"			enabled="true"/>
+	<fruit name="SILAGEMAIZE"	enabled="true"/>
+	<fruit name="VETCHRYE"		enabled="true"/>
+	<fruit name="HUMUSACTIVE"	enabled="true"/>
+    <fruit name="ALFALFA"		enabled="true"/>
+    <fruit name="CLOVER"		enabled="true"/>
+    <fruit name="RYE"			enabled="true"/>
+    <fruit name="TRITICALE"		enabled="true"/>
+    <fruit name="SPELT"			enabled="true"/>
+    <fruit name="FIELDGRASS"	enabled="true"/>
+	
+-->
+
   </fruits>
 </cropControl>
