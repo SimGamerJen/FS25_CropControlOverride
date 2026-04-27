@@ -78,6 +78,8 @@ Use ccoWhichConfig to confirm which file is active.
 
     ccoListAI — confirm the useForFieldJob flags changed.
 
+    ccListFlags - shows current flag status of a given fruitType
+
 📥 Install
 
     Drop the mod (folder or ZIP) into:
