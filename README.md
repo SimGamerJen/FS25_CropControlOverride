@@ -111,7 +111,7 @@ The exact XML structure may differ depending on the current alpha build, but the
 
 ## FruitType Names
 
-The mod uses FS25 internal fruitType names.
+The mod uses FS25 internal fruitType names. If a map is shipped with custom crops, or you have added custom crops by some other method, those crops will be detected and added to the per-save XML file automatically.
 
 Examples:
 
