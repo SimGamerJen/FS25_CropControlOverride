@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.0.0-alpha.10",
+    VERSION = "2.0.0-alpha.49",
 
     _origFlags = {},
     _rules = {},
@@ -22,6 +22,7 @@ CropControlOverride = {
     _sowHookApplied = false,
     _loadFinishedHookApplied = false,
     _startupValidationPrinted = false,
+    MOD_DIRECTORY = g_currentModDirectory or "",
 }
 
 local CCO = CropControlOverride
@@ -51,6 +52,13 @@ local function err(msg)  if log and log.error then log:error(msg) else print("CC
 
 local function upper(s)
     return s and string.upper(tostring(s)) or s
+end
+
+local function policyText(v)
+    if v == nil then return "Map Default" end
+    if v == true then return "Yes" end
+    if v == false then return "No" end
+    return tostring(v)
 end
 
 local function boolFromStringOrBool(v, default)
@@ -1140,6 +1148,324 @@ FSBaseMission.delete = Utils.appendedFunction(FSBaseMission.delete, function()
     CCO._startupValidationPrinted = false
 end)
 
+
+
+-- GUI foundation -----------------------------------------------------------
+-- Read-only GIANTS XML screen backed by the validated CCO policy engine.
+-- Alpha.16 adds a structured crop-policy table while keeping editing disabled.
+local function showCcoCustomGui(title, text, topic, page)
+    title = title or "Crop Control Override"
+    text = text or ""
+
+    if CropControlOverrideMenu ~= nil and CropControlOverrideMenu.show ~= nil then
+        local ok, shown = pcall(function()
+            return CropControlOverrideMenu.show(title, text, CCO.MOD_DIRECTORY or g_currentModDirectory, topic, page)
+        end)
+        if ok and shown then
+            return true
+        end
+        if not ok then
+            print("CCO GUI: custom screen failed: " .. tostring(shown))
+        end
+    else
+        print("CCO GUI: CropControlOverrideMenu class is not available")
+    end
+
+    print("CCO GUI: custom screen unavailable; console output follows")
+    print("CCO GUI: " .. tostring(title))
+    for line in tostring(text):gmatch("[^\n]+") do
+        print("CCO GUI: " .. line)
+    end
+    return false
+end
+
+function CCO:consoleGuiTest()
+    return showCcoCustomGui("Crop Control Override - Dialog Test", "If you can read this, the custom CCO GUI screen is rendering correctly.\n\nThis screen replaces the experimental InfoDialog approach used in alpha.11-alpha.13.")
+end
+
+function CCO:buildGuiStatusText()
+    local rules = self._rules or {}
+    local total, discovered, disabled, npcBlocked, limited, undiscovered = 0, 0, 0, 0, 0, 0
+    for nameU, r in pairs(rules) do
+        total = total + 1
+        if getFruitByName(nameU) ~= nil then discovered = discovered + 1 else undiscovered = undiscovered + 1 end
+        if r.enabled == false then disabled = disabled + 1 end
+        if r.enabled == false or r.npcAllowed == false then npcBlocked = npcBlocked + 1 end
+        if tonumber(r.npcMaxHa or 0) > 0 then limited = limited + 1 end
+    end
+
+    local summary = self:buildFieldSummary(nil)
+    local validation = (summary.offending or 0) == 0 and "PASS" or ("FAILED - " .. tostring(summary.offending or 0) .. " offending NPC field(s)")
+
+    local lines = {}
+
+    if self._guiNotice ~= nil and self._guiNotice ~= "" then
+        table.insert(lines, "NOTICE")
+        table.insert(lines, tostring(self._guiNotice))
+        table.insert(lines, "")
+        self._guiNotice = nil
+    end
+
+    table.insert(lines, "ACTIVE CONFIG")
+    table.insert(lines, tostring(self._configPath or "not loaded"))
+    table.insert(lines, "")
+
+    table.insert(lines, "CROP RULES")
+    table.insert(lines, ("Configured rules:       %d"):format(total))
+    table.insert(lines, ("Loaded crop rules:      %d"):format(discovered))
+    table.insert(lines, ("Not loaded on map:      %d"):format(undiscovered))
+    table.insert(lines, "")
+
+    table.insert(lines, "POLICY SUMMARY")
+    table.insert(lines, ("Disabled crops:         %d"):format(disabled))
+    table.insert(lines, ("NPC-blocked crops:      %d"):format(npcBlocked))
+    table.insert(lines, ("Size-limited crops:     %d"):format(limited))
+    table.insert(lines, "")
+
+    table.insert(lines, "SAVE VALIDATION")
+    table.insert(lines, ("Status:                 %s"):format(validation))
+    table.insert(lines, ("Checked fields:         %d"):format(tonumber(summary.total or 0)))
+    table.insert(lines, ("NPC fields:             %d"):format(tonumber(summary.npcTotal or 0)))
+    table.insert(lines, ("Player fields:          %d"):format(tonumber(summary.playerTotal or 0)))
+    table.insert(lines, "")
+
+    table.insert(lines, "NAVIGATION")
+    table.insert(lines, "Use the top tabs, or PREV TAB / NEXT TAB, to move between sections.")
+    table.insert(lines, "Use RELOAD to re-read the active config. Use BACK to close the screen.")
+    table.insert(lines, "This screen is currently read-only. Crop rules can still be changed through the per-save XML or console commands.")
+    return table.concat(lines, "\n")
+end
+
+function CCO:ruleStatusText(nameU, r)
+    if r == nil then return "UNKNOWN" end
+    if getFruitByName(nameU) == nil then return "NOT LOADED" end
+    if r.enabled == false then return "DISABLED" end
+    if r.npcAllowed == false then return "NPC BLOCKED" end
+    if tonumber(r.npcMaxHa or 0) > 0 then return "SIZE LIMITED" end
+    return "ALLOWED"
+end
+
+function CCO:ruleModeTitle(mode)
+    if mode == "disabled" then return "Disabled crop rules" end
+    if mode == "limited" then return "Size-limited NPC crop rules" end
+    if mode == "blockedrules" or mode == "blocked-rules" then return "NPC-blocked crop rules" end
+    if mode == "undiscovered" then return "Configured but not loaded on this map" end
+    return "All configured crop rules"
+end
+
+function CCO:buildGuiRuleListText(mode, pageArg)
+    mode = mode ~= nil and string.lower(tostring(mode)) or "rules"
+    local names = {}
+    for nameU, _ in pairs(self._rules or {}) do table.insert(names, nameU) end
+    table.sort(names)
+
+    local rows = {}
+    local count = 0
+    for _, nameU in ipairs(names) do
+        local r = self._rules[nameU]
+        local include = true
+        if mode == "disabled" then include = r.enabled == false end
+        if mode == "limited" then include = tonumber(r.npcMaxHa or 0) > 0 end
+        if mode == "blockedrules" or mode == "blocked-rules" then include = r.enabled == false or r.npcAllowed == false end
+        if mode == "undiscovered" then include = getFruitByName(nameU) == nil end
+
+        if include then
+            count = count + 1
+            table.insert(rows, {
+                crop = nameU,
+                enabled = r.enabled == false and "No" or "Yes",
+                npc = policyText(r.npcAllowed),
+                maxHa = tonumber(r.npcMaxHa or 0),
+                discovered = getFruitByName(nameU) ~= nil and "Yes" or "No",
+                status = self:ruleStatusText(nameU, r),
+            })
+        end
+    end
+
+    local pageSize = 200
+    local totalPages = math.max(1, math.ceil(count / pageSize))
+    local page = tonumber(pageArg or 1) or 1
+    page = math.floor(page)
+    if page < 1 then page = 1 end
+    if page > totalPages then page = totalPages end
+
+    local startIndex = ((page - 1) * pageSize) + 1
+    local endIndex = math.min(startIndex + pageSize - 1, count)
+
+    local lines = {
+        ("%s — Page %d/%d"):format(self:ruleModeTitle(mode), page, totalPages),
+        "",
+        string.format("%-16s %-7s %-10s %-8s %-10s %-10s", "Crop", "Enabled", "NPC", "Max ha", "Loaded", "Status"),
+        string.rep("-", 72),
+    }
+
+    local shown = 0
+    for i = startIndex, endIndex do
+        local row = rows[i]
+        if row ~= nil then
+            shown = shown + 1
+            table.insert(lines, string.format("%-16s %-7s %-10s %8.2f %-10s %-10s",
+                row.crop, row.enabled, tostring(row.npc), row.maxHa, row.discovered, row.status))
+        end
+    end
+
+    if count == 0 then
+        table.insert(lines, "No matching crop rules.")
+    elseif page < totalPages then
+        table.insert(lines, ("Page %d/%d. Use ccoGui %s %d for next page."):format(page, totalPages, mode == "rules" and "rules" or mode, page + 1))
+    elseif totalPages > 1 then
+        table.insert(lines, ("Page %d/%d. End of list."):format(page, totalPages))
+    end
+
+    table.insert(lines, "")
+    if count > 0 then
+        table.insert(lines, ("Shown %d-%d of %d matching rule(s)."):format(startIndex, endIndex, count))
+    else
+        table.insert(lines, "Shown 0 of 0 matching rule(s).")
+    end
+    table.insert(lines, "")
+    table.insert(lines, "Read-only view. Rule editing still uses XML or ccoSetCrop in this build.")
+    return table.concat(lines, "\n")
+end
+
+function CCO:buildGuiBlockedText()
+    local summary = self:buildFieldSummary(nil)
+    if (summary.offending or 0) == 0 then
+        return table.concat({
+            "SAVE VALIDATION",
+            "Status:         PASS",
+            "",
+            ("Checked fields: %d"):format(tonumber(summary.total or 0)),
+            ("NPC fields:     %d"):format(tonumber(summary.npcTotal or 0)),
+            ("Player fields:  %d"):format(tonumber(summary.playerTotal or 0)),
+            "Offending NPC fields: 0",
+            "",
+            "No blocked NPC fields were detected under the current crop policy.",
+        }, "\n")
+    end
+
+    local names = {}
+    for cropName, crop in pairs(summary.crops or {}) do
+        if tonumber(crop.blocked or 0) > 0 then table.insert(names, cropName) end
+    end
+    table.sort(names)
+
+    local lines = {
+        "SAVE VALIDATION",
+        "Status:         FAILED",
+        ("Offending NPC fields: %d"):format(tonumber(summary.offending or 0)),
+        "",
+        "BLOCKED CROP SUMMARY",
+    }
+    for _, cropName in ipairs(names) do
+        local c = summary.crops[cropName]
+        table.insert(lines, ("%s  blocked=%d  total=%d  size=%.2f-%.2f ha"):format(cropName, c.blocked, c.total, c.minHa or 0, c.maxHa or 0))
+    end
+    table.insert(lines, "")
+    table.insert(lines, "RECOMMENDED CLEANUP")
+    table.insert(lines, "1. Run ccoScanBlocked to review field-level details.")
+    table.insert(lines, "2. Run ccoResetBlocked dryrun before changing the save state.")
+    table.insert(lines, "3. Run ccoResetBlocked only after confirming the dry-run output.")
+    return table.concat(lines, "\n")
+end
+
+function CCO:buildGuiHelpText()
+    return table.concat({
+        "CROP CONTROL OVERRIDE HELP",
+        "",
+        "NAVIGATION",
+        "Use the tab headings or PREV TAB / NEXT TAB to switch sections.",
+        "Use RELOAD to re-read the active per-save XML.",
+        "Use BACK or ESC to close the CCO screen.",
+        "",
+        "TABLE COLUMNS",
+        "Player Permitted: whether the crop is available under the crop policy.",
+        "NPC Permitted: whether NPCs may plant the crop, or whether the map default is used.",
+        "Max Field (ha): maximum NPC field size for that crop. 0.00 means no CCO size limit.",
+        "Loaded: whether the crop exists on the active map/save.",
+        "",
+        "POLICY TERMS",
+        "Disabled: the crop is blocked by the crop policy.",
+        "NPC Blocked: the crop may remain available, but NPCs should not plant it.",
+        "Size Limited: NPCs may plant the crop only below the configured hectare limit.",
+        "Not Loaded: the rule is preserved, but the crop is not present on this map/save.",
+        "",
+        "SAFE CLEANUP",
+        "Use ccoScanBlocked to review invalid NPC fields.",
+        "Use ccoResetBlocked dryrun before resetting fields.",
+        "Use ccoResetBlocked only after the dry-run output looks correct.",
+        "",
+        "EDITING",
+        "This GUI is currently read-only. Crop rules can still be changed through the per-save XML or console commands.",
+    }, "\n")
+end
+
+function CCO:openGui(topic, pageArg)
+    topic = topic ~= nil and topic ~= "" and string.lower(tostring(topic)) or "status"
+    if topic == "status" then
+        return showCcoCustomGui("Crop Control Override - Status", self:buildGuiStatusText(), "status", 1)
+    elseif topic == "rules" then
+        return showCcoCustomGui("Crop Control Override - Configured Rules", self:buildGuiRuleListText("rules", pageArg), "rules", pageArg or 1)
+    elseif topic == "disabled" then
+        return showCcoCustomGui("Crop Control Override - Disabled Crops", self:buildGuiRuleListText("disabled", pageArg), "disabled", pageArg or 1)
+    elseif topic == "limited" then
+        return showCcoCustomGui("Crop Control Override - Size-Limited Crops", self:buildGuiRuleListText("limited", pageArg), "limited", pageArg or 1)
+    elseif topic == "blockedrules" or topic == "blocked-rules" then
+        return showCcoCustomGui("Crop Control Override - Blocked Rules", self:buildGuiRuleListText("blockedrules", pageArg), "blockedrules", pageArg or 1)
+    elseif topic == "blocked" then
+        return showCcoCustomGui("Crop Control Override - Blocked Fields", self:buildGuiBlockedText(), "blocked", 1)
+    elseif topic == "undiscovered" then
+        return showCcoCustomGui("Crop Control Override - Undiscovered Rules", self:buildGuiRuleListText("undiscovered", pageArg), "undiscovered", pageArg or 1)
+    elseif topic == "help" then
+        return showCcoCustomGui("Crop Control Override - GUI Help", self:buildGuiHelpText(), "help", 1)
+    end
+
+    return showCcoCustomGui("Crop Control Override - GUI Help", "Unknown topic: " .. tostring(topic) .. "\n\n" .. self:buildGuiHelpText(), "help", 1)
+end
+
+
+-- Global GUI hotkey ---------------------------------------------------------
+function CCO:onInputOpenGui(actionName, inputValue, callbackState, isAnalog)
+    if g_gui ~= nil and g_gui.currentGui ~= nil and g_gui.currentGui.name == "CropControlOverrideMenu" then
+        return
+    end
+    self:openGui("status", 1)
+end
+
+function CCO:registerGlobalActionEvents(player, inputBinding)
+    if inputBinding == nil or InputAction == nil or InputAction.CCO_OPEN_GUI == nil then
+        return
+    end
+
+    local ok, _, eventId = pcall(function()
+        return inputBinding:registerActionEvent(InputAction.CCO_OPEN_GUI, self, self.onInputOpenGui, false, true, false, true)
+    end)
+
+    if ok and eventId ~= nil then
+        self._openGuiActionEventId = eventId
+        if inputBinding.setActionEventText ~= nil and g_i18n ~= nil then
+            inputBinding:setActionEventText(eventId, "Open Crop Control Override")
+        end
+        if inputBinding.setActionEventTextVisibility ~= nil then
+            inputBinding:setActionEventTextVisibility(eventId, false)
+        end
+    end
+end
+
+local function ccoRegisterGlobalPlayerActionEvents(playerInputComponent, contextName)
+    if playerInputComponent ~= nil and playerInputComponent.player ~= nil and playerInputComponent.player.isOwner then
+        local inputBinding = g_inputBinding
+        if inputBinding ~= nil then
+            CCO:registerGlobalActionEvents(playerInputComponent.player, inputBinding)
+        end
+    end
+end
+
+if PlayerInputComponent ~= nil and PlayerInputComponent.registerGlobalPlayerActionEvents ~= nil and not CCO._globalGuiInputHooked then
+    CCO._globalGuiInputHooked = true
+    PlayerInputComponent.registerGlobalPlayerActionEvents = Utils.appendedFunction(PlayerInputComponent.registerGlobalPlayerActionEvents, ccoRegisterGlobalPlayerActionEvents)
+end
+
 -- Console commands ---------------------------------------------------------
 function CCO:consoleReload()
     local sid = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo)
@@ -1592,3 +1918,9 @@ end
 addConsoleCommand("ccoHelp", "Show CCO command help. Usage: ccoHelp [rules|scan|reset|debug]", "consoleHelp", CCO)
 
 info("loaded " .. CCO.MOD_ID .. " v" .. CCO.VERSION)
+
+function CCO:consoleGui(topic, pageArg)
+    self:openGui(topic, pageArg)
+end
+addConsoleCommand("ccoGui", "Open CCO GUI. Usage: ccoGui [status|rules|disabled|limited|blocked|undiscovered|help]", "consoleGui", CCO)
+addConsoleCommand("ccoGuiTest", "Open a minimal CCO GUI dialog test", "consoleGuiTest", CCO)

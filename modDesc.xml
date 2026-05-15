@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modDesc descVersion="100">
     <author>SimGamerJen, Hyper138</author>
-    <version>2.0.0-alpha.10</version>
+    <version>2.0.0-alpha.49</version>
     <title>
         <en>Crop Control Override</en>
     </title>
@@ -12,12 +12,13 @@ Crop Control Override is a per-save crop policy mod for Farming Simulator 25. It
 
 This alpha rebuild combines the original CropControlOverride concept with NPC crop-size control and manual NPC field correction. Existing pre-2.0.0 / v1 config files using fruit entries with name/enabled attributes are automatically normalized into the new v2 format, while preserving custom and currently undiscovered crop rules. The new v2 config adds npcAllowed, npcMaxHa, and resetNpcFields attributes.
 
-Hotkeys:
-No hotkeys. This alpha build is configured using XML files and console commands.
+Hotkeys / GUI shortcuts:
+Default hotkey: ALT+C opens the read-only CCO GUI. The GUI can also be opened with ccoGui. Views are selected using FS25-style tabs across the top of the screen. Reload and Back use the native bottom dialog button row. Help is available via the top-right ? button.
 
 Useful console commands:
 ccoHelp [rules|scan|reset|debug] - Show command help.
 ccoStatus - Show version, active config, rule counts, and validation summary.
+ccoGui [status|rules|disabled|limited|blocked|undiscovered|help] - Open the read-only custom GUI dashboard.
 ccoWhichConfig - Show the active config path.
 ccoReload - Reload the active XML config and reapply rules.
 ccoListRules [CROP] - List crop policy rules.
@@ -38,7 +39,7 @@ ccoListDisabled - List crops disabled by CCO rules.
 ccoListBlockedRules - List crops disabled or explicitly blocked for NPCs by CCO rules.
 ccoResetNpcFields [CROP|all] [dryrun] - Set offending NPC fields to cultivated state.
 ccoResetBlocked [dryrun] - Reset all currently blocked NPC fields.
-ccoDebug on|off|toggle and ccoLogLevel DEBUG|INFO|WARN|ERROR - Control CCO logging. Detailed NPC replacement/block traces are DEBUG-level in alpha.10.
+ccoDebug on|off|toggle and ccoLogLevel DEBUG|INFO|WARN|ERROR - Control CCO logging. Detailed NPC replacement/block traces are DEBUG-level. ccoGuiTest opens a minimal dialog rendering test.
 
 Startup validation:
 On map load, CCO prints a one-line validation notice. If blocked NPC fields are found, use ccoScanBlocked and ccoResetBlocked dryrun before making changes.
@@ -48,17 +49,28 @@ Config location:
 Per-save configs are stored under:
 <UserDocuments>/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/saves/savegameX.xml
 
-Alpha.10 notes:
-This release-prep build keeps the validated alpha.7/alpha.8 field reset and NPC crop replacement logic intact. It retains alpha.9 legacy config migration, custom crop discovery, and undiscovered-rule preservation. The main focus is packaging, command documentation, and beta-candidate readiness. Detailed NPC replacement/block traces remain DEBUG-level to reduce normal log noise.
+Alpha.38 notes:
+This RedTape-style tabbed GUI foundation build keeps the validated alpha.7/alpha.8 field reset and NPC crop replacement logic intact. It retains alpha.9 legacy config migration, custom crop discovery, and undiscovered-rule preservation. Alpha.34 keeps the dedicated GIANTS GUI screen and FS25-style SmoothList rule table. Help is now a small clickable question-mark button in the top-right of the screen, leaving BACK as the only ESC/back-style footer action. Detailed NPC replacement/block traces remain DEBUG-level to reduce normal log noise.
 
 Field reset safety:
 ccoResetNpcFields and ccoResetBlocked only target NPC-owned fields and only crops that violate the configured rule. They are intended for cleaning up already-generated savegames after changing crop policy. Use dryrun first when testing.
         ]]></en>
     </description>
     <iconFilename>CropControlOverride.dds</iconFilename>
+    <inputBinding>
+        <actionBinding action="CCO_OPEN_GUI">
+            <binding device="KB_MOUSE_DEFAULT" input="KEY_lalt KEY_c"/>
+        </actionBinding>
+    </inputBinding>
+
+    <actions>
+        <action name="CCO_OPEN_GUI" axisType="HALF"/>
+    </actions>
+
     <multiplayer supported="true"/>
     <extraSourceFiles>
         <sourceFile filename="scripts/Debug.lua"/>
+        <sourceFile filename="scripts/gui/CropControlOverrideMenu.lua"/>
         <sourceFile filename="scripts/CropControlOverride.lua"/>
     </extraSourceFiles>
 </modDesc>

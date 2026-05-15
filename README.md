@@ -1,6 +1,6 @@
 # FS25 Crop Control Override
 
-Version: `2.0.0-alpha.10`
+Version: `2.0.0-alpha.49`
 
 Merged development credit: **SimGamerJen** and **Hyper138**.
 
@@ -242,3 +242,80 @@ Changes:
 - modDesc description updated to make the migration and release-prep status clearer.
 - Keeps custom crop discovery and pre-2.0.0 per-save XML migration from alpha 9.
 - Keeps detailed NPC replacement/block traces at DEBUG log level.
+
+
+## Alpha.11 GUI foundation
+
+Alpha.11 adds the first read-only GUI/dialog layer through `ccoGui`. It is intentionally non-destructive and does not alter the validated policy, reset, migration, or NPC replacement logic.
+
+Commands:
+
+```text
+ccoGui
+ccoGui status
+ccoGui rules
+ccoGui disabled
+ccoGui limited
+ccoGui blocked
+ccoGui undiscovered
+ccoGui help
+```
+
+This is a foundation for the later editable management screen. Editing remains through XML and console commands in this alpha.
+
+
+## Alpha 12 GUI bootstrap note
+
+`ccoGui` now attempts multiple GIANTS custom GUI screen/dialog-registry API paths before using the console fallback. If the log reports `no GIANTS dialog API path succeeded`, the data backend is still working but the GUI bootstrap path needs another FS25-specific screen implementation.
+
+### Alpha 13 GUI note
+
+`ccoGui` now uses the minimal documented `g_gui:showcustom GUI screen({ text = ... })` payload first. Alpha 12 could open an icon-only custom GUI screen on some FS25 builds because extra dialog keys were accepted but the text was not rendered. `ccoGuiTest` opens a short hard-coded text dialog to verify whether the built-in custom GUI screen path is viable before moving to a custom XML screen. Console output is still printed as a safety fallback during GUI development.
+
+
+## 2.0.0-alpha.22
+
+- Added paging support to read-only GUI rule tables.
+- `ccoGui rules [page]`, `ccoGui disabled [page]`, `ccoGui limited [page]`, and `ccoGui undiscovered [page]` now show page indicators and next-page hints.
+- Backend crop policy, migration, NPC replacement, validation, and reset logic unchanged.
+
+## 2.0.0-alpha.49
+
+- Removed NEXT/PREV footer actions now that native SmoothList scrolling is in place.
+- Replaced number-key/F1 shortcuts with mnemonic shortcuts:
+  - S = Status
+  - A = All Rules
+  - D = Disabled
+  - L = Limited
+  - N = NPC Blocked
+  - V = Validation
+  - R = Reload
+  - H = Help, or click the top-right ? button
+  - ESC = Back
+- Updated the bottom GUI command bar to use those shortcut labels.
+- Removed CCO handling for left/right arrow page navigation so list controls can own scrolling/navigation.
+- Backend crop policy, migration, NPC replacement, validation, and reset logic unchanged.
+
+## 2.0.0-alpha.49
+
+- Improved custom GUI Back handling by using the native screen close path before falling back to `g_gui:showGui("")`.
+- Made `MENU_BACK` action registration more tolerant of different GIANTS return-value patterns.
+- Kept the footer action labels white when focused/highlighted so only the shortcut badges use the CCO green accent.
+- Added a GUI-root escape callback as an additional fallback.
+- Backend crop-policy logic unchanged.
+
+## 2.0.0-alpha.49
+
+- Replaced the custom hand-built GUI footer with a native `fs25_dialogButtonBox` style command row.
+- Uses standard FS25 button profiles such as `buttonMenuPrev`, `buttonMenuNext`, `buttonOK`, `buttonCancel`, `buttonExtra1`, and `buttonBack`.
+- Keeps the SmoothList crop table and all backend crop-policy logic unchanged.
+- This is a GUI footer/input-binding experiment before moving toward a proper ESC-menu frame integration.
+
+
+## 2.0.0-alpha.49
+
+- Removed Reload from the native dialog footer to avoid duplicate Backspace/Escape-style binding conflicts.
+- Kept Reload available through `ccoReload` and status/help text.
+- Reworked the top-right `?` Help control to use a real `buttonBase`-derived button profile so it should be clickable.
+- Kept Back as the only native `buttonBack` / Escape-style action.
+

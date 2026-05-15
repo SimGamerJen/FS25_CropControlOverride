@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<GUIProfiles>
+    <Profile name="ccoContentArea" extends="emptyPanel" with="anchorTopLeft">
+        <size value="1568px 540px"/>
+    </Profile>
+
+    <Profile name="ccoColumnHeader" extends="baseReference" with="anchorTopLeft">
+        <imageColor value="0 0 0 0"/>
+        <textSize value="13px"/>
+        <textBold value="true"/>
+        <textUpperCase value="true"/>
+        <textColor value="$preset_colorWhite_50"/>
+        <textAlignment value="center"/>
+        <textVerticalAlignment value="middle"/>
+    </Profile>
+
+    <Profile name="ccoRulesList" extends="emptyPanel" with="pivotTopLeft">
+        <size value="1548px 493px"/>
+    </Profile>
+
+    <Profile name="ccoRulesListItem" extends="fs25_calendarListItem">
+        <height value="34px"/>
+        <imageColor value="$preset_fs25_colorGrey"/>
+        <imageSelectedColor value="$preset_fs25_colorMainHighlight"/>
+        <alternateBackgroundColor value="$preset_fs25_colorGreyDark_50"/>
+    </Profile>
+
+    <Profile name="ccoListItemGradient" extends="fs25_calendarListItemBg">
+        <imageSelectedColor value="$preset_fs25_colorMainHighlight"/>
+        <startImageSelectedColor value="$preset_fs25_colorMainHighlight"/>
+        <endImageSelectedColor value="$preset_fs25_colorMainHighlight"/>
+    </Profile>
+
+    <Profile name="ccoRowCellLeft" extends="baseReference" with="anchorStretchingYLeft">
+        <textBold value="false"/>
+        <textSize value="14px"/>
+        <textAlignment value="left"/>
+        <textVerticalAlignment value="middle"/>
+        <textColor value="$preset_fs25_colorMainLight"/>
+        <textSelectedColor value="$preset_fs25_colorMainDark"/>
+        <textDisabledColor value="$preset_colorDisabled"/>
+    </Profile>
+
+    <Profile name="ccoRowCellCenter" extends="ccoRowCellLeft">
+        <textAlignment value="center"/>
+        <textBold value="true"/>
+    </Profile>
+
+    <Profile name="ccoRowCellRight" extends="ccoRowCellLeft">
+        <textAlignment value="right"/>
+        <textBold value="true"/>
+    </Profile>
+
+    <Profile name="ccoSliderBox" extends="fs25_listSliderBox" with="anchorTopRight">
+        <width value="6px"/>
+        <height value="493px"/>
+    </Profile>
+
+    <Profile name="ccoEmptyStateText" extends="baseReference" with="anchorTopLeft">
+        <size value="600px 40px"/>
+        <textSize value="18px"/>
+        <textBold value="false"/>
+        <textColor value="0.45 0.45 0.45 1"/>
+        <textAlignment value="center"/>
+        <textVerticalAlignment value="middle"/>
+    </Profile>
+
+    <Profile name="ccoHelpIconButton" extends="buttonBase" with="anchorTopRight">
+        <size value="36px 36px"/>
+        <text value="?"/>
+        <textSize value="23px"/>
+        <textBold value="true"/>
+        <textColor value="$preset_fs25_colorMainLight"/>
+        <textFocusedColor value="$preset_fs25_colorMainHighlight"/>
+        <textHighlightedColor value="$preset_fs25_colorMainHighlight"/>
+        <textPressedColor value="$preset_fs25_colorMainHighlight"/>
+        <textAlignment value="center"/>
+        <textVerticalAlignment value="middle"/>
+        <imageSliceId value="noSlice"/>
+        <imageColor value="0 0 0 0.20"/>
+        <imageFocusedColor value="0.68 0.96 0.08 0.18"/>
+        <imageHighlightedColor value="0.68 0.96 0.08 0.18"/>
+        <imagePressedColor value="0.68 0.96 0.08 0.30"/>
+        <clickSound value="DEFAULT_CLICK"/>
+        <sendActionOnRelease value="true"/>
+    </Profile>
+
+    <Profile name="ccoFooterBar" extends="emptyPanel" with="anchorBottomLeft">
+        <imageColor value="0.005 0.005 0.005 0.88"/>
+    </Profile>
+
+    <Profile name="ccoFooterButton" extends="buttonBase" with="anchorBottomLeft">
+        <height value="34px"/>
+        <textSize value="14px"/>
+        <textBold value="true"/>
+        <textUpperCase value="true"/>
+        <textColor value="$preset_fs25_colorMainLight"/>
+        <textFocusedColor value="$preset_fs25_colorMainDark"/>
+        <textHighlightedColor value="$preset_fs25_colorMainDark"/>
+        <textPressedColor value="$preset_fs25_colorMainDark"/>
+        <textAlignment value="center"/>
+        <textVerticalAlignment value="middle"/>
+        <imageSliceId value="noSlice"/>
+        <imageColor value="0.08 0.09 0.08 0.35"/>
+        <imageFocusedColor value="$preset_fs25_colorMainHighlight"/>
+        <imageHighlightedColor value="$preset_fs25_colorMainHighlight"/>
+        <imagePressedColor value="$preset_fs25_colorMainHighlight"/>
+        <clickSound value="DEFAULT_CLICK"/>
+        <sendActionOnRelease value="true"/>
+    </Profile>
+
+</GUIProfiles>
