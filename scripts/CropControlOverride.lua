@@ -1,35 +1,83 @@
--- FS25 — Crop Control Override (config-driven; matches original "disable" flags)
--- Disables crops from the start by applying all original flags for disabled crops.
--- Reads from modSettings template or per-save; applies immediately in loadMapData.
--- Also provides console helpers for debugging and inspection.
+-- FS25_CropControlOverride
+-- Rebuild branch: crop availability + NPC planting policy + NPC field correction.
+--
+-- Version 2 config remains backward-compatible with the original v1:
+--   <fruit name="ONION" enabled="false" />
+-- New optional attributes:
+--   npcAllowed="false"        -- NPC may never plant this crop
+--   npcMaxHa="10"             -- NPC may only plant/use this crop on fields <= 10 ha; 0 = no limit
+--   resetNpcFields="true"     -- ccoResetNpcFields may clear NPC fields that violate this rule
+--
+-- First merged build is intentionally console-driven. UI can be added once the
+-- crop policy engine is proven stable in live saves.
 
 CropControlOverride = {
-    MOD_ID       = g_currentModName or "FS25_CropControlOverride",
-    _origFlags   = {},   -- per-fruit snapshot of original flags (NAME -> { key->value })
-    _enabledMap  = nil,  -- last-applied config (NAME -> bool)
+    MOD_ID = g_currentModName or "FS25_CropControlOverride",
+    VERSION = "2.0.0-alpha.10",
+
+    _origFlags = {},
+    _rules = {},
+    _configPath = nil,
+    _hookApplied = false,
+    _sowHookApplied = false,
+    _loadFinishedHookApplied = false,
+    _startupValidationPrinted = false,
 }
 
----------------------------------------------------------------------------
--- Helpers / Paths
----------------------------------------------------------------------------
-local function upper(s) return s and string.upper(s) or s end
+local CCO = CropControlOverride
+local log = CCO_Debug or Debug or nil
 
-local function userRoot()
-    return getUserProfileAppPath()
+local NPC_FARM_ID = 0
+local CONFIG_ROOT = "cropControl"
+local SETTINGS_FOLDER = "FS25_CropControlOverride"
+
+local FRUIT_FLAG_FIELDS = {
+    "useForFieldJob",
+    "useForFieldMissions",
+    "allowsSeeding",
+    "allowsHarvesting",
+    "allowsGrowing",
+    "needsSeeding",
+    "showOnPriceTable",
+    "showOnMap",
+    "allowsMapVisualization",
+    "isVisibleOnPda",
+}
+
+local function debug(msg) if log and log.debug then log:debug(msg) end end
+local function info(msg) if log and log.info then log:info(msg) else print("CCO [INFO] " .. tostring(msg)) end end
+local function warn(msg) if log and log.warn then log:warn(msg) else print("CCO [WARN] " .. tostring(msg)) end end
+local function err(msg)  if log and log.error then log:error(msg) else print("CCO [ERROR] " .. tostring(msg)) end end
+
+local function upper(s)
+    return s and string.upper(tostring(s)) or s
 end
 
-local function ensureSlash(p)
-    if not p or p == "" then return p end
-    local c = p:sub(-1)
+local function boolFromStringOrBool(v, default)
+    if v == nil then return default end
+    if type(v) == "boolean" then return v end
+    local s = string.lower(tostring(v))
+    if s == "true" or s == "1" or s == "yes" or s == "on" or s == "enabled" then return true end
+    if s == "false" or s == "0" or s == "no" or s == "off" or s == "disabled" then return false end
+    if s == "mapdefault" or s == "map_default" or s == "native" or s == "default" then return nil end
+    return default
+end
+
+local function ensureSlash(path)
+    if path == nil or path == "" then return path end
+    local c = path:sub(-1)
     if c ~= "/" and c ~= "\\" then
-        return p .. "/"
+        return path .. "/"
     end
-    return p
+    return path
 end
 
 local function settingsRoot()
-    local base = g_modSettingsDirectory or (userRoot() .. "modSettings/")
-    return ensureSlash(base .. "FS25_CropControlOverride")
+    local base = g_modSettingsDirectory
+    if base == nil or base == "" then
+        base = getUserProfileAppPath() .. "modSettings/"
+    end
+    return ensureSlash(ensureSlash(base) .. SETTINGS_FOLDER)
 end
 
 local function templatePath()
@@ -37,50 +85,439 @@ local function templatePath()
 end
 
 local function getSaveIdFromMissionInfo(mi)
-    if not mi then return nil end
-    if mi.savegameIndex and tonumber(mi.savegameIndex) then
+    if mi == nil then return nil end
+    if mi.savegameIndex ~= nil and tonumber(mi.savegameIndex) ~= nil then
         return ("savegame%d"):format(tonumber(mi.savegameIndex))
     end
-    if mi.savegameDirectory and mi.savegameDirectory ~= "" then
+    if mi.savegameDirectory ~= nil and mi.savegameDirectory ~= "" then
         return mi.savegameDirectory:match("([^/\\]+)$")
     end
     return nil
 end
 
 local function perSavePathForId(saveId)
-    if not saveId then return nil end
+    if saveId == nil then return nil end
     return settingsRoot() .. "saves/" .. saveId .. ".xml"
 end
 
-local function ensureFolder(pathOrFile)
-    local dir = pathOrFile:match("^(.*)[/\\][^/\\]+$") or pathOrFile
-    if not dir or dir == "" then return end
+local function ensureFolderForFile(path)
+    local dir = path and path:match("^(.*)[/\\][^/\\]+$") or nil
+    if dir == nil or dir == "" then return end
+
+    -- GIANTS createFolder can normally create the final directory when the
+    -- parent exists, but this loop is safer for nested modSettings/saves paths.
     local acc = ""
     for part in string.gmatch(dir, "[^/\\]+") do
         acc = acc .. part .. "/"
-        if createFolder then
+        if createFolder ~= nil then
             createFolder(acc)
         end
     end
 end
 
----------------------------------------------------------------------------
--- Config I/O (XMLFile only)
----------------------------------------------------------------------------
-local function writeConfig(toPath, enabledMap)
-    ensureFolder(toPath)
-    local xml = XMLFile.create("CCO_write", toPath, "cropControl")
-    if not xml then
-        print("CCO [ERROR]: cannot create config at " .. tostring(toPath))
-        return false
+local function getFruitByName(name)
+    if g_fruitTypeManager == nil or name == nil then return nil end
+    local target = upper(name)
+    for _, ft in ipairs(g_fruitTypeManager.fruitTypes) do
+        if upper(ft.name) == target then
+            return ft
+        end
+    end
+    return nil
+end
+
+local function iterFruitTypesSorted()
+    local list = {}
+    if g_fruitTypeManager ~= nil and g_fruitTypeManager.fruitTypes ~= nil then
+        for _, ft in ipairs(g_fruitTypeManager.fruitTypes) do
+            if ft ~= nil and ft.name ~= nil then
+                table.insert(list, ft)
+            end
+        end
+    end
+    table.sort(list, function(a, b) return tostring(a.name) < tostring(b.name) end)
+    return list
+end
+
+local function getFieldSizeHa(field)
+    if field == nil then return 0 end
+    if field.farmland ~= nil and field.farmland.areaInHa ~= nil then
+        return field.farmland.areaInHa
+    end
+    return field.areaHa or 0
+end
+
+local function isNpcField(field)
+    local farmId = (field ~= nil and field.farmland ~= nil and field.farmland.farmId) or NPC_FARM_ID
+    return farmId == NPC_FARM_ID
+end
+
+local function getFieldId(field, fallback)
+    if field ~= nil and field.farmland ~= nil and field.farmland.id ~= nil then
+        return field.farmland.id
+    end
+    return fallback or "?"
+end
+
+local function getFieldFruit(field)
+    if field == nil or field.fieldState == nil then return nil, nil end
+    local index = field.fieldState.fruitTypeIndex
+    if index == nil or index == 0 or index == FruitType.UNKNOWN then return nil, index end
+    if g_fruitTypeManager == nil then return nil, index end
+    return g_fruitTypeManager:getFruitTypeByIndex(index), index
+end
+
+local function normalizeRule(name, rule)
+    rule = rule or {}
+    local nameU = upper(name or rule.name)
+    if nameU == nil or nameU == "" then return nil end
+
+    local enabled = rule.enabled
+    if enabled == nil then enabled = true end
+
+    local npcAllowed = rule.npcAllowed
+    -- disabled globally means NPC disabled too unless explicitly re-enabled,
+    -- which we intentionally do not support because it would be contradictory.
+    if enabled == false then npcAllowed = false end
+
+    local npcMaxHa = tonumber(rule.npcMaxHa or rule.maxHa or 0) or 0
+    if npcMaxHa < 0 then npcMaxHa = 0 end
+
+    local resetNpcFields = rule.resetNpcFields
+    if resetNpcFields == nil then
+        resetNpcFields = true
+    end
+
+    return {
+        name = nameU,
+        enabled = enabled ~= false,
+        npcAllowed = npcAllowed,
+        npcMaxHa = npcMaxHa,
+        resetNpcFields = resetNpcFields ~= false,
+    }
+end
+
+local function defaultRuleForFruit(ft)
+    return normalizeRule(ft and ft.name, {
+        enabled = true,
+        npcAllowed = nil,
+        npcMaxHa = 0,
+        resetNpcFields = true,
+    })
+end
+
+function CCO:_snapshotFruitIfNeeded(nameU, fruit)
+    if nameU == nil or fruit == nil or self._origFlags[nameU] ~= nil then return end
+    local snap = {}
+    for _, key in ipairs(FRUIT_FLAG_FIELDS) do
+        snap[key] = fruit[key]
+    end
+    self._origFlags[nameU] = snap
+end
+
+function CCO:_restoreFruitFlags(nameU, fruit)
+    local snap = self._origFlags[nameU]
+    if snap ~= nil then
+        for _, key in ipairs(FRUIT_FLAG_FIELDS) do
+            if snap[key] ~= nil or fruit[key] ~= nil then
+                fruit[key] = snap[key]
+            end
+        end
+        return
+    end
+
+    -- Permissive fallback for very late fruit types without a snapshot.
+    if fruit.useForFieldJob ~= nil then fruit.useForFieldJob = true end
+    if fruit.useForFieldMissions ~= nil then fruit.useForFieldMissions = true end
+    if fruit.allowsSeeding ~= nil then fruit.allowsSeeding = true end
+    if fruit.allowsHarvesting ~= nil then fruit.allowsHarvesting = true end
+    if fruit.allowsGrowing ~= nil then fruit.allowsGrowing = true end
+    if fruit.showOnPriceTable ~= nil then fruit.showOnPriceTable = true end
+end
+
+function CCO:_applyDisabledFlags(fruit)
+    fruit.useForFieldJob = false
+    fruit.useForFieldMissions = false
+    fruit.allowsSeeding = false
+    fruit.allowsHarvesting = false
+    fruit.allowsGrowing = false
+    fruit.needsSeeding = false
+    fruit.showOnPriceTable = false
+    -- Deliberately leave map visualization flags alone by default, matching the
+    -- previous CCO behaviour. PDA list hooks below hide disabled entries where possible.
+end
+
+function CCO:_applyNpcBlockedFlags(fruit)
+    -- Keep the crop available to the player, but prevent generated field jobs
+    -- and NPC mission crop selection where the engine respects this flag.
+    fruit.useForFieldMissions = false
+    fruit.useForFieldJob = false
+end
+
+function CCO:applyRules(rules)
+    if g_fruitTypeManager == nil then return end
+    rules = rules or self._rules or {}
+
+    for _, fruit in ipairs(g_fruitTypeManager.fruitTypes) do
+        local nameU = upper(fruit.name)
+        self:_snapshotFruitIfNeeded(nameU, fruit)
+        self:_restoreFruitFlags(nameU, fruit)
+
+        local rule = rules[nameU]
+        if rule == nil then
+            rule = defaultRuleForFruit(fruit)
+            rules[nameU] = rule
+        end
+
+        if rule.enabled == false then
+            self:_applyDisabledFlags(fruit)
+        elseif rule.npcAllowed == false then
+            self:_applyNpcBlockedFlags(fruit)
+        end
+    end
+
+    self._rules = rules
+end
+
+local function buildDefaultRules()
+    local rules = {}
+    for _, ft in ipairs(iterFruitTypesSorted()) do
+        local rule = defaultRuleForFruit(ft)
+        if rule ~= nil then rules[rule.name] = rule end
+    end
+    return rules
+end
+
+local function readConfig(path)
+    local rules = {}
+    if path == nil or not fileExists(path) then return rules end
+
+    local xml = XMLFile.load("CCO_read", path, CONFIG_ROOT)
+    if xml == nil then return rules end
+
+    local i = 0
+    local count = 0
+    while true do
+        local k = ("%s.fruits.fruit(%d)"):format(CONFIG_ROOT, i)
+        if not xml:hasProperty(k) then break end
+
+        local name = xml:getString(k .. "#name")
+        if name ~= nil and name ~= "" then
+            local enabled = xml:getBool(k .. "#enabled", true)
+            local npcAllowed = nil
+            if xml:hasProperty(k .. "#npcAllowed") then
+                npcAllowed = boolFromStringOrBool(xml:getString(k .. "#npcAllowed"), nil)
+                if npcAllowed == nil and xml:getString(k .. "#npcAllowed") ~= "mapDefault" then
+                    npcAllowed = xml:getBool(k .. "#npcAllowed", nil)
+                end
+            end
+            local npcMaxHa = xml:getFloat(k .. "#npcMaxHa", xml:getFloat(k .. "#maxHa", 0))
+            local resetNpcFields = xml:getBool(k .. "#resetNpcFields", true)
+
+            local rule = normalizeRule(name, {
+                enabled = enabled,
+                npcAllowed = npcAllowed,
+                npcMaxHa = npcMaxHa,
+                resetNpcFields = resetNpcFields,
+            })
+            if rule ~= nil then
+                rules[rule.name] = rule
+                count = count + 1
+            end
+        end
+        i = i + 1
+    end
+
+    -- Backward compatibility with old flat layout:
+    -- <cropControl><fruit name="..." enabled="..."/></cropControl>
+    if count == 0 then
+        local function readLegacyNode(k)
+            local name = xml:getString(k .. "#name")
+            if name ~= nil and name ~= "" then
+                local enabled = xml:getBool(k .. "#enabled", true)
+                local npcAllowed = nil
+                if xml:hasProperty(k .. "#npcAllowed") then
+                    npcAllowed = boolFromStringOrBool(xml:getString(k .. "#npcAllowed"), nil)
+                else
+                    npcAllowed = enabled == false and false or nil
+                end
+                local rule = normalizeRule(name, {
+                    enabled = enabled,
+                    npcAllowed = npcAllowed,
+                    npcMaxHa = xml:getFloat(k .. "#npcMaxHa", xml:getFloat(k .. "#maxHa", 0)),
+                    resetNpcFields = xml:getBool(k .. "#resetNpcFields", true),
+                })
+                if rule ~= nil then rules[rule.name] = rule end
+            end
+        end
+
+        i = 0
+        while true do
+            local k = ("%s.fruit(%d)"):format(CONFIG_ROOT, i)
+            if not xml:hasProperty(k) then break end
+            readLegacyNode(k)
+            i = i + 1
+        end
+
+        i = 0
+        while true do
+            local k = ("%s.crops.crop(%d)"):format(CONFIG_ROOT, i)
+            if not xml:hasProperty(k) then break end
+            readLegacyNode(k)
+            i = i + 1
+        end
+
+        i = 0
+        while true do
+            local k = ("%s.crop(%d)"):format(CONFIG_ROOT, i)
+            if not xml:hasProperty(k) then break end
+            readLegacyNode(k)
+            i = i + 1
+        end
+    end
+
+    xml:delete()
+    return rules
+end
+
+local function inspectConfigNormalization(path)
+    local meta = {
+        exists = false,
+        needsNormalize = false,
+        version = nil,
+        nestedCount = 0,
+        flatCount = 0,
+        missingAttrs = 0,
+        reasons = {},
+    }
+
+    if path == nil or not fileExists(path) then return meta end
+    meta.exists = true
+
+    local xml = XMLFile.load("CCO_inspect", path, CONFIG_ROOT)
+    if xml == nil then
+        meta.needsNormalize = true
+        table.insert(meta.reasons, "xml load failed")
+        return meta
+    end
+
+    meta.version = xml:getString(CONFIG_ROOT .. "#version")
+    if tostring(meta.version or "") ~= "2" then
+        meta.needsNormalize = true
+        table.insert(meta.reasons, "config version is not 2")
+    end
+
+    local function inspectNode(k)
+        local name = xml:getString(k .. "#name")
+        if name ~= nil and name ~= "" then
+            meta.nestedCount = meta.nestedCount + 1
+            if not xml:hasProperty(k .. "#npcAllowed") then meta.missingAttrs = meta.missingAttrs + 1 end
+            if not xml:hasProperty(k .. "#npcMaxHa") and not xml:hasProperty(k .. "#maxHa") then meta.missingAttrs = meta.missingAttrs + 1 end
+            if not xml:hasProperty(k .. "#resetNpcFields") then meta.missingAttrs = meta.missingAttrs + 1 end
+        end
     end
 
     local i = 0
-    for nameU, en in pairs(enabledMap) do
-        local k = ("cropControl.fruits.fruit(%d)"):format(i)
+    while true do
+        local k = ("%s.fruits.fruit(%d)"):format(CONFIG_ROOT, i)
+        if not xml:hasProperty(k) then break end
+        inspectNode(k)
         i = i + 1
-        xml:setString(k .. "#name", nameU)
-        xml:setBool(k .. "#enabled", en ~= false)
+    end
+
+    local flatFruitCount = 0
+    i = 0
+    while true do
+        local k = ("%s.fruit(%d)"):format(CONFIG_ROOT, i)
+        if not xml:hasProperty(k) then break end
+        local name = xml:getString(k .. "#name")
+        if name ~= nil and name ~= "" then flatFruitCount = flatFruitCount + 1 end
+        i = i + 1
+    end
+
+    local flatCropCount = 0
+    i = 0
+    while true do
+        local k = ("%s.crops.crop(%d)"):format(CONFIG_ROOT, i)
+        if not xml:hasProperty(k) then break end
+        local name = xml:getString(k .. "#name")
+        if name ~= nil and name ~= "" then flatCropCount = flatCropCount + 1 end
+        i = i + 1
+    end
+
+    i = 0
+    while true do
+        local k = ("%s.crop(%d)"):format(CONFIG_ROOT, i)
+        if not xml:hasProperty(k) then break end
+        local name = xml:getString(k .. "#name")
+        if name ~= nil and name ~= "" then flatCropCount = flatCropCount + 1 end
+        i = i + 1
+    end
+
+    meta.flatCount = flatFruitCount + flatCropCount
+    if meta.flatCount > 0 then
+        meta.needsNormalize = true
+        table.insert(meta.reasons, "legacy flat crop/fruit layout")
+    end
+    if meta.missingAttrs > 0 then
+        meta.needsNormalize = true
+        table.insert(meta.reasons, ("missing v2 attributes=%d"):format(meta.missingAttrs))
+    end
+
+    xml:delete()
+    return meta
+end
+
+local function describeNormalization(meta)
+    if meta == nil then return "unknown" end
+    if meta.reasons == nil or #meta.reasons == 0 then return "no changes needed" end
+    return table.concat(meta.reasons, "; ")
+end
+
+local function mergeMissingDiscoveredFruits(rules)
+    rules = rules or {}
+    for _, ft in ipairs(iterFruitTypesSorted()) do
+        local nameU = upper(ft.name)
+        if rules[nameU] == nil then
+            rules[nameU] = defaultRuleForFruit(ft)
+        end
+    end
+    return rules
+end
+
+local function writeConfig(path, rules)
+    if path == nil then return false end
+    ensureFolderForFile(path)
+
+    local xml = XMLFile.create("CCO_write", path, CONFIG_ROOT)
+    if xml == nil then
+        err("cannot create config at " .. tostring(path))
+        return false
+    end
+
+    xml:setString(CONFIG_ROOT .. "#version", "2")
+    xml:setString(CONFIG_ROOT .. "#modVersion", CCO.VERSION)
+
+    local names = {}
+    for nameU, _ in pairs(rules or {}) do table.insert(names, nameU) end
+    table.sort(names)
+
+    local i = 0
+    for _, nameU in ipairs(names) do
+        local rule = normalizeRule(nameU, rules[nameU])
+        if rule ~= nil then
+            local k = ("%s.fruits.fruit(%d)"):format(CONFIG_ROOT, i)
+            xml:setString(k .. "#name", rule.name)
+            xml:setBool(k .. "#enabled", rule.enabled ~= false)
+            if rule.npcAllowed == nil then
+                xml:setString(k .. "#npcAllowed", "mapDefault")
+            else
+                xml:setBool(k .. "#npcAllowed", rule.npcAllowed ~= false)
+            end
+            xml:setFloat(k .. "#npcMaxHa", rule.npcMaxHa or 0)
+            xml:setBool(k .. "#resetNpcFields", rule.resetNpcFields ~= false)
+            i = i + 1
+        end
     end
 
     xml:save()
@@ -88,194 +525,525 @@ local function writeConfig(toPath, enabledMap)
     return true
 end
 
-local function readConfig(path)
-    local map = {}
-    local xml = XMLFile.load("CCO_read", path, "cropControl")
-    if not xml then return map end
-
-    -- Prefer nested form <cropControl><fruits><fruit/></fruits></cropControl>
-    local i, count = 0, 0
-    while true do
-        local k = ("cropControl.fruits.fruit(%d)"):format(i)
-        if not xml:hasProperty(k) then break end
-        local n  = xml:getString(k .. "#name")
-        local en = xml:getBool(k .. "#enabled", true)
-        if n and n ~= "" then
-            map[upper(n)] = en
-            count = count + 1
-        end
-        i = i + 1
-    end
-
-    -- Fallback to flat <cropControl><fruit/></cropControl>
-    if count == 0 then
-        i = 0
-        while true do
-            local k = ("cropControl.fruit(%d)"):format(i)
-            if not xml:hasProperty(k) then break end
-            local n  = xml:getString(k .. "#name")
-            local en = xml:getBool(k .. "#enabled", true)
-            if n and n ~= "" then
-                map[upper(n)] = en
-            end
-            i = i + 1
-        end
-    end
-
-    xml:delete()
-    return map
-end
-
-local function buildDefaultEnabledMap()
-    local m = {}
-    if g_fruitTypeManager then
-        for _, ft in ipairs(g_fruitTypeManager.fruitTypes) do
-            if ft and ft.name then
-                m[upper(ft.name)] = true
-            end
-        end
-    end
-    return m
-end
-
 local function ensureTemplateExists()
     local tpl = templatePath()
     if fileExists(tpl) then return tpl end
-    local defaults = buildDefaultEnabledMap()
-    if writeConfig(tpl, defaults) then
-        print("CCO: wrote default template at " .. tpl)
+    local rules = buildDefaultRules()
+    if writeConfig(tpl, rules) then
+        info("wrote default template at " .. tpl)
     end
     return tpl
 end
 
----------------------------------------------------------------------------
--- Core: apply full "disabled" set (matches your original)
----------------------------------------------------------------------------
-local FIELDS = {
-    "useForFieldJob", "allowsSeeding", "allowsHarvesting", "allowsGrowing",
-    "needsSeeding", "showOnPriceTable", "showOnMap", "allowsMapVisualization"
-}
-
-local function snapshotIfNeeded(self, fruitName, fruit)
-    if self._origFlags[fruitName] then return end
-    local snap = {}
-    for _, key in ipairs(FIELDS) do
-        snap[key] = fruit[key]
-    end
-    self._origFlags[fruitName] = snap
-end
-
-local function applyDisabledFlags(fruit)
-    fruit.useForFieldJob         = false
-    fruit.allowsSeeding          = false
-    fruit.allowsHarvesting       = false
-    fruit.allowsGrowing          = false
-    fruit.needsSeeding           = false
-    fruit.showOnPriceTable       = false
-    -- NOTE: we deliberately leave showOnMap/allowsMapVisualization alone in this
-    -- variant so map colours stay visible, even if the fruit is "disabled" for AI.
-end
-
-local function restoreFlags(self, fruitName, fruit)
-    local snap = self._origFlags[fruitName]
-    if not snap then
-        -- permissive defaults if no snapshot (brand-new fruit)
-        fruit.useForFieldJob         = true
-        fruit.allowsSeeding          = true
-        fruit.allowsHarvesting       = true
-        fruit.allowsGrowing          = true
-        fruit.needsSeeding           = fruit.needsSeeding or false
-        fruit.showOnPriceTable       = true
-        fruit.showOnMap              = true
-        fruit.allowsMapVisualization = true
-        return
-    end
-    for _, key in ipairs(FIELDS) do
-        if type(fruit[key]) == "boolean" then
-            fruit[key] = (snap[key] ~= nil) and snap[key] or fruit[key]
-        end
-    end
-end
-
-function CropControlOverride:_applyEnabledMap(enabledMap)
-    if not g_fruitTypeManager then return end
-
-    for _, fruit in ipairs(g_fruitTypeManager.fruitTypes) do
-        local n = upper(fruit.name)
-        snapshotIfNeeded(self, n, fruit)
-        if enabledMap[n] == false then
-            applyDisabledFlags(fruit)
-        else
-            restoreFlags(self, n, fruit)
-        end
-    end
-
-    self._enabledMap = enabledMap
-end
-
----------------------------------------------------------------------------
--- EARLY hook: apply right after fruitTypes are loaded for THIS session
--- If per-save missing, read template NOW, apply NOW, then write per-save.
----------------------------------------------------------------------------
-local origFTLoad = FruitTypeManager.loadMapData
-function FruitTypeManager:loadMapData(xmlFile, missionInfo, baseDir, customEnv, isMission)
-    local ok = origFTLoad(self, xmlFile, missionInfo, baseDir, customEnv, isMission)
-
+function CCO:loadRulesForMission(missionInfo)
     local saveId = getSaveIdFromMissionInfo(missionInfo)
-    local per    = perSavePathForId(saveId)
-    local tpl    = ensureTemplateExists()
+    local per = perSavePathForId(saveId)
+    local tpl = ensureTemplateExists()
 
-    local usedPath, usedMap
+    local path = tpl
+    local rules = nil
 
-    if per and fileExists(per) then
-        usedPath = per
-        usedMap  = readConfig(per)
-        if not next(usedMap) then
-            usedMap = buildDefaultEnabledMap()
+    if per ~= nil and fileExists(per) then
+        path = per
+        local meta = inspectConfigNormalization(per)
+        rules = readConfig(per)
+        if rules == nil or not next(rules) then rules = buildDefaultRules() end
+        rules = mergeMissingDiscoveredFruits(rules)
+        if meta ~= nil and meta.needsNormalize then
+            if writeConfig(per, rules) then
+                info(("normalized legacy per-save config at %s (%s)"):format(per, describeNormalization(meta)))
+            end
         end
-        CropControlOverride:_applyEnabledMap(usedMap)
-        print(("CCO: applied crop disables from %s"):format(usedPath))
     else
-        usedPath = tpl
-        usedMap  = readConfig(tpl)
-        if not next(usedMap) then
-            usedMap = buildDefaultEnabledMap()
-        end
-        CropControlOverride:_applyEnabledMap(usedMap)
-        print(("CCO: applied crop disables from %s (per-save missing)"):format(usedPath))
-        if per then
-            if writeConfig(per, usedMap) then
-                print(("CCO: created per-save config at %s"):format(per))
+        local meta = inspectConfigNormalization(tpl)
+        rules = readConfig(tpl)
+        if not next(rules) then rules = buildDefaultRules() end
+        rules = mergeMissingDiscoveredFruits(rules)
+        if per ~= nil and writeConfig(per, rules) then
+            if meta ~= nil and meta.needsNormalize then
+                info(("created per-save config from legacy template at %s (%s)"):format(per, describeNormalization(meta)))
             else
-                print(("CCO [WARN]: failed to create per-save config at %s"):format(tostring(per)))
+                info("created per-save config at " .. per)
             end
         end
     end
 
-    return ok
+    if rules == nil or not next(rules) then
+        rules = buildDefaultRules()
+    end
+
+    rules = mergeMissingDiscoveredFruits(rules)
+    self._configPath = path
+    self._rules = rules
+    return rules, path
 end
 
----------------------------------------------------------------------------
--- PDA / UI filtering hooks (optional; only hides disabled in PDA lists)
----------------------------------------------------------------------------
+function CCO:isNpcCropAllowedForField(fieldHa, cropName)
+    if cropName == nil then return true, "no crop" end
+    local rule = self._rules and self._rules[upper(cropName)] or nil
+    if rule == nil then return true, "no rule" end
+
+    if rule.enabled == false then
+        return false, "crop disabled"
+    end
+    if rule.npcAllowed == false then
+        return false, "npc disabled"
+    end
+    if rule.npcMaxHa ~= nil and rule.npcMaxHa > 0 and fieldHa > rule.npcMaxHa then
+        return false, ("field %.2f ha > max %.2f ha"):format(fieldHa, rule.npcMaxHa)
+    end
+    return true, "allowed"
+end
+
+function CCO:shouldResetNpcField(field, cropName)
+    if not isNpcField(field) then return false, "not NPC field" end
+    local rule = self._rules and self._rules[upper(cropName)] or nil
+    if rule ~= nil and rule.resetNpcFields == false then
+        return false, "reset disabled for crop"
+    end
+    local allowed, reason = self:isNpcCropAllowedForField(getFieldSizeHa(field), cropName)
+    return not allowed, reason
+end
+
+
+local function isFruitUsableForNpcCandidate(ft)
+    if ft == nil or ft.name == nil then return false, "invalid fruit" end
+    -- Respect engine-facing flags that CCO or the map/DLC has already applied.
+    if ft.useForFieldMissions == false then return false, "useForFieldMissions=false" end
+    if ft.useForFieldJob == false then return false, "useForFieldJob=false" end
+    if ft.allowsSeeding == false then return false, "allowsSeeding=false" end
+    return true, "engine flags ok"
+end
+
+function CCO:buildNpcCandidatesForField(field, includeBlocked)
+    local candidates = {}
+    if field == nil then return candidates end
+
+    local fieldHa = getFieldSizeHa(field)
+    for _, ft in ipairs(iterFruitTypesSorted()) do
+        local cropName = upper(ft.name)
+        local flagOk, flagReason = isFruitUsableForNpcCandidate(ft)
+        local policyOk, policyReason = self:isNpcCropAllowedForField(fieldHa, cropName)
+        local ok = flagOk and policyOk
+
+        if includeBlocked == true or ok then
+            local rule = self._rules and self._rules[cropName] or nil
+            local limited = rule ~= nil and rule.npcMaxHa ~= nil and rule.npcMaxHa > 0
+            local explicitNpcAllowed = rule ~= nil and rule.npcAllowed == true
+            local priority = 50
+            if ok and limited then
+                priority = 10
+            elseif ok and explicitNpcAllowed then
+                priority = 20
+            elseif ok then
+                priority = 30
+            end
+
+            table.insert(candidates, {
+                fruit = ft,
+                cropName = cropName,
+                ok = ok,
+                reason = ok and "allowed" or (not flagOk and flagReason or policyReason),
+                limited = limited,
+                explicitNpcAllowed = explicitNpcAllowed,
+                priority = priority,
+            })
+        end
+    end
+
+    table.sort(candidates, function(a, b)
+        if a.ok ~= b.ok then return a.ok and not b.ok end
+        if a.priority ~= b.priority then return a.priority < b.priority end
+        return tostring(a.cropName) < tostring(b.cropName)
+    end)
+
+    return candidates
+end
+
+function CCO:findReplacementNpcCropForField(field, blockedCropName)
+    local candidates = self:buildNpcCandidatesForField(field, false)
+    if #candidates == 0 then return nil, "no valid NPC candidates" end
+
+    local fieldIdNum = tonumber(getFieldId(field)) or 1
+    local bestPriority = candidates[1].priority
+    local pool = {}
+    for _, c in ipairs(candidates) do
+        if c.priority == bestPriority then
+            if blockedCropName == nil or upper(blockedCropName) ~= c.cropName then
+                table.insert(pool, c)
+            end
+        end
+    end
+    if #pool == 0 then pool = candidates end
+
+    local pickIndex = ((fieldIdNum - 1) % #pool) + 1
+    local picked = pool[pickIndex]
+    if picked ~= nil then
+        return picked.fruit, "replacement selected"
+    end
+    return nil, "no replacement selected"
+end
+
+function CCO:setFieldCultivated(field)
+    if field == nil or field.farmland == nil then return false end
+    if FieldUpdateTask == nil then
+        warn("FieldUpdateTask is unavailable; cannot reset field " .. tostring(getFieldId(field)))
+        return false
+    end
+
+    local polygon = field.getDensityMapPolygon ~= nil and field:getDensityMapPolygon() or nil
+    if polygon == nil then
+        warn("No density map polygon for field " .. tostring(getFieldId(field)) .. "; skipping")
+        return false
+    end
+
+    local task = FieldUpdateTask.new()
+    task:setField(field)
+    task:setArea(polygon)
+    task:setFruit(FruitType.UNKNOWN, 1)
+    task:setGroundType(FieldGroundType.CULTIVATED)
+    task:setGroundAngle(0)
+
+    if FieldSprayType ~= nil and task.setSprayType ~= nil then task:setSprayType(FieldSprayType.NONE) end
+    if task.setSprayLevel ~= nil then task:setSprayLevel(0) end
+    if task.setWeedState ~= nil then task:setWeedState(0) end
+    if task.setStoneLevel ~= nil then task:setStoneLevel(0) end
+    if task.setLimeLevel ~= nil then task:setLimeLevel(0) end
+    if task.setPlowLevel ~= nil then task:setPlowLevel(1) end
+    if task.setRollerLevel ~= nil then task:setRollerLevel(1) end
+    if task.setStubbleShredLevel ~= nil then task:setStubbleShredLevel(0) end
+    if task.resetDisplacement ~= nil then task:resetDisplacement() end
+    if task.clearTireTracks ~= nil then task:clearTireTracks() end
+
+    -- async=false spreads the task over frames and is safer for larger fields/MP.
+    task:enqueue(false)
+    return true
+end
+
+function CCO:scanFields(filterCrop, blockedOnly)
+    blockedOnly = blockedOnly == true
+    local results = { offending = 0, total = 0, printed = 0 }
+    if g_fieldManager == nil or g_fieldManager.getFields == nil then
+        warn("field manager not ready")
+        return results
+    end
+
+    local target = filterCrop ~= nil and filterCrop ~= "" and upper(filterCrop) or nil
+    local fields = g_fieldManager:getFields()
+    if fields == nil then return results end
+
+    for idx, field in pairs(fields) do
+        local ft = getFieldFruit(field)
+        if ft ~= nil then
+            local cropName = upper(ft.name)
+            if target == nil or cropName == target then
+                results.total = results.total + 1
+                local reset, reason = self:shouldResetNpcField(field, cropName)
+                if reset then
+                    results.offending = results.offending + 1
+                    results.printed = results.printed + 1
+                    print(("CCO: field=%s npc=%s crop=%s size=%.2fha status=BLOCKED reason=%s"):format(
+                        tostring(getFieldId(field, idx)), tostring(isNpcField(field)), tostring(cropName), getFieldSizeHa(field), tostring(reason)))
+                elseif not blockedOnly then
+                    results.printed = results.printed + 1
+                    print(("CCO: field=%s npc=%s crop=%s size=%.2fha status=OK reason=%s"):format(
+                        tostring(getFieldId(field, idx)), tostring(isNpcField(field)), tostring(cropName), getFieldSizeHa(field), tostring(reason)))
+                end
+            end
+        end
+    end
+
+    if blockedOnly then
+        print(("CCO: blocked scan complete. checked=%d offendingNpcFields=%d printed=%d"):format(results.total, results.offending, results.printed))
+    else
+        print(("CCO: scan complete. checked=%d offendingNpcFields=%d"):format(results.total, results.offending))
+    end
+    return results
+end
+
+function CCO:buildFieldSummary(filterCrop)
+    local summary = {
+        total = 0,
+        npcTotal = 0,
+        playerTotal = 0,
+        offending = 0,
+        crops = {},
+    }
+
+    if g_fieldManager == nil or g_fieldManager.getFields == nil then
+        warn("field manager not ready")
+        return summary
+    end
+
+    local target = filterCrop ~= nil and filterCrop ~= "" and upper(filterCrop) or nil
+    local fields = g_fieldManager:getFields()
+    if fields == nil then return summary end
+
+    for _, field in pairs(fields) do
+        local ft = getFieldFruit(field)
+        if ft ~= nil then
+            local cropName = upper(ft.name)
+            if target == nil or cropName == target then
+                local npc = isNpcField(field)
+                local blocked, reason = self:shouldResetNpcField(field, cropName)
+                local sizeHa = getFieldSizeHa(field)
+
+                summary.total = summary.total + 1
+                if npc then summary.npcTotal = summary.npcTotal + 1 else summary.playerTotal = summary.playerTotal + 1 end
+                if blocked then summary.offending = summary.offending + 1 end
+
+                local crop = summary.crops[cropName]
+                if crop == nil then
+                    crop = { total = 0, npc = 0, player = 0, ok = 0, blocked = 0, minHa = nil, maxHa = nil, reasons = {} }
+                    summary.crops[cropName] = crop
+                end
+
+                crop.total = crop.total + 1
+                if npc then crop.npc = crop.npc + 1 else crop.player = crop.player + 1 end
+                if blocked then crop.blocked = crop.blocked + 1 else crop.ok = crop.ok + 1 end
+                crop.minHa = crop.minHa == nil and sizeHa or math.min(crop.minHa, sizeHa)
+                crop.maxHa = crop.maxHa == nil and sizeHa or math.max(crop.maxHa, sizeHa)
+                crop.reasons[reason or "allowed"] = (crop.reasons[reason or "allowed"] or 0) + 1
+            end
+        end
+    end
+
+    return summary
+end
+
+function CCO:printFieldSummary(filterCrop)
+    local summary = self:buildFieldSummary(filterCrop)
+    local names = {}
+    for cropName, _ in pairs(summary.crops or {}) do table.insert(names, cropName) end
+    table.sort(names)
+
+    print("CCO: NPC crop summary" .. ((filterCrop ~= nil and filterCrop ~= "") and (" for " .. upper(filterCrop)) or ""))
+    for _, cropName in ipairs(names) do
+        local c = summary.crops[cropName]
+        local status = c.blocked > 0 and "BLOCKED" or "OK"
+        local reasonText = ""
+        if c.blocked > 0 then
+            local reasonNames = {}
+            for reason, _ in pairs(c.reasons) do
+                if reason ~= "allowed" and reason ~= "not NPC field" then table.insert(reasonNames, reason) end
+            end
+            table.sort(reasonNames)
+            if #reasonNames > 0 then reasonText = " reasons=" .. table.concat(reasonNames, "; ") end
+        end
+        print(("CCO:   %-14s %s total=%d npc=%d player=%d ok=%d blocked=%d size=%.2f-%.2fha%s"):format(
+            cropName, status, c.total, c.npc, c.player, c.ok, c.blocked, c.minHa or 0, c.maxHa or 0, reasonText))
+    end
+
+    print(("CCO: summary complete. checked=%d npcFields=%d playerFields=%d offendingNpcFields=%d crops=%d"):format(
+        summary.total, summary.npcTotal, summary.playerTotal, summary.offending, #names))
+    return summary
+end
+
+function CCO:validateSave()
+    local summary = self:buildFieldSummary(nil)
+    if summary.offending == 0 then
+        print(("CCO: validation passed. checked=%d npcFields=%d playerFields=%d offendingNpcFields=0"):format(
+            summary.total, summary.npcTotal, summary.playerTotal))
+    else
+        print(("CCO: validation failed. checked=%d npcFields=%d playerFields=%d offendingNpcFields=%d. Run ccoScanBlocked for details."):format(
+            summary.total, summary.npcTotal, summary.playerTotal, summary.offending))
+    end
+    return summary.offending == 0
+end
+
+
+function CCO:printStartupValidation()
+    if self._startupValidationPrinted then return end
+    self._startupValidationPrinted = true
+
+    local ok, summaryOrError = pcall(function()
+        return self:buildFieldSummary(nil)
+    end)
+    if not ok then
+        warn("startup validation skipped: " .. tostring(summaryOrError))
+        return
+    end
+
+    local summary = summaryOrError
+    if summary == nil then return end
+    if summary.offending ~= nil and summary.offending > 0 then
+        warn(("startup validation found %d blocked NPC field(s). Run ccoScanBlocked, then ccoResetBlocked dryrun if cleanup is intended."):format(summary.offending))
+    else
+        info(("startup validation passed. checked=%d npcFields=%d playerFields=%d offendingNpcFields=0"):format(
+            tonumber(summary.total or 0), tonumber(summary.npcTotal or 0), tonumber(summary.playerTotal or 0)))
+    end
+end
+
+function CCO:resetNpcFields(filterCrop, dryRun)
+    dryRun = dryRun == true
+    if g_currentMission == nil or not g_currentMission:getIsServer() then
+        warn("reset skipped: must run on server/host")
+        return 0, 0
+    end
+    if g_fieldManager == nil or g_fieldManager.getFields == nil then
+        warn("field manager not ready")
+        return 0, 0
+    end
+
+    local target = filterCrop ~= nil and filterCrop ~= "" and upper(filterCrop) or nil
+    local queued, skipped = 0, 0
+    local wouldQueue = 0
+
+    for idx, field in pairs(g_fieldManager:getFields()) do
+        local ft = getFieldFruit(field)
+        if ft ~= nil then
+            local cropName = upper(ft.name)
+            if target == nil or target == cropName then
+                local reset, reason = self:shouldResetNpcField(field, cropName)
+                if reset then
+                    if dryRun then
+                        wouldQueue = wouldQueue + 1
+                        print(("CCO: dry-run would reset field=%s crop=%s size=%.2fha reason=%s"):format(
+                            tostring(getFieldId(field, idx)), cropName, getFieldSizeHa(field), tostring(reason)))
+                    elseif self:setFieldCultivated(field) then
+                        queued = queued + 1
+                        info(("queued field %s (%s, %.2f ha) to cultivated state: %s"):format(
+                            tostring(getFieldId(field, idx)), cropName, getFieldSizeHa(field), tostring(reason)))
+                    else
+                        skipped = skipped + 1
+                    end
+                end
+            end
+        end
+    end
+
+    if dryRun then
+        local msg = ("CCO: NPC field reset dry-run complete. wouldQueue=%d skipped=%d"):format(wouldQueue, skipped)
+        print(msg)
+        return wouldQueue, skipped
+    end
+
+    if queued > 0 and g_missionManager ~= nil then
+        info("triggering mission generation after field reset")
+        if g_missionManager.generationTimer ~= nil then g_missionManager.generationTimer = 0 end
+        if g_missionManager.startMissionGeneration ~= nil then g_missionManager:startMissionGeneration() end
+    end
+
+    local msg = ("CCO: NPC field reset complete. queued=%d skipped=%d"):format(queued, skipped)
+    print(msg)
+    if g_currentMission ~= nil and g_currentMission.addIngameNotification ~= nil then
+        g_currentMission:addIngameNotification(FSBaseMission.INGAME_NOTIFICATION_OK, msg)
+    end
+    return queued, skipped
+end
+
+function CCO:applyRuntimeHooks()
+    if self._hookApplied then return end
+    self._hookApplied = true
+
+    if MissionManager ~= nil and MissionManager.generateMissions ~= nil then
+        local originalGenerateMissions = MissionManager.generateMissions
+        MissionManager.generateMissions = function(mm, ...)
+            local saved = {}
+
+            if g_currentMission ~= nil and g_currentMission.getIsServer ~= nil and g_currentMission:getIsServer()
+                and CCO._rules ~= nil and g_fieldManager ~= nil and g_fieldManager.getFields ~= nil then
+
+                for _, field in pairs(g_fieldManager:getFields()) do
+                    local ft = getFieldFruit(field)
+                    if ft ~= nil then
+                        local cropName = upper(ft.name)
+                        local allowed, reason = CCO:isNpcCropAllowedForField(getFieldSizeHa(field), cropName)
+                        if not allowed and saved[cropName] == nil then
+                            saved[cropName] = { fruit = ft, useForFieldMissions = ft.useForFieldMissions }
+                            ft.useForFieldMissions = false
+                            debug(("temporarily blocked %s during mission generation: %s"):format(cropName, tostring(reason)))
+                        end
+                    end
+                end
+            end
+
+            local result = originalGenerateMissions(mm, ...)
+
+            for cropName, state in pairs(saved) do
+                state.fruit.useForFieldMissions = state.useForFieldMissions
+                debug(("restored mission flag for %s to %s"):format(cropName, tostring(state.useForFieldMissions)))
+            end
+
+            return result
+        end
+        info("hooked MissionManager.generateMissions")
+    end
+
+    if FieldManager ~= nil and FieldManager.getFruitIndexForField ~= nil then
+        local originalGetFruitIndexForField = FieldManager.getFruitIndexForField
+        FieldManager.getFruitIndexForField = function(fm, field, ...)
+            local fruitIndex = originalGetFruitIndexForField(fm, field, ...)
+            if fruitIndex == nil then return nil end
+
+            local ft = g_fruitTypeManager ~= nil and g_fruitTypeManager:getFruitTypeByIndex(fruitIndex) or nil
+            if ft == nil then return fruitIndex end
+
+            local cropName = upper(ft.name)
+            local fieldHa = getFieldSizeHa(field)
+            local allowed, reason = CCO:isNpcCropAllowedForField(fieldHa, cropName)
+            if not allowed then
+                local replacement, replacementReason = CCO:findReplacementNpcCropForField(field, cropName)
+                if replacement ~= nil and replacement.index ~= nil then
+                    debug(("replaced blocked NPC crop choice %s with %s on field %s (%.2f ha): %s"):format(
+                        cropName, upper(replacement.name), tostring(getFieldId(field)), fieldHa, tostring(reason)))
+                    return replacement.index
+                end
+
+                debug(("blocked NPC crop choice %s on field %s (%.2f ha): %s; %s"):format(
+                    cropName, tostring(getFieldId(field)), fieldHa, tostring(reason), tostring(replacementReason)))
+                return nil
+            end
+
+            return fruitIndex
+        end
+        info("hooked FieldManager.getFruitIndexForField")
+    end
+end
+
+function CCO:applyLateHooks()
+    if SowMission ~= nil and SowMission.isAvailableForField ~= nil and not self._sowHookApplied then
+        self._sowHookApplied = true
+        local originalSowIsAvailable = SowMission.isAvailableForField
+        SowMission.isAvailableForField = function(field, mission, ...)
+            local result = originalSowIsAvailable(field, mission, ...)
+            if not result then return false end
+
+            local cropName = nil
+            if mission ~= nil then
+                if mission.fruitType ~= nil then
+                    cropName = mission.fruitType.name
+                elseif mission.fruitTypeIndex ~= nil and g_fruitTypeManager ~= nil then
+                    local ft = g_fruitTypeManager:getFruitTypeByIndex(mission.fruitTypeIndex)
+                    if ft ~= nil then cropName = ft.name end
+                end
+            end
+
+            if cropName == nil then return result end
+
+            local allowed, reason = CCO:isNpcCropAllowedForField(getFieldSizeHa(field), cropName)
+            if not allowed then
+                debug(("blocked sow mission for %s on field %s (%.2f ha): %s"):format(
+                    upper(cropName), tostring(getFieldId(field)), getFieldSizeHa(field), tostring(reason)))
+                return false
+            end
+
+            return result
+        end
+        info("hooked SowMission.isAvailableForField")
+    end
+end
+
+-- PDA / UI filtering hooks, inherited from the original CCO build.
 local function applyPdaFilterHooks()
     if IngameMenu == nil then return end
 
     local function filteredFruitList()
         local list = {}
-        if not g_fruitTypeManager or not CropControlOverride._enabledMap then
-            -- fallback: just return all fruits
-            if g_fruitTypeManager then
-                for _, fruit in ipairs(g_fruitTypeManager.fruitTypes) do
-                    table.insert(list, fruit)
-                end
-            end
-            return list
-        end
-
+        if g_fruitTypeManager == nil then return list end
         for _, fruit in ipairs(g_fruitTypeManager.fruitTypes) do
-            local n = upper(fruit.name)
-            if CropControlOverride._enabledMap[n] ~= false then
+            local rule = CCO._rules and CCO._rules[upper(fruit.name)] or nil
+            if rule == nil or rule.enabled ~= false then
                 table.insert(list, fruit)
             end
         end
@@ -283,171 +1051,544 @@ local function applyPdaFilterHooks()
     end
 
     IngameMenu.onOpen = Utils.appendedFunction(IngameMenu.onOpen, function(menuSelf)
-        if CropControlOverride._enabledMap == nil then return end
+        if CCO._rules == nil then return end
 
-        -- Crop Calendar
-        if menuSelf.cropCalendarFrame and menuSelf.cropCalendarFrame.updateData then
+        if menuSelf.cropCalendarFrame ~= nil and menuSelf.cropCalendarFrame.updateData ~= nil and not menuSelf.cropCalendarFrame.ccoHooked then
+            menuSelf.cropCalendarFrame.ccoHooked = true
             local orig = menuSelf.cropCalendarFrame.updateData
-            function menuSelf.cropCalendarFrame:updateData()
+            function menuSelf.cropCalendarFrame:updateData(...)
                 self.fruitTypes = filteredFruitList()
-                if orig then orig(self) end
+                return orig(self, ...)
             end
         end
 
-        -- Map Overview
-        if menuSelf.mapOverviewFrame and menuSelf.mapOverviewFrame.updateFruitTypes then
+        if menuSelf.mapOverviewFrame ~= nil and menuSelf.mapOverviewFrame.updateFruitTypes ~= nil and not menuSelf.mapOverviewFrame.ccoHooked then
+            menuSelf.mapOverviewFrame.ccoHooked = true
             local orig = menuSelf.mapOverviewFrame.updateFruitTypes
-            function menuSelf.mapOverviewFrame:updateFruitTypes()
+            function menuSelf.mapOverviewFrame:updateFruitTypes(...)
                 self.fruitTypes = filteredFruitList()
-                if orig then orig(self) end
+                return orig(self, ...)
             end
         end
 
-        -- Statistics / Prices
-        if menuSelf.statisticsFrame and menuSelf.statisticsFrame.updateFruitTypes then
+        if menuSelf.statisticsFrame ~= nil and menuSelf.statisticsFrame.updateFruitTypes ~= nil and not menuSelf.statisticsFrame.ccoHooked then
+            menuSelf.statisticsFrame.ccoHooked = true
             local orig = menuSelf.statisticsFrame.updateFruitTypes
-            function menuSelf.statisticsFrame:updateFruitTypes()
+            function menuSelf.statisticsFrame:updateFruitTypes(...)
                 self.fruitTypes = filteredFruitList()
-                if orig then orig(self) end
+                return orig(self, ...)
             end
         end
     end)
 end
+
 applyPdaFilterHooks()
 
----------------------------------------------------------------------------
--- Console helpers
----------------------------------------------------------------------------
-function CropControlOverride:consoleReload()
-    local sid = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo)
-    local per = perSavePathForId(sid)
-    local tpl = templatePath()
-    local path = (per and fileExists(per)) and per or tpl
-    local map  = readConfig(path)
-    if not next(map) then
-        map = buildDefaultEnabledMap()
+-- Early application: catches base fruit types before fields/contracts are set up.
+local originalFruitTypeLoadMapData = FruitTypeManager.loadMapData
+function FruitTypeManager:loadMapData(xmlFile, missionInfo, baseDir, customEnv, isMission)
+    local result = originalFruitTypeLoadMapData(self, xmlFile, missionInfo, baseDir, customEnv, isMission)
+
+    local ok, e = pcall(function()
+        local rules, path = CCO:loadRulesForMission(missionInfo)
+        CCO:applyRules(rules)
+        info(("applied crop policy from %s"):format(tostring(path)))
+    end)
+    if not ok then warn("failed applying crop policy in loadMapData: " .. tostring(e)) end
+
+    CCO:applyRuntimeHooks()
+
+    return result
+end
+
+-- Late reapplication: catches DLC/mod fruit types that appear later.
+local originalFSBaseMissionLoadMapFinished = FSBaseMission.loadMapFinished
+function FSBaseMission:loadMapFinished(...)
+    local results = nil
+    if originalFSBaseMissionLoadMapFinished ~= nil then
+        results = { originalFSBaseMissionLoadMapFinished(self, ...) }
     end
-    self:_applyEnabledMap(map)
-    print(("CCO: reload complete from %s"):format(path))
-end
-addConsoleCommand(
-    "ccoReload",
-    "Reload CropControlOverride config and reapply",
-    "consoleReload",
-    CropControlOverride
-)
 
-function CropControlOverride:consoleWhichConfig()
+    local ok, e = pcall(function()
+        CCO._rules = mergeMissingDiscoveredFruits(CCO._rules or {})
+        if CCO._configPath ~= nil then
+            writeConfig(CCO._configPath, CCO._rules)
+        end
+        CCO:applyRules(CCO._rules)
+        CCO:applyLateHooks()
+        info("reapplied crop policy after loadMapFinished")
+        CCO:printStartupValidation()
+    end)
+    if not ok then warn("failed during loadMapFinished reapply: " .. tostring(e)) end
+
+    if results ~= nil then return unpack(results) end
+end
+
+-- Save the v2 rules on normal game save so newly discovered fruit types are
+-- persisted into the per-save config once the save is stable.
+if ItemSystem ~= nil and ItemSystem.save ~= nil then
+    ItemSystem.save = Utils.prependedFunction(ItemSystem.save, function(...)
+        if g_currentMission ~= nil and g_currentMission:getIsServer() and CCO._configPath ~= nil and CCO._rules ~= nil then
+            writeConfig(CCO._configPath, CCO._rules)
+        end
+    end)
+end
+
+FSBaseMission.delete = Utils.appendedFunction(FSBaseMission.delete, function()
+    CCO._rules = {}
+    CCO._configPath = nil
+    CCO._startupValidationPrinted = false
+end)
+
+-- Console commands ---------------------------------------------------------
+function CCO:consoleReload()
     local sid = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo)
-    local per = perSavePathForId(sid) or "nil"
-    local tpl = templatePath()
-    local perExists = (per ~= "nil") and fileExists(per)
-    local chosen = perExists and per or tpl
-    print("CCO: template : " .. tostring(tpl))
-    print("CCO: per-save : " .. tostring(per) .. "  (exists=" .. tostring(perExists) .. ")")
-    print("CCO: USING    : " .. tostring(chosen))
+    local path = (sid ~= nil and perSavePathForId(sid) ~= nil and fileExists(perSavePathForId(sid))) and perSavePathForId(sid) or templatePath()
+    local meta = inspectConfigNormalization(path)
+    local rules = readConfig(path)
+    if not next(rules) then rules = buildDefaultRules() end
+    rules = mergeMissingDiscoveredFruits(rules)
+    if meta ~= nil and meta.needsNormalize then
+        writeConfig(path, rules)
+        print(("CCO: normalized config during reload: %s"):format(describeNormalization(meta)))
+    end
+    self._configPath = path
+    self._rules = rules
+    self:applyRules(rules)
+    print(("CCO: reload complete from %s"):format(tostring(path)))
 end
-addConsoleCommand(
-    "ccoWhichConfig",
-    "Show which config file is in use",
-    "consoleWhichConfig",
-    CropControlOverride
-)
+addConsoleCommand("ccoReload", "Reload CropControlOverride config and reapply", "consoleReload", CCO)
 
-function CropControlOverride:consoleListFlags(name)
+function CCO:consoleWhichConfig()
+    local sid = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo)
+    local per = sid ~= nil and perSavePathForId(sid) or nil
+    local tpl = templatePath()
+    print("CCO: template : " .. tostring(tpl))
+    print("CCO: per-save : " .. tostring(per) .. "  (exists=" .. tostring(per and fileExists(per)) .. ")")
+    print("CCO: USING    : " .. tostring(self._configPath or ((per and fileExists(per)) and per or tpl)))
+end
+addConsoleCommand("ccoWhichConfig", "Show which CCO config file is in use", "consoleWhichConfig", CCO)
+
+function CCO:consoleListRules(name)
+    local target = name ~= nil and name ~= "" and upper(name) or nil
+    local names = {}
+    for nameU, _ in pairs(self._rules or {}) do table.insert(names, nameU) end
+    table.sort(names)
+    for _, nameU in ipairs(names) do
+        if target == nil or target == nameU then
+            local r = self._rules[nameU]
+            print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s"):format(
+                nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields)))
+        end
+    end
+end
+addConsoleCommand("ccoListRules", "List CCO crop rules. Usage: ccoListRules [CROP]", "consoleListRules", CCO)
+
+function CCO:consoleListConfigured(name)
+    local target = name ~= nil and name ~= "" and upper(name) or nil
+    local names = {}
+    for nameU, _ in pairs(self._rules or {}) do table.insert(names, nameU) end
+    table.sort(names)
+    local printed = 0
+    print("CCO: configured crop rules")
+    for _, nameU in ipairs(names) do
+        if target == nil or target == nameU then
+            local r = self._rules[nameU]
+            local ft = getFruitByName(nameU)
+            print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s discovered=%s"):format(
+                nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields), tostring(ft ~= nil)))
+            printed = printed + 1
+        end
+    end
+    print(("CCO: configured crop list complete. count=%d"):format(printed))
+end
+addConsoleCommand("ccoListConfigured", "List all configured CCO rules, including undiscovered crops. Usage: ccoListConfigured [CROP]", "consoleListConfigured", CCO)
+
+function CCO:consoleListUndiscovered()
+    local names = {}
+    for nameU, _ in pairs(self._rules or {}) do
+        if getFruitByName(nameU) == nil then table.insert(names, nameU) end
+    end
+    table.sort(names)
+    if #names == 0 then
+        print("CCO: no configured crops are undiscovered on this map/save")
+        return
+    end
+    print("CCO: configured but undiscovered crop rules")
+    for _, nameU in ipairs(names) do
+        local r = self._rules[nameU]
+        print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s"):format(
+            nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields)))
+    end
+    print(("CCO: undiscovered crop list complete. count=%d"):format(#names))
+end
+addConsoleCommand("ccoListUndiscovered", "List configured crops that are not loaded on this map/save", "consoleListUndiscovered", CCO)
+
+function CCO:consoleNormalizeConfig(modeArg)
+    local path = self._configPath or templatePath()
+    local dryRun = modeArg ~= nil and string.lower(tostring(modeArg)) == "dryrun"
+    local meta = inspectConfigNormalization(path)
+    local rules = readConfig(path)
+    if not next(rules) then rules = self._rules or buildDefaultRules() end
+    rules = mergeMissingDiscoveredFruits(rules)
+
+    if meta == nil or not meta.exists then
+        print("CCO: active config does not exist; nothing to normalize")
+        return
+    end
+
+    if not meta.needsNormalize then
+        print(("CCO: config already normalized: %s"):format(tostring(path)))
+        return
+    end
+
+    print(("CCO: config normalization %s for %s"):format(dryRun and "dry-run" or "write", tostring(path)))
+    print(("CCO: reasons: %s"):format(describeNormalization(meta)))
+    print(("CCO: rules to preserve/write=%d"):format((function() local n=0; for _,_ in pairs(rules or {}) do n=n+1 end; return n end)()))
+    if dryRun then
+        print("CCO: dry-run only; run ccoNormalizeConfig to rewrite active config")
+        return
+    end
+
+    if writeConfig(path, rules) then
+        self._rules = rules
+        self._configPath = path
+        self:applyRules(rules)
+        print("CCO: config normalization complete")
+    else
+        print("CCO: config normalization failed")
+    end
+end
+addConsoleCommand("ccoNormalizeConfig", "Normalize/migrate active config to v2. Usage: ccoNormalizeConfig [dryrun]", "consoleNormalizeConfig", CCO)
+
+function CCO:consoleSetCrop(name, enabledArg, npcAllowedArg, npcMaxHaArg)
+    if name == nil or name == "" then
+        print("CCO: usage ccoSetCrop <CROP> <enabled:true|false> [npcAllowed:true|false|mapDefault] [npcMaxHa]")
+        return
+    end
+    local nameU = upper(name)
+    local enabled = boolFromStringOrBool(enabledArg, nil)
+    if enabled == nil then
+        print("CCO: enabled must be true or false")
+        return
+    end
+
+    local npcAllowed = nil
+    if npcAllowedArg ~= nil and npcAllowedArg ~= "" then
+        npcAllowed = boolFromStringOrBool(npcAllowedArg, nil)
+    end
+    local npcMaxHa = tonumber(npcMaxHaArg or 0) or 0
+
+    self._rules = self._rules or buildDefaultRules()
+    self._rules[nameU] = normalizeRule(nameU, {
+        enabled = enabled,
+        npcAllowed = npcAllowed,
+        npcMaxHa = npcMaxHa,
+        resetNpcFields = true,
+    })
+    self:applyRules(self._rules)
+
+    if self._configPath ~= nil then
+        writeConfig(self._configPath, self._rules)
+    end
+    self:consoleListRules(nameU)
+end
+addConsoleCommand("ccoSetCrop", "Set a crop rule. Usage: ccoSetCrop <CROP> <enabled> [npcAllowed] [npcMaxHa]", "consoleSetCrop", CCO)
+
+function CCO:consoleListFlags(name)
     local function dump(ft)
         print(("CCO: %s"):format(ft.name))
-        print(("  useForFieldJob=%s"):format(tostring(ft.useForFieldJob)))
-        print(("  allowsSeeding=%s"):format(tostring(ft.allowsSeeding)))
-        print(("  allowsHarvesting=%s"):format(tostring(ft.allowsHarvesting)))
-        print(("  allowsGrowing=%s"):format(tostring(ft.allowsGrowing)))
-        print(("  needsSeeding=%s"):format(tostring(ft.needsSeeding)))
-        print(("  showOnPriceTable=%s"):format(tostring(ft.showOnPriceTable)))
-        print(("  showOnMap=%s"):format(tostring(ft.showOnMap)))
-        print(("  allowsMapVisualization=%s"):format(tostring(ft.allowsMapVisualization)))
-        -- we include isVisibleOnPda if present, for completeness
-        print(("  isVisibleOnPda=%s"):format(tostring(ft.isVisibleOnPda)))
+        print(("  index=%s"):format(tostring(ft.index)))
+        for _, key in ipairs(FRUIT_FLAG_FIELDS) do
+            print(("  %s=%s"):format(key, tostring(ft[key])))
+        end
     end
 
-    if not g_fruitTypeManager then
-        print("CCO: fruit manager not ready")
+    if g_fruitTypeManager == nil then print("CCO: fruit manager not ready"); return end
+    if name ~= nil and name ~= "" then
+        local ft = getFruitByName(name)
+        if ft ~= nil then dump(ft) else print("CCO: fruit not found: " .. tostring(name)) end
         return
     end
-
-    if name and name ~= "" then
-        local target = upper(name)
-        for _, ft in ipairs(g_fruitTypeManager.fruitTypes) do
-            if upper(ft.name) == target then
-                dump(ft)
-                return
-            end
-        end
-        print("CCO: fruit not found: " .. tostring(name))
-    else
-        for _, ft in ipairs(g_fruitTypeManager.fruitTypes) do
-            dump(ft)
-        end
-    end
+    for _, ft in ipairs(iterFruitTypesSorted()) do dump(ft) end
 end
-addConsoleCommand(
-    "ccoListFlags",
-    "List flag set for a fruit (or all). Usage: ccoListFlags [NAME]",
-    "consoleListFlags",
-    CropControlOverride
-)
+addConsoleCommand("ccoListFlags", "List fruit flags. Usage: ccoListFlags [CROP]", "consoleListFlags", CCO)
 
--- NEW: helper to find the exact fruitType name (e.g. ONION vs ONIONS)
-function CropControlOverride:consoleFindFruit(pattern)
-    if not g_fruitTypeManager then
-        print("CCO: fruit manager not ready")
-        return
-    end
-
-    if not pattern or pattern == "" then
-        print("CCO: usage ccoFindFruit <namePart>")
-        return
-    end
-
-    local up = upper(pattern)
+function CCO:consoleFindFruit(pattern)
+    if pattern == nil or pattern == "" then print("CCO: usage ccoFindFruit <namePart>"); return end
+    if g_fruitTypeManager == nil then print("CCO: fruit manager not ready"); return end
+    local p = upper(pattern)
     local found = false
-
-    for _, ft in ipairs(g_fruitTypeManager.fruitTypes) do
+    for _, ft in ipairs(iterFruitTypesSorted()) do
         local n = upper(ft.name or "")
-        if string.find(n, up, 1, true) then  -- plain substring match
+        if string.find(n, p, 1, true) then
             found = true
             print(("CCO: match '%s' (index=%s)"):format(tostring(ft.name), tostring(ft.index)))
         end
     end
+    if not found then print("CCO: no fruits matching '" .. tostring(pattern) .. "'") end
+end
+addConsoleCommand("ccoFindFruit", "Search fruitTypes by substring. Usage: ccoFindFruit <namePart>", "consoleFindFruit", CCO)
 
-    if not found then
-        print("CCO: no fruits matching '" .. tostring(pattern) .. "'")
+function CCO:consoleExplain(name)
+    if name == nil or name == "" then print("CCO: usage ccoExplain <CROP>"); return end
+    local nameU = upper(name)
+    local rule = self._rules and self._rules[nameU] or nil
+    local ft = getFruitByName(nameU)
+    print("CCO: " .. nameU)
+    print("  discovered=" .. tostring(ft ~= nil))
+    if ft ~= nil then print("  index=" .. tostring(ft.index)) end
+    if rule ~= nil then
+        print("  enabled=" .. tostring(rule.enabled))
+        print("  npcAllowed=" .. tostring(rule.npcAllowed == nil and "mapDefault" or rule.npcAllowed))
+        print("  npcMaxHa=" .. tostring(rule.npcMaxHa or 0))
+        print("  resetNpcFields=" .. tostring(rule.resetNpcFields))
+        if ft == nil then
+            print("  note=rule exists but fruitType is not registered in this session")
+        end
+    else
+        print("  rule=nil")
+        if ft == nil then
+            print("  note=fruitType is not registered and no staged rule exists; DLC/mod may be inactive or the crop name may be wrong")
+            print("  hint=use ccoSetCrop " .. nameU .. " false false 0 to pre-stage a disabled rule")
+        end
+    end
+    if ft ~= nil then
+        for _, key in ipairs(FRUIT_FLAG_FIELDS) do print(("  %s=%s"):format(key, tostring(ft[key]))) end
     end
 end
-addConsoleCommand(
-    "ccoFindFruit",
-    "Search fruitTypes by substring. Usage: ccoFindFruit <namePart>",
-    "consoleFindFruit",
-    CropControlOverride
-)
+addConsoleCommand("ccoExplain", "Explain CCO state for a crop. Usage: ccoExplain <CROP>", "consoleExplain", CCO)
 
----------------------------------------------------------------------------
--- Late hook: re-apply once after the whole mission has loaded
--- This catches DLC fruits (like ONION) that are registered AFTER loadMapData.
----------------------------------------------------------------------------
-local _cco_orig_loadMapFinished = FSBaseMission.loadMapFinished
+function CCO:consoleScanFields(cropName)
+    self:scanFields(cropName, false)
+end
+addConsoleCommand("ccoScanFields", "Scan fields against CCO NPC rules. Usage: ccoScanFields [CROP]", "consoleScanFields", CCO)
 
-function FSBaseMission:loadMapFinished(...)
-    local results
-    if _cco_orig_loadMapFinished ~= nil then
-        results = { _cco_orig_loadMapFinished(self, ...) }
+function CCO:consoleScanBlocked(cropName)
+    self:scanFields(cropName, true)
+end
+addConsoleCommand("ccoScanBlocked", "Scan only NPC fields blocked by CCO rules. Usage: ccoScanBlocked [CROP]", "consoleScanBlocked", CCO)
+
+function CCO:consoleScanSummary(cropName)
+    self:printFieldSummary(cropName)
+end
+addConsoleCommand("ccoScanSummary", "Summarise field crop status against CCO rules. Usage: ccoScanSummary [CROP]", "consoleScanSummary", CCO)
+
+function CCO:consoleValidateSave()
+    self:validateSave()
+end
+addConsoleCommand("ccoValidateSave", "Validate that no NPC fields violate CCO rules", "consoleValidateSave", CCO)
+
+
+function CCO:consoleListDisabled()
+    local names = {}
+    for nameU, rule in pairs(self._rules or {}) do
+        if rule ~= nil and rule.enabled == false then
+            table.insert(names, nameU)
+        end
+    end
+    table.sort(names)
+    if #names == 0 then
+        print("CCO: no crops are currently disabled by rule")
+        return
+    end
+    print("CCO: disabled crop rules")
+    for _, nameU in ipairs(names) do
+        local r = self._rules[nameU]
+        local ft = getFruitByName(nameU)
+        print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s discovered=%s"):format(
+            nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields), tostring(ft ~= nil)))
+    end
+    print(("CCO: disabled crop list complete. count=%d"):format(#names))
+end
+addConsoleCommand("ccoListDisabled", "List crops disabled by CCO rules", "consoleListDisabled", CCO)
+
+function CCO:consoleListBlockedRules()
+    local names = {}
+    for nameU, rule in pairs(self._rules or {}) do
+        if rule ~= nil and (rule.enabled == false or rule.npcAllowed == false) then
+            table.insert(names, nameU)
+        end
+    end
+    table.sort(names)
+    if #names == 0 then
+        print("CCO: no crops are currently disabled or blocked for NPCs by rule")
+        return
+    end
+    print("CCO: disabled/NPC-blocked crop rules")
+    for _, nameU in ipairs(names) do
+        local r = self._rules[nameU]
+        local ft = getFruitByName(nameU)
+        print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s discovered=%s"):format(
+            nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields), tostring(ft ~= nil)))
+    end
+    print(("CCO: blocked rule list complete. count=%d"):format(#names))
+end
+addConsoleCommand("ccoListBlockedRules", "List crops disabled or blocked for NPCs by CCO rules", "consoleListBlockedRules", CCO)
+
+function CCO:consoleListLimited()
+    local names = {}
+    for nameU, rule in pairs(self._rules or {}) do
+        if rule ~= nil and rule.npcMaxHa ~= nil and rule.npcMaxHa > 0 then
+            table.insert(names, nameU)
+        end
+    end
+    table.sort(names)
+    if #names == 0 then
+        print("CCO: no crops currently have npcMaxHa limits")
+        return
+    end
+    for _, nameU in ipairs(names) do
+        local r = self._rules[nameU]
+        print(("CCO: %s npcMaxHa=%.2f enabled=%s npcAllowed=%s resetNpcFields=%s"):format(
+            nameU, tonumber(r.npcMaxHa or 0), tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tostring(r.resetNpcFields)))
+    end
+    print(("CCO: limited crop list complete. count=%d"):format(#names))
+end
+addConsoleCommand("ccoListLimited", "List crops with NPC field-size limits", "consoleListLimited", CCO)
+
+
+local function findFieldByFarmlandId(idArg)
+    local target = tonumber(idArg)
+    if target == nil then return nil end
+    if g_fieldManager == nil or g_fieldManager.getFields == nil then return nil end
+    for idx, field in pairs(g_fieldManager:getFields() or {}) do
+        local fid = tonumber(getFieldId(field, idx))
+        if fid == target then return field, idx end
+    end
+    return nil
+end
+
+function CCO:consoleListNpcCandidates(fieldIdArg)
+    if fieldIdArg == nil or fieldIdArg == "" then
+        print("CCO: usage ccoListNpcCandidates <FIELD_ID>")
+        return
     end
 
-    if CropControlOverride ~= nil and CropControlOverride._enabledMap ~= nil then
-        CropControlOverride:_applyEnabledMap(CropControlOverride._enabledMap)
-        print("CCO: reapplied crop config after FSBaseMission:loadMapFinished (late DLC safety)")
+    local field = findFieldByFarmlandId(fieldIdArg)
+    if field == nil then
+        print("CCO: field not found: " .. tostring(fieldIdArg))
+        return
     end
 
-    if results ~= nil then
-        return unpack(results)
+    local fieldHa = getFieldSizeHa(field)
+    print(("CCO: NPC crop candidates for field=%s size=%.2fha npc=%s"):format(tostring(getFieldId(field)), fieldHa, tostring(isNpcField(field))))
+    local candidates = self:buildNpcCandidatesForField(field, true)
+    local valid = 0
+    for _, c in ipairs(candidates) do
+        if c.ok then valid = valid + 1 end
+        local rule = self._rules and self._rules[c.cropName] or nil
+        local limitText = ""
+        if rule ~= nil and rule.npcMaxHa ~= nil and rule.npcMaxHa > 0 then
+            limitText = (" npcMaxHa=%.2f"):format(rule.npcMaxHa)
+        end
+        print(("CCO:   %-14s %s reason=%s%s"):format(c.cropName, c.ok and "OK" or "BLOCKED", tostring(c.reason), limitText))
+    end
+    print(("CCO: candidate list complete. valid=%d total=%d"):format(valid, #candidates))
+end
+addConsoleCommand("ccoListNpcCandidates", "List NPC crop candidates for a field. Usage: ccoListNpcCandidates <FIELD_ID>", "consoleListNpcCandidates", CCO)
+
+local function parseResetArgs(first, second)
+    local cropName = first
+    local mode = second
+
+    if cropName ~= nil and cropName ~= "" then
+        local cropLower = string.lower(tostring(cropName))
+        if cropLower == "all" or cropLower == "*" then
+            cropName = nil
+        elseif cropLower == "dryrun" or cropLower == "dry-run" or cropLower == "preview" then
+            mode = cropName
+            cropName = nil
+        end
+    end
+
+    local dryRun = false
+    if mode ~= nil and mode ~= "" then
+        local modeLower = string.lower(tostring(mode))
+        dryRun = modeLower == "dryrun" or modeLower == "dry-run" or modeLower == "preview"
+    end
+
+    return cropName, dryRun
+end
+
+function CCO:consoleResetNpcFields(cropNameArg, modeArg)
+    local cropName, dryRun = parseResetArgs(cropNameArg, modeArg)
+    self:resetNpcFields(cropName, dryRun)
+end
+addConsoleCommand("ccoResetNpcFields", "Reset offending NPC fields to cultivated state. Usage: ccoResetNpcFields [CROP|all] [dryrun]", "consoleResetNpcFields", CCO)
+
+function CCO:consoleResetBlocked(modeArg)
+    local _, dryRun = parseResetArgs(modeArg, nil)
+    self:resetNpcFields(nil, dryRun)
+end
+addConsoleCommand("ccoResetBlocked", "Reset all currently blocked NPC fields. Usage: ccoResetBlocked [dryrun]", "consoleResetBlocked", CCO)
+
+
+function CCO:consoleStatus()
+    local disabled, blockedRules, limited = 0, 0, 0
+    for _, rule in pairs(self._rules or {}) do
+        if rule ~= nil then
+            if rule.enabled == false then disabled = disabled + 1 end
+            if rule.enabled == false or rule.npcAllowed == false then blockedRules = blockedRules + 1 end
+            if rule.npcMaxHa ~= nil and rule.npcMaxHa > 0 then limited = limited + 1 end
+        end
+    end
+
+    local summary = self:buildFieldSummary(nil)
+    print(("CCO: status version=%s config=%s"):format(tostring(self.VERSION), tostring(self._configPath)))
+    print(("CCO: rules disabled=%d blockedRules=%d limited=%d totalRules=%d"):format(disabled, blockedRules, limited, (function()
+        local n = 0
+        for _, _ in pairs(self._rules or {}) do n = n + 1 end
+        return n
+    end)()))
+    print(("CCO: fields checked=%d npcFields=%d playerFields=%d offendingNpcFields=%d"):format(
+        tonumber(summary.total or 0), tonumber(summary.npcTotal or 0), tonumber(summary.playerTotal or 0), tonumber(summary.offending or 0)))
+    if summary.offending ~= nil and summary.offending > 0 then
+        print("CCO: status=ATTENTION run ccoScanBlocked, then ccoResetBlocked dryrun if cleanup is intended")
+    else
+        print("CCO: status=OK validation would pass")
     end
 end
+addConsoleCommand("ccoStatus", "Show CCO version/config/rule/field status", "consoleStatus", CCO)
+
+function CCO:consoleHelp(topic)
+    local t = topic ~= nil and string.lower(tostring(topic)) or ""
+    print("CCO: Crop Control Override command help")
+    if t == "rules" or t == "rule" or t == "" then
+        print("CCO: Rules/config:")
+        print("CCO:   ccoWhichConfig")
+        print("CCO:   ccoStatus")
+        print("CCO:   ccoReload")
+        print("CCO:   ccoExplain <CROP>")
+        print("CCO:   ccoListRules [CROP]")
+        print("CCO:   ccoListConfigured [CROP]")
+        print("CCO:   ccoListUndiscovered")
+        print("CCO:   ccoNormalizeConfig [dryrun]")
+        print("CCO:   ccoSetCrop <CROP> <enabled> [npcAllowed] [npcMaxHa]")
+        print("CCO:   ccoListDisabled | ccoListBlockedRules | ccoListLimited")
+    end
+    if t == "scan" or t == "scans" or t == "" then
+        print("CCO: Scanning/validation:")
+        print("CCO:   ccoScanFields [CROP]")
+        print("CCO:   ccoScanBlocked [CROP]")
+        print("CCO:   ccoScanSummary [CROP]")
+        print("CCO:   ccoValidateSave")
+        print("CCO:   ccoListNpcCandidates <FIELD_ID>")
+    end
+    if t == "reset" or t == "cleanup" or t == "" then
+        print("CCO: Cleanup:")
+        print("CCO:   ccoResetBlocked dryrun")
+        print("CCO:   ccoResetBlocked")
+        print("CCO:   ccoResetNpcFields [CROP|all] [dryrun]")
+        print("CCO:   Reset commands only target offending NPC fields; use dryrun first.")
+    end
+    if t == "debug" or t == "log" or t == "" then
+        print("CCO: Logging/debug:")
+        print("CCO:   ccoDebug on|off|toggle")
+        print("CCO:   ccoLogLevel DEBUG|INFO|WARN|ERROR")
+        print("CCO:   NPC replacement/block detail is logged at DEBUG level in alpha.10.")
+    end
+end
+addConsoleCommand("ccoHelp", "Show CCO command help. Usage: ccoHelp [rules|scan|reset|debug]", "consoleHelp", CCO)
+
+info("loaded " .. CCO.MOD_ID .. " v" .. CCO.VERSION)
