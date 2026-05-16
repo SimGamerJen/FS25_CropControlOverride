@@ -1,60 +1,107 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modDesc descVersion="100">
     <author>SimGamerJen, Hyper138</author>
-    <version>2.0.0-alpha.49</version>
+    <version>2.0.0-alpha.80</version>
     <title>
         <en>Crop Control Override</en>
     </title>
     <description>
         <en><![CDATA[
 Description:
-Crop Control Override is a per-save crop policy mod for Farming Simulator 25. It can disable selected fruit types, remove them from supported crop UI lists, prevent them from being used for NPC field jobs, and restrict NPC crop planting by field size. This merged build credits SimGamerJen and Hyper138, combining CropControlOverride with Hyper138's NPC crop-control and field-size governance concept.
+Crop Control Override is a per-save crop policy manager for Farming Simulator 25. It lets players control which crops are permitted for the player, which crops NPC farmers may plant, and whether NPC crop planting should be limited by field size.
 
-This alpha rebuild combines the original CropControlOverride concept with NPC crop-size control and manual NPC field correction. Existing pre-2.0.0 / v1 config files using fruit entries with name/enabled attributes are automatically normalized into the new v2 format, while preserving custom and currently undiscovered crop rules. The new v2 config adds npcAllowed, npcMaxHa, and resetNpcFields attributes.
+The mod includes an editable FS25-style GUI, per-save XML rule files, NPC field validation, blocked NPC field reporting, and a guarded Apply / Force Apply workflow to prevent accidental invalid save states.
 
-Hotkeys / GUI shortcuts:
-Default hotkey: ALT+C opens the read-only CCO GUI. The GUI can also be opened with ccoGui. Views are selected using FS25-style tabs across the top of the screen. Reload and Back use the native bottom dialog button row. Help is available via the top-right ? button.
+Main GUI features:
+- ALL RULES: view and edit crop policy rules.
+- DISABLED: view globally disabled crops.
+- LIMITED: view crops with NPC field-size limits.
+- NPC DISABLED: view crops NPCs should not plant.
+- VALIDATION: view existing NPC fields that violate the active policy.
+- SUMMARY: view active config, rule counts, and validation state.
+- HELP: view in-game guidance.
+
+Configuration:
+- APPLY / FORCE APPLY writes staged crop-rule changes to the active per-save XML.
+- DISCARD resets staged values.
+- SAVE DEFAULTS TO CONFIG.XML backs up the existing template config and writes the current full active rule set to config.xml.
+- Existing per-save XML files are not overwritten by Save Defaults.
+
+Hotkeys:
+ALT+C opens the Crop Control Override GUI. This keybind can be changed in the in-game controls menu.
+Mouse: use the GUI tabs, table rows, and buttons.
+Keyboard: use the displayed FS25 footer actions for tab navigation, reload, and back.
 
 Useful console commands:
-ccoHelp [rules|scan|reset|debug] - Show command help.
-ccoStatus - Show version, active config, rule counts, and validation summary.
-ccoGui [status|rules|disabled|limited|blocked|undiscovered|help] - Open the read-only custom GUI dashboard.
-ccoWhichConfig - Show the active config path.
-ccoReload - Reload the active XML config and reapply rules.
-ccoListRules [CROP] - List crop policy rules.
-ccoListConfigured [CROP] - List all configured rules, including undiscovered crops.
-ccoListUndiscovered - List configured crops not present on the active map/save.
-ccoNormalizeConfig [dryrun] - Migrate/normalize the active config to v2 format.
-ccoSetCrop <CROP> <enabled> [npcAllowed] [npcMaxHa] - Update a rule in-game.
-ccoExplain <CROP> - Show rule, discovery, and fruitType flag state.
-ccoListFlags [CROP] - Show current fruitType flags.
-ccoFindFruit <text> - Find fruitType names.
-ccoScanFields [CROP] - Scan fields for invalid NPC crop/field-size combinations.
-ccoScanBlocked [CROP] - List only blocked NPC fields.
-ccoScanSummary [CROP] - Show a compact crop-by-crop field summary.
-ccoValidateSave - Validate that no NPC fields violate active CCO rules.
-ccoListLimited - List crops with active NPC field-size limits.
-ccoListNpcCandidates <FIELD_ID> - List valid/blocked NPC crop candidates for a field.
-ccoListDisabled - List crops disabled by CCO rules.
-ccoListBlockedRules - List crops disabled or explicitly blocked for NPCs by CCO rules.
-ccoResetNpcFields [CROP|all] [dryrun] - Set offending NPC fields to cultivated state.
-ccoResetBlocked [dryrun] - Reset all currently blocked NPC fields.
-ccoDebug on|off|toggle and ccoLogLevel DEBUG|INFO|WARN|ERROR - Control CCO logging. Detailed NPC replacement/block traces are DEBUG-level. ccoGuiTest opens a minimal dialog rendering test.
+ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoHelp
 
-Startup validation:
-On map load, CCO prints a one-line validation notice. If blocked NPC fields are found, use ccoScanBlocked and ccoResetBlocked dryrun before making changes.
-
-Config location:
-<UserDocuments>/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/config.xml
-Per-save configs are stored under:
-<UserDocuments>/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/saves/savegameX.xml
-
-Alpha.38 notes:
-This RedTape-style tabbed GUI foundation build keeps the validated alpha.7/alpha.8 field reset and NPC crop replacement logic intact. It retains alpha.9 legacy config migration, custom crop discovery, and undiscovered-rule preservation. Alpha.34 keeps the dedicated GIANTS GUI screen and FS25-style SmoothList rule table. Help is now a small clickable question-mark button in the top-right of the screen, leaving BACK as the only ESC/back-style footer action. Detailed NPC replacement/block traces remain DEBUG-level to reduce normal log noise.
-
-Field reset safety:
-ccoResetNpcFields and ccoResetBlocked only target NPC-owned fields and only crops that violate the configured rule. They are intended for cleaning up already-generated savegames after changing crop policy. Use dryrun first when testing.
+GitHub link:
+https://github.com/SimGamerJen/FS25_CropControlOverride
         ]]></en>
+        <de><![CDATA[
+Beschreibung:
+Crop Control Override ist ein speicherstandbasiertes Fruchtarten-Regelwerk für Farming Simulator 25. Mit dem Mod kann festgelegt werden, welche Fruchtarten für Spieler erlaubt sind, welche Fruchtarten NPC-Landwirte anbauen dürfen und ob der NPC-Anbau durch eine maximale Feldgröße begrenzt werden soll.
+
+Der Mod enthält eine bearbeitbare GUI im FS25-Stil, XML-Regeldateien pro Spielstand, Validierung von NPC-Feldern, Anzeige blockierter NPC-Felder sowie einen geschützten Anwenden-/Erzwingen-Ablauf, um unbeabsichtigte ungültige Spielstände zu vermeiden.
+
+Wichtige GUI-Funktionen:
+- ALLE REGELN: Fruchtarten-Regeln anzeigen und bearbeiten.
+- DEAKTIVIERT: global deaktivierte Fruchtarten anzeigen.
+- BEGRENZT: Fruchtarten mit NPC-Feldgrößenbegrenzung anzeigen.
+- NPC DEAKTIVIERT: Fruchtarten anzeigen, die NPCs nicht anbauen sollen.
+- VALIDIERUNG: bestehende NPC-Felder anzeigen, die gegen die aktive Regel verstoßen.
+- ZUSAMMENFASSUNG: aktive Konfiguration, Regelanzahl und Validierungsstatus anzeigen.
+- HILFE: Hinweise zur Bedienung im Spiel anzeigen.
+
+Konfiguration:
+- ANWENDEN / ERZWINGEN schreibt vorbereitete Änderungen an einer Fruchtarten-Regel in die aktive XML-Datei des aktuellen Spielstands.
+- VERWERFEN setzt vorbereitete Werte zurück.
+- STANDARD SPEICHERN IN CONFIG.XML erstellt zuerst eine Sicherung der bestehenden Vorlagenkonfiguration und schreibt anschließend den aktuellen vollständigen Regelsatz in config.xml.
+- Bestehende XML-Dateien einzelner Spielstände werden durch Standard Speichern nicht überschrieben.
+
+Tastenkombinationen:
+ALT+C öffnet die Crop Control Override GUI. Diese Tastenkombination kann im Steuerungsmenü des Spiels geändert werden.
+Maus: GUI-Reiter, Tabellenzeilen und Schaltflächen verwenden.
+Tastatur: die angezeigten FS25-Fußleistenaktionen für Reiterwechsel, Neuladen und Zurück verwenden.
+
+Nützliche Konsolenbefehle:
+ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoHelp
+
+GitHub-Link:
+https://github.com/SimGamerJen/FS25_CropControlOverride
+        ]]></de>
+        <fr><![CDATA[
+Description :
+Crop Control Override est un gestionnaire de règles de cultures par sauvegarde pour Farming Simulator 25. Il permet de contrôler quelles cultures sont autorisées pour le joueur, quelles cultures les agriculteurs PNJ peuvent semer, et si les cultures PNJ doivent être limitées par taille de champ.
+
+Le mod inclut une interface modifiable de style FS25, des fichiers XML de règles par sauvegarde, une validation des champs PNJ, un affichage des champs PNJ bloqués, ainsi qu’un flux sécurisé Appliquer / Forcer l’application pour éviter les états de sauvegarde invalides accidentels.
+
+Fonctions principales de l’interface :
+- TOUTES LES RÈGLES : afficher et modifier les règles de cultures.
+- DÉSACTIVÉES : afficher les cultures désactivées globalement.
+- LIMITÉES : afficher les cultures avec une limite de taille de champ PNJ.
+- PNJ DÉSACTIVÉ : afficher les cultures que les PNJ ne doivent pas semer.
+- VALIDATION : afficher les champs PNJ existants qui ne respectent pas la règle active.
+- RÉSUMÉ : afficher la configuration active, le nombre de règles et l’état de validation.
+- AIDE : afficher l’aide intégrée.
+
+Configuration :
+- APPLIQUER / FORCER L’APPLICATION écrit les changements préparés d’une règle de culture dans le XML actif de la sauvegarde.
+- ANNULER réinitialise les valeurs préparées.
+- ENREGISTRER LES VALEURS PAR DÉFAUT DANS CONFIG.XML sauvegarde d’abord la configuration modèle existante, puis écrit l’ensemble complet des règles actives dans config.xml.
+- Les fichiers XML des sauvegardes existantes ne sont pas écrasés par cette action.
+
+Raccourcis :
+ALT+C ouvre l’interface Crop Control Override. Ce raccourci peut être modifié dans le menu des commandes du jeu.
+Souris : utiliser les onglets, les lignes du tableau et les boutons de l’interface.
+Clavier : utiliser les actions affichées dans la barre inférieure FS25 pour changer d’onglet, recharger et revenir en arrière.
+
+Commandes console utiles :
+ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoHelp
+
+Lien GitHub :
+https://github.com/SimGamerJen/FS25_CropControlOverride
+        ]]></fr>
     </description>
     <iconFilename>CropControlOverride.dds</iconFilename>
     <inputBinding>

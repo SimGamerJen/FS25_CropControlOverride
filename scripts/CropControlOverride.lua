@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.0.0-alpha.49",
+    VERSION = "2.0.0-alpha.80",
 
     _origFlags = {},
     _rules = {},
@@ -538,7 +538,7 @@ local function ensureTemplateExists()
     if fileExists(tpl) then return tpl end
     local rules = buildDefaultRules()
     if writeConfig(tpl, rules) then
-        info("wrote default template at " .. tpl)
+        debug("wrote default template at " .. tpl)
     end
     return tpl
 end
@@ -559,7 +559,7 @@ function CCO:loadRulesForMission(missionInfo)
         rules = mergeMissingDiscoveredFruits(rules)
         if meta ~= nil and meta.needsNormalize then
             if writeConfig(per, rules) then
-                info(("normalized legacy per-save config at %s (%s)"):format(per, describeNormalization(meta)))
+                debug(("normalized legacy per-save config at %s (%s)"):format(per, describeNormalization(meta)))
             end
         end
     else
@@ -569,9 +569,9 @@ function CCO:loadRulesForMission(missionInfo)
         rules = mergeMissingDiscoveredFruits(rules)
         if per ~= nil and writeConfig(per, rules) then
             if meta ~= nil and meta.needsNormalize then
-                info(("created per-save config from legacy template at %s (%s)"):format(per, describeNormalization(meta)))
+                debug(("created per-save config from legacy template at %s (%s)"):format(per, describeNormalization(meta)))
             else
-                info("created per-save config at " .. per)
+                debug("created per-save config at " .. per)
             end
         end
     end
@@ -877,7 +877,7 @@ function CCO:printStartupValidation()
     if summary.offending ~= nil and summary.offending > 0 then
         warn(("startup validation found %d blocked NPC field(s). Run ccoScanBlocked, then ccoResetBlocked dryrun if cleanup is intended."):format(summary.offending))
     else
-        info(("startup validation passed. checked=%d npcFields=%d playerFields=%d offendingNpcFields=0"):format(
+        debug(("startup validation passed. checked=%d npcFields=%d playerFields=%d offendingNpcFields=0"):format(
             tonumber(summary.total or 0), tonumber(summary.npcTotal or 0), tonumber(summary.playerTotal or 0)))
     end
 end
@@ -975,7 +975,7 @@ function CCO:applyRuntimeHooks()
 
             return result
         end
-        info("hooked MissionManager.generateMissions")
+        debug("hooked MissionManager.generateMissions")
     end
 
     if FieldManager ~= nil and FieldManager.getFruitIndexForField ~= nil then
@@ -1005,7 +1005,7 @@ function CCO:applyRuntimeHooks()
 
             return fruitIndex
         end
-        info("hooked FieldManager.getFruitIndexForField")
+        debug("hooked FieldManager.getFruitIndexForField")
     end
 end
 
@@ -1038,7 +1038,7 @@ function CCO:applyLateHooks()
 
             return result
         end
-        info("hooked SowMission.isAvailableForField")
+        debug("hooked SowMission.isAvailableForField")
     end
 end
 
@@ -1100,7 +1100,7 @@ function FruitTypeManager:loadMapData(xmlFile, missionInfo, baseDir, customEnv, 
     local ok, e = pcall(function()
         local rules, path = CCO:loadRulesForMission(missionInfo)
         CCO:applyRules(rules)
-        info(("applied crop policy from %s"):format(tostring(path)))
+        debug(("applied crop policy from %s"):format(tostring(path)))
     end)
     if not ok then warn("failed applying crop policy in loadMapData: " .. tostring(e)) end
 
@@ -1124,7 +1124,7 @@ function FSBaseMission:loadMapFinished(...)
         end
         CCO:applyRules(CCO._rules)
         CCO:applyLateHooks()
-        info("reapplied crop policy after loadMapFinished")
+        debug("reapplied crop policy after loadMapFinished")
         CCO:printStartupValidation()
     end)
     if not ok then warn("failed during loadMapFinished reapply: " .. tostring(e)) end
@@ -1171,7 +1171,7 @@ local function showCcoCustomGui(title, text, topic, page)
         print("CCO GUI: CropControlOverrideMenu class is not available")
     end
 
-    print("CCO GUI: custom screen unavailable; console output follows")
+    print("CCO GUI: custom screen unavailable; using console fallback output")
     print("CCO GUI: " .. tostring(title))
     for line in tostring(text):gmatch("[^\n]+") do
         print("CCO GUI: " .. line)
@@ -1210,6 +1210,12 @@ function CCO:buildGuiStatusText()
     table.insert(lines, tostring(self._configPath or "not loaded"))
     table.insert(lines, "")
 
+    table.insert(lines, "CONFIG HIERARCHY")
+    table.insert(lines, "APPLY / FORCE APPLY writes the selected rule to the active per-save XML.")
+    table.insert(lines, "SAVE DEFAULTS writes the full active rule set to config.xml for future/default use.")
+    table.insert(lines, "Existing per-save XML files are not overwritten by SAVE DEFAULTS.")
+    table.insert(lines, "")
+
     table.insert(lines, "CROP RULES")
     table.insert(lines, ("Configured rules:       %d"):format(total))
     table.insert(lines, ("Loaded crop rules:      %d"):format(discovered))
@@ -1218,7 +1224,7 @@ function CCO:buildGuiStatusText()
 
     table.insert(lines, "POLICY SUMMARY")
     table.insert(lines, ("Disabled crops:         %d"):format(disabled))
-    table.insert(lines, ("NPC-blocked crops:      %d"):format(npcBlocked))
+    table.insert(lines, ("NPC-disabled crops:      %d"):format(npcBlocked))
     table.insert(lines, ("Size-limited crops:     %d"):format(limited))
     table.insert(lines, "")
 
@@ -1232,7 +1238,7 @@ function CCO:buildGuiStatusText()
     table.insert(lines, "NAVIGATION")
     table.insert(lines, "Use the top tabs, or PREV TAB / NEXT TAB, to move between sections.")
     table.insert(lines, "Use RELOAD to re-read the active config. Use BACK to close the screen.")
-    table.insert(lines, "This screen is currently read-only. Crop rules can still be changed through the per-save XML or console commands.")
+    table.insert(lines, "Crop rules can be edited from the ALL RULES table. Select a crop, stage changes in the right panel, then use APPLY.")
     return table.concat(lines, "\n")
 end
 
@@ -1240,7 +1246,7 @@ function CCO:ruleStatusText(nameU, r)
     if r == nil then return "UNKNOWN" end
     if getFruitByName(nameU) == nil then return "NOT LOADED" end
     if r.enabled == false then return "DISABLED" end
-    if r.npcAllowed == false then return "NPC BLOCKED" end
+    if r.npcAllowed == false then return "NPC DISABLED" end
     if tonumber(r.npcMaxHa or 0) > 0 then return "SIZE LIMITED" end
     return "ALLOWED"
 end
@@ -1248,7 +1254,7 @@ end
 function CCO:ruleModeTitle(mode)
     if mode == "disabled" then return "Disabled crop rules" end
     if mode == "limited" then return "Size-limited NPC crop rules" end
-    if mode == "blockedrules" or mode == "blocked-rules" then return "NPC-blocked crop rules" end
+    if mode == "blockedrules" or mode == "blocked-rules" then return "NPC-disabled crop rules" end
     if mode == "undiscovered" then return "Configured but not loaded on this map" end
     return "All configured crop rules"
 end
@@ -1333,37 +1339,73 @@ function CCO:buildGuiBlockedText()
     if (summary.offending or 0) == 0 then
         return table.concat({
             "SAVE VALIDATION",
-            "Status:         PASS",
+            "Validation:     PASS",
             "",
             ("Checked fields: %d"):format(tonumber(summary.total or 0)),
             ("NPC fields:     %d"):format(tonumber(summary.npcTotal or 0)),
             ("Player fields:  %d"):format(tonumber(summary.playerTotal or 0)),
-            "Offending NPC fields: 0",
+            "Blocked NPC fields: 0",
             "",
             "No blocked NPC fields were detected under the current crop policy.",
         }, "\n")
     end
 
-    local names = {}
-    for cropName, crop in pairs(summary.crops or {}) do
-        if tonumber(crop.blocked or 0) > 0 then table.insert(names, cropName) end
-    end
-    table.sort(names)
-
     local lines = {
         "SAVE VALIDATION",
-        "Status:         FAILED",
-        ("Offending NPC fields: %d"):format(tonumber(summary.offending or 0)),
+        "Validation:     FAILED",
+        ("Blocked NPC fields: %d"):format(tonumber(summary.offending or 0)),
         "",
-        "BLOCKED CROP SUMMARY",
+        "BLOCKED NPC FIELD DETAILS",
+        "Field       Crop             Size ha   Reason",
+        "------------------------------------------------------------",
     }
-    for _, cropName in ipairs(names) do
-        local c = summary.crops[cropName]
-        table.insert(lines, ("%s  blocked=%d  total=%d  size=%.2f-%.2f ha"):format(cropName, c.blocked, c.total, c.minHa or 0, c.maxHa or 0))
+
+    if g_fieldManager ~= nil and g_fieldManager.getFields ~= nil then
+        local fields = g_fieldManager:getFields()
+        local rows = {}
+
+        for i, field in pairs(fields or {}) do
+            local ft = getFieldFruit(field)
+            if ft ~= nil then
+                local cropName = upper(ft.name)
+                local blocked, reason = self:shouldResetNpcField(field, cropName)
+                if blocked then
+                    table.insert(rows, {
+                        fieldId = tostring(getFieldId(field, i)),
+                        cropName = cropName,
+                        sizeHa = getFieldSizeHa(field),
+                        reason = tostring(reason or "blocked"),
+                    })
+                end
+            end
+        end
+
+        table.sort(rows, function(a, b)
+            local an = tonumber(a.fieldId)
+            local bn = tonumber(b.fieldId)
+            if an ~= nil and bn ~= nil then return an < bn end
+            return tostring(a.fieldId) < tostring(b.fieldId)
+        end)
+
+        local maxRows = 12
+        for i, row in ipairs(rows) do
+            if i > maxRows then
+                table.insert(lines, ("... %d more blocked NPC field(s). Use ccoScanBlocked for the full console list."):format(#rows - maxRows))
+                break
+            end
+
+            table.insert(lines, ("%-11s %-16s %7.2f   %s"):format(
+                row.fieldId,
+                row.cropName,
+                tonumber(row.sizeHa or 0) or 0,
+                row.reason
+            ))
+        end
     end
+
     table.insert(lines, "")
     table.insert(lines, "RECOMMENDED CLEANUP")
-    table.insert(lines, "1. Run ccoScanBlocked to review field-level details.")
+    table.insert(lines, "1. Review the blocked field rows above.")
     table.insert(lines, "2. Run ccoResetBlocked dryrun before changing the save state.")
     table.insert(lines, "3. Run ccoResetBlocked only after confirming the dry-run output.")
     return table.concat(lines, "\n")
@@ -1385,10 +1427,18 @@ function CCO:buildGuiHelpText()
         "Loaded: whether the crop exists on the active map/save.",
         "",
         "POLICY TERMS",
-        "Disabled: the crop is blocked by the crop policy.",
-        "NPC Blocked: the crop may remain available, but NPCs should not plant it.",
+        "Disabled: the crop is unavailable under the crop policy.",
+        "NPC Disabled: NPCs should not plant this crop. Globally disabled crops also count as NPC-disabled.",
         "Size Limited: NPCs may plant the crop only below the configured hectare limit.",
+        "Blocked NPC Fields: existing NPC fields that currently violate the active policy.",
         "Not Loaded: the rule is preserved, but the crop is not present on this map/save.",
+        "",
+        "CONFIG FILES",
+        "config.xml: template/default rules used when creating or normalising saves.",
+        "saves/savegameX.xml: active per-save rules used by the current savegame.",
+        "APPLY / FORCE APPLY: writes one staged crop rule to the active per-save XML.",
+        "SAVE DEFAULTS: backs up config.xml, then writes the full active rule set to config.xml.",
+        "SAVE DEFAULTS does not overwrite existing per-save XML files.",
         "",
         "SAFE CLEANUP",
         "Use ccoScanBlocked to review invalid NPC fields.",
@@ -1396,14 +1446,14 @@ function CCO:buildGuiHelpText()
         "Use ccoResetBlocked only after the dry-run output looks correct.",
         "",
         "EDITING",
-        "This GUI is currently read-only. Crop rules can still be changed through the per-save XML or console commands.",
+        "Crop rules can be edited from the ALL RULES table. Guarded APPLY prevents accidental blocked-field changes; FORCE APPLY allows deliberate policy changes.",
     }, "\n")
 end
 
 function CCO:openGui(topic, pageArg)
-    topic = topic ~= nil and topic ~= "" and string.lower(tostring(topic)) or "status"
+    topic = topic ~= nil and topic ~= "" and string.lower(tostring(topic)) or "rules"
     if topic == "status" then
-        return showCcoCustomGui("Crop Control Override - Status", self:buildGuiStatusText(), "status", 1)
+        return showCcoCustomGui("Crop Control Override - Summary", self:buildGuiStatusText(), "status", 1)
     elseif topic == "rules" then
         return showCcoCustomGui("Crop Control Override - Configured Rules", self:buildGuiRuleListText("rules", pageArg), "rules", pageArg or 1)
     elseif topic == "disabled" then
@@ -1424,12 +1474,151 @@ function CCO:openGui(topic, pageArg)
 end
 
 
+
+local function cloneRulesForGuiApply(rules)
+    local cloned = {}
+    for nameU, rule in pairs(rules or {}) do
+        cloned[nameU] = {
+            name = rule.name or nameU,
+            enabled = rule.enabled ~= false,
+            npcAllowed = rule.npcAllowed,
+            npcMaxHa = tonumber(rule.npcMaxHa or 0) or 0,
+            resetNpcFields = rule.resetNpcFields ~= false,
+        }
+    end
+    return cloned
+end
+
+function CCO:buildFieldSummaryWithRules(rules, filterCrop)
+    local oldRules = self._rules
+    self._rules = rules
+    local summary = self:buildFieldSummary(filterCrop)
+    self._rules = oldRules
+    return summary
+end
+
+function CCO:applyGuiStagedRule(staged, forceApply)
+    if staged == nil or staged.crop == nil or staged.crop == "" then
+        return false, "No crop selected."
+    end
+
+    local nameU = upper(staged.crop)
+    local enabled = staged.enabled == true
+    local npcAllowed = nil
+    if staged.npc == "yes" then
+        npcAllowed = true
+    elseif staged.npc == "no" then
+        npcAllowed = false
+    else
+        npcAllowed = nil
+    end
+    local npcMaxHa = math.max(0, tonumber(staged.maxHa or 0) or 0)
+    local resetNpcFields = staged.resetNpcFields ~= false
+
+    self._rules = self._rules or buildDefaultRules()
+
+    local proposedRules = cloneRulesForGuiApply(self._rules)
+    proposedRules[nameU] = normalizeRule(nameU, {
+        enabled = enabled,
+        npcAllowed = npcAllowed,
+        npcMaxHa = npcMaxHa,
+        resetNpcFields = resetNpcFields,
+    })
+
+    local preflight = self:buildFieldSummaryWithRules(proposedRules, nil)
+    local preflightOffending = tonumber(preflight.offending or 0) or 0
+    if preflightOffending > 0 and forceApply ~= true then
+        local msg = ("Apply blocked for %s: proposed rule would create %d blocked NPC field(s). Click FORCE APPLY to save anyway, then review VALIDATION before cleanup."):format(
+            nameU, preflightOffending)
+        print("CCO GUI APPLY BLOCKED: " .. msg)
+        self._guiNotice = msg
+        return false, msg, true
+    end
+
+    self._rules = proposedRules
+
+    if self._configPath == nil then
+        local sid = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo)
+        local per = sid ~= nil and perSavePathForId(sid) or nil
+        self._configPath = (per ~= nil and fileExists(per)) and per or templatePath()
+    end
+
+    local writeOk = writeConfig(self._configPath, self._rules)
+    if not writeOk then
+        return false, "Failed to write active CCO config."
+    end
+
+    self:applyRules(self._rules)
+
+    local summary = self:buildFieldSummary(nil)
+    local validation = (summary.offending or 0) == 0
+        and "validation passed"
+        or ("validation failed; offendingNpcFields=" .. tostring(summary.offending or 0))
+
+    local npcText = npcAllowed == nil and "mapDefault" or tostring(npcAllowed)
+    local msg = ("Applied %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s; %s"):format(
+        nameU, tostring(enabled), npcText, npcMaxHa, tostring(resetNpcFields), validation)
+
+    if forceApply == true then
+        msg = msg .. " (forced)"
+    end
+    print("CCO GUI APPLY: " .. msg)
+    self._guiNotice = msg
+    return true, msg
+end
+
+
+function CCO:saveCurrentRulesToTemplateConfig()
+    local rules = self._rules
+    if rules == nil or not next(rules) then
+        return false, "No active CCO rules are loaded."
+    end
+
+    local tpl = templatePath()
+    local stamp = (os ~= nil and os.date ~= nil) and os.date("%Y%m%d_%H%M%S") or tostring(g_time or "unknown")
+    local backupPath = settingsRoot() .. "backups/config_backup_" .. stamp .. ".xml"
+
+    local backupRules = nil
+    if fileExists(tpl) then
+        backupRules = readConfig(tpl)
+        if backupRules == nil or not next(backupRules) then
+            backupRules = buildDefaultRules()
+        end
+
+        if not writeConfig(backupPath, backupRules) then
+            local msg = "Failed to create template backup; config.xml was not changed."
+            print("CCO GUI SAVE DEFAULTS: " .. msg)
+            self._guiNotice = msg
+            return false, msg
+        end
+    end
+
+    if not writeConfig(tpl, rules) then
+        local msg = "Failed to write template config.xml."
+        print("CCO GUI SAVE DEFAULTS: " .. msg)
+        self._guiNotice = msg
+        return false, msg
+    end
+
+    local msg = "Saved current active rules to template config.xml. Existing per-save XML files were not overwritten"
+    if backupRules ~= nil then
+        msg = msg .. "; backup=" .. tostring(backupPath)
+    else
+        msg = msg .. "; no previous config.xml found"
+    end
+
+    print("CCO GUI SAVE DEFAULTS: " .. msg)
+    self._guiNotice = msg
+    return true, msg
+end
+
+
 -- Global GUI hotkey ---------------------------------------------------------
 function CCO:onInputOpenGui(actionName, inputValue, callbackState, isAnalog)
     if g_gui ~= nil and g_gui.currentGui ~= nil and g_gui.currentGui.name == "CropControlOverrideMenu" then
         return
     end
-    self:openGui("status", 1)
+    self:openGui("rules", 1)
 end
 
 function CCO:registerGlobalActionEvents(player, inputBinding)
@@ -1738,17 +1927,17 @@ function CCO:consoleListBlockedRules()
     end
     table.sort(names)
     if #names == 0 then
-        print("CCO: no crops are currently disabled or blocked for NPCs by rule")
+        print("CCO: no crops are currently NPC-disabled by rule")
         return
     end
-    print("CCO: disabled/NPC-blocked crop rules")
+    print("CCO: NPC-disabled crop rules")
     for _, nameU in ipairs(names) do
         local r = self._rules[nameU]
         local ft = getFruitByName(nameU)
         print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s discovered=%s"):format(
             nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields), tostring(ft ~= nil)))
     end
-    print(("CCO: blocked rule list complete. count=%d"):format(#names))
+    print(("CCO: NPC-disabled rule list complete. count=%d"):format(#names))
 end
 addConsoleCommand("ccoListBlockedRules", "List crops disabled or blocked for NPCs by CCO rules", "consoleListBlockedRules", CCO)
 
@@ -1851,18 +2040,18 @@ addConsoleCommand("ccoResetBlocked", "Reset all currently blocked NPC fields. Us
 
 
 function CCO:consoleStatus()
-    local disabled, blockedRules, limited = 0, 0, 0
+    local disabled, npcDisabledRules, limited = 0, 0, 0
     for _, rule in pairs(self._rules or {}) do
         if rule ~= nil then
             if rule.enabled == false then disabled = disabled + 1 end
-            if rule.enabled == false or rule.npcAllowed == false then blockedRules = blockedRules + 1 end
+            if rule.enabled == false or rule.npcAllowed == false then npcDisabledRules = npcDisabledRules + 1 end
             if rule.npcMaxHa ~= nil and rule.npcMaxHa > 0 then limited = limited + 1 end
         end
     end
 
     local summary = self:buildFieldSummary(nil)
     print(("CCO: status version=%s config=%s"):format(tostring(self.VERSION), tostring(self._configPath)))
-    print(("CCO: rules disabled=%d blockedRules=%d limited=%d totalRules=%d"):format(disabled, blockedRules, limited, (function()
+    print(("CCO: rules disabled=%d npcDisabledRules=%d limited=%d totalRules=%d"):format(disabled, npcDisabledRules, limited, (function()
         local n = 0
         for _, _ in pairs(self._rules or {}) do n = n + 1 end
         return n
@@ -1912,7 +2101,7 @@ function CCO:consoleHelp(topic)
         print("CCO: Logging/debug:")
         print("CCO:   ccoDebug on|off|toggle")
         print("CCO:   ccoLogLevel DEBUG|INFO|WARN|ERROR")
-        print("CCO:   NPC replacement/block detail is logged at DEBUG level in alpha.10.")
+        print("CCO:   NPC replacement and field-blocking detail is logged at DEBUG level.")
     end
 end
 addConsoleCommand("ccoHelp", "Show CCO command help. Usage: ccoHelp [rules|scan|reset|debug]", "consoleHelp", CCO)

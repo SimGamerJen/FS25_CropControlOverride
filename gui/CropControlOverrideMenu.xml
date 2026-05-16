@@ -6,29 +6,31 @@
     <GuiElement profile="fs25_menuContainer">
         <GuiElement profile="fs25_menuHeaderPanel">
             <Bitmap profile="fs25_menuHeaderIconBg">
-                <Bitmap profile="fs25_menuHeaderIcon" imageSliceId="gui.contracts"/>
+                <Bitmap profile="fs25_menuHeaderIcon"/>
             </Bitmap>
             <Text profile="fs25_menuHeaderTitle" id="titleElement" text="CROP CONTROL OVERRIDE"/>
-            <Button profile="ccoHelpIconButton" position="1560px -6px" text="?" onClick="onClickHelp" id="helpIconButton"/>
         </GuiElement>
 
         <BoxLayout profile="fs25_subCategorySelectorTabbedBox" id="subCategoryBox">
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[1]" text="STATUS" onClick="onClickStatus">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[1]" text="ALL RULES" onClick="onClickRules">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[2]" text="ALL RULES" onClick="onClickRules">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[2]" text="DISABLED" onClick="onClickDisabled">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[3]" text="DISABLED" onClick="onClickDisabled">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[3]" text="LIMITED" onClick="onClickLimited">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[4]" text="LIMITED" onClick="onClickLimited">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[4]" text="NPC DISABLED" onClick="onClickBlockedRules">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[5]" text="NPC BLOCKED" onClick="onClickBlockedRules">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[5]" text="VALIDATION" onClick="onClickValidate">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[6]" text="VALIDATION" onClick="onClickValidate">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[6]" text="SUMMARY" onClick="onClickStatus">
+                <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
+            </Button>
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[7]" text="HELP" onClick="onClickHelp">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
         </BoxLayout>
@@ -36,38 +38,77 @@
         <MultiTextOption profile="fs25_subCategorySelectorTabbed" id="subCategoryPaging" position="0px -10px" onClick="updateSubCategoryPages"/>
 
         <GuiElement profile="fs25_subCategorySelectorTabbedContainer" id="ccoMainPage">
-            <Bitmap position="-20px 34px" size="1525px 615px" imageColor="0.015 0.017 0.015 0.28"/>
-            <Text text="Read-only crop policy view | Use the tabs or PREV TAB / NEXT TAB to switch sections" position="0px 12px" size="1480px 25px" textSize="15px" textColor="0.55 0.63 0.50 1" textVerticalAlignment="middle" textAlignment="left"/>
+            <Bitmap position="-20px 150px" size="1525px 615px" imageColor="0.015 0.017 0.015 0.28"/>
+            <Text text="Crop policy editor | Select a crop row, stage changes, then Apply | Save Defaults is in the details panel" position="0px 12px" size="1480px 25px" textSize="15px" textColor="0.55 0.63 0.50 1" textVerticalAlignment="middle" textAlignment="left"/>
 
-            <Text id="bodyTextElement" text="" position="40px -20px" size="1480px 610px" textSize="16px" textColor="0.88 0.90 0.86 1" textVerticalAlignment="top" textAlignment="left" textMaxNumLines="28"/>
+            <Text id="bodyTextElement" text="" position="40px 150px" size="1480px 585px" textSize="16px" textColor="0.88 0.90 0.86 1" textVerticalAlignment="top" textAlignment="left" textMaxNumLines="36"/>
 
-            <GuiElement id="ruleTableContainer" visible="false">
-                <GuiElement profile="fs25_statisticsHeaderBox" position="0px -18px" size="1520px 38px">
-                    <Text profile="ccoColumnHeader" position="20px -3px"   size="240px 34px" text="Crop Type"/>
-                    <Text profile="ccoColumnHeader" position="275px -3px"  size="210px 34px" text="Player Permitted"/>
-                    <Text profile="ccoColumnHeader" position="500px -3px"  size="190px 34px" text="NPC Permitted"/>
-                    <Text profile="ccoColumnHeader" position="710px -3px"  size="180px 34px" text="Max Field (ha)"/>
-                    <Text profile="ccoColumnHeader" position="910px -3px"  size="120px 34px" text="Loaded"/>
-                    <Text profile="ccoColumnHeader" position="1050px -3px" size="240px 34px" text="Status"/>
+            <GuiElement id="ruleTableContainer" visible="false" position="0px 260px" size="1520px 520px">
+                <GuiElement id="ruleTableListArea" position="0px 0px" size="1030px 520px">
+                    <GuiElement profile="fs25_statisticsHeaderBox" position="0px -18px" size="1015px 38px">
+                        <Text profile="ccoColumnHeader" position="20px -3px"   size="220px 34px" text="Crop Type"/>
+                        <Text profile="ccoColumnHeader" position="255px -3px"  size="155px 34px" text="Player"/>
+                        <Text profile="ccoColumnHeader" position="420px -3px"  size="155px 34px" text="NPC"/>
+                        <Text profile="ccoColumnHeader" position="590px -3px"  size="160px 34px" text="Max Field (ha)"/>
+                        <Text profile="ccoColumnHeader" position="770px -3px"  size="210px 34px" text="Status"/>
+                    </GuiElement>
+
+                    <SmoothList id="ruleList" profile="ccoRulesList" position="0px -70px" size="1015px 505px" listItemSpacing="-1px">
+                        <ListItem profile="ccoRulesListItem">
+                            <ThreePartBitmap profile="ccoListItemGradient" name="alternating"/>
+                            <Text profile="ccoRowCellLeft"   position="20px 0px"   size="220px 34px" name="cellCrop"/>
+                            <Text profile="ccoRowCellCenter" position="255px 0px"  size="155px 34px" name="cellEnabled"/>
+                            <Text profile="ccoRowCellCenter" position="420px 0px"  size="155px 34px" name="cellNpc"/>
+                            <Text profile="ccoRowCellCenter" position="590px 0px"  size="160px 34px" name="cellMaxHa"/>
+                            <Text profile="ccoRowCellCenter" position="770px 0px"  size="210px 34px" name="cellStatus"/>
+                        </ListItem>
+                    </SmoothList>
+
+                    <ThreePartBitmap profile="ccoSliderBox" position="1030px -70px" size="6px 505px" id="ruleListSliderBox">
+                        <Slider profile="fs25_listSlider" dataElementId="ruleList"/>
+                    </ThreePartBitmap>
                 </GuiElement>
 
-                <SmoothList id="ruleList" profile="ccoRulesList" position="0px -70px" size="1520px 597px" listItemSpacing="-1px">
-                    <ListItem profile="ccoRulesListItem">
-                        <ThreePartBitmap profile="ccoListItemGradient" name="alternating"/>
-                        <Text profile="ccoRowCellLeft"   position="20px 0px"   size="240px 34px" name="cellCrop"/>
-                        <Text profile="ccoRowCellCenter" position="275px 0px"  size="210px 34px" name="cellEnabled"/>
-                        <Text profile="ccoRowCellCenter" position="500px 0px"  size="190px 34px" name="cellNpc"/>
-                        <Text profile="ccoRowCellCenter" position="710px 0px"  size="180px 34px" name="cellMaxHa"/>
-                        <Text profile="ccoRowCellCenter" position="910px 0px"  size="120px 34px" name="cellLoaded"/>
-                        <Text profile="ccoRowCellCenter" position="1050px 0px" size="240px 34px" name="cellStatus"/>
-                    </ListItem>
-                </SmoothList>
+                <GuiElement id="ruleDetailsPanel" position="1080px -50px" size="420px 565px">
+                    <Bitmap position="0px 0px" size="420px 565px" imageColor="0.012 0.014 0.012 0.52"/>
+                    <Text profile="ccoDetailsHeader" position="20px -18px" size="380px 34px" text="SELECTED CROP"/>
+                    <Text profile="ccoDetailsCropName" id="selectedCropText" position="20px -58px" size="380px 40px" text="No crop selected"/>
+                    <ThreePartBitmap profile="fs25_contractsContentSeparator" position="20px -104px" size="380px 2px"/>
 
-                <ThreePartBitmap profile="ccoSliderBox" position="1560px -70px" size="6px 597px" id="ruleListSliderBox">
-                    <Slider profile="fs25_listSlider" dataElementId="ruleList"/>
-                </ThreePartBitmap>
+                    <Text profile="ccoDetailsHeader" position="20px -124px" size="380px 28px" text="STAGED RULE VALUES"/>
 
-                <Text id="emptyStateText" profile="ccoEmptyStateText" position="474px -230px" text="No matching crop rules." visible="false"/>
+                    <Text profile="ccoDetailsLabel" position="20px -158px" size="170px 28px" text="Player Permitted"/>
+                    <Button profile="ccoEditButtonWide" id="editEnabledButton" position="210px -158px" text="-" onClick="onClickToggleEnabled"/>
+
+                    <Text profile="ccoDetailsLabel" position="20px -198px" size="170px 28px" text="NPC Permitted"/>
+                    <Button profile="ccoEditButtonWide" id="editNpcButton" position="210px -198px" text="-" onClick="onClickToggleNpc"/>
+
+                    <Text profile="ccoDetailsLabel" position="20px -238px" size="170px 28px" text="Max Field (ha)"/>
+                    <Button profile="ccoEditButton" id="editMaxDownButton" position="210px -238px" size="54px 28px" text="-1" onClick="onClickMaxDown"/>
+                    <Text profile="ccoDetailsValue" id="editMaxHaText" position="276px -238px" size="70px 28px" text="-"/>
+                    <Button profile="ccoEditButton" id="editMaxUpButton" position="350px -238px" size="54px 28px" text="+1" onClick="onClickMaxUp"/>
+
+                    <Text profile="ccoDetailsLabel" position="20px -278px" size="170px 28px" text="Reset NPC Fields"/>
+                    <Button profile="ccoEditButtonWide" id="editResetButton" position="210px -278px" text="-" onClick="onClickToggleReset"/>
+
+                    <ThreePartBitmap profile="fs25_contractsContentSeparator" position="20px -320px" size="380px 2px"/>
+
+                    <Text profile="ccoDetailsLabel" position="20px -342px" size="170px 28px" text="Loaded on Map"/>
+                    <Text profile="ccoDetailsValue" id="selectedLoadedText" position="210px -342px" size="180px 28px" text="-"/>
+
+                    <Text profile="ccoDetailsLabel" position="20px -378px" size="170px 28px" text="Rule Status"/>
+                    <Text profile="ccoDetailsValue" id="selectedStatusText" position="210px -378px" size="180px 28px" text="-"/>
+
+                    <Text profile="ccoDetailsDirty" id="selectedDirtyText" position="20px -418px" size="380px 40px" text="No staged changes."/>
+
+                    <Button profile="ccoApplyActionButton" id="editApplyButton" position="20px -442px" size="180px 34px" text="APPLY" onClick="onClickApplyDryRun"/>
+                    <Button profile="ccoDiscardActionButton" id="editDiscardButton" position="210px -442px" size="180px 34px" text="DISCARD" onClick="onClickDiscardStaged"/>
+
+                    <Button profile="ccoSaveDefaultsPanelButton" id="saveDefaultsButton" position="20px -486px" size="370px 38px" text="SAVE DEFAULTS TO CONFIG.XML" onClick="onClickSaveDefaults"/>
+
+                    <Text profile="ccoDetailsInfo" id="selectedInfoText" position="20px -532px" size="380px 42px" text="Apply writes the selected crop rule to the active CCO XML."/>
+                </GuiElement>
+                <Text id="emptyStateText" profile="ccoEmptyStateText" position="220px -220px" text="No matching crop rules." visible="false"/>
             </GuiElement>
         </GuiElement>
 

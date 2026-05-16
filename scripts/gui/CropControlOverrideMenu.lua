@@ -12,9 +12,14 @@ function CropControlOverrideMenu.new(target, customMt)
     self.returnScreenName = ""
     self.pendingTitle = "Crop Control Override"
     self.pendingBody = ""
-    self.currentTopic = "status"
+    self.currentTopic = "rules"
     self.currentPage = 1
     self.ruleRows = {}
+    self.selectedRowIndex = nil
+    self.selectedRow = nil
+    self.stagedRule = nil
+    self.stagedDirty = false
+    self.forceApplyArmed = false
     self.tableTopic = false
     self.menuBackEventId = nil
     self.suppressTabCallback = false
@@ -113,43 +118,46 @@ local TABLE_TOPICS = {
 }
 
 local TAB_TOPIC_INDEX = {
-    status = 1,
-    rules = 2,
-    disabled = 3,
-    limited = 4,
-    blockedrules = 5,
-    ["blocked-rules"] = 5,
-    blocked = 6,
-    validation = 6,
+    rules = 1,
+    disabled = 2,
+    limited = 3,
+    blockedrules = 4,
+    ["blocked-rules"] = 4,
+    blocked = 5,
+    validation = 5,
+    status = 6,
+    help = 7,
 }
 
 local TAB_INDEX_TOPIC = {
-    [1] = "status",
-    [2] = "rules",
-    [3] = "disabled",
-    [4] = "limited",
-    [5] = "blockedrules",
-    [6] = "blocked",
+    [1] = "rules",
+    [2] = "disabled",
+    [3] = "limited",
+    [4] = "blockedrules",
+    [5] = "blocked",
+    [6] = "status",
+    [7] = "help",
 }
 
 local TAB_TEXTS = {
-    "STATUS",
     "ALL RULES",
     "DISABLED",
     "LIMITED",
-    "NPC BLOCKED",
+    "NPC DISABLED",
     "VALIDATION",
+    "SUMMARY",
+    "HELP",
 }
 
 
 local function buildTopicContent(topic, page)
-    topic = topic ~= nil and tostring(topic):lower() or "status"
+    topic = topic ~= nil and tostring(topic):lower() or "rules"
     if CropControlOverride == nil then
         return "Crop Control Override", "CropControlOverride backend is not available.", "status", 1
     end
 
     if topic == "status" then
-        return "Crop Control Override - Status", CropControlOverride:buildGuiStatusText(), "status", 1
+        return "Crop Control Override - Summary", CropControlOverride:buildGuiStatusText(), "status", 1
     elseif topic == "rules" then
         return "Crop Control Override - Configured Rules", CropControlOverride:buildGuiRuleListText("rules", page), "rules", page or 1
     elseif topic == "disabled" then
@@ -157,7 +165,7 @@ local function buildTopicContent(topic, page)
     elseif topic == "limited" then
         return "Crop Control Override - Size-Limited Crops", CropControlOverride:buildGuiRuleListText("limited", page), "limited", page or 1
     elseif topic == "blockedrules" or topic == "blocked-rules" then
-        return "Crop Control Override - NPC Blocked Rules", CropControlOverride:buildGuiRuleListText("blockedrules", page), "blockedrules", page or 1
+        return "Crop Control Override - NPC Disabled Rules", CropControlOverride:buildGuiRuleListText("blockedrules", page), "blockedrules", page or 1
     elseif topic == "blocked" or topic == "validation" then
         return "Crop Control Override - Validation", CropControlOverride:buildGuiBlockedText(), "blocked", 1
     elseif topic == "undiscovered" then
@@ -216,7 +224,7 @@ end
 
 
 function CropControlOverrideMenu:getActiveTabIndex()
-    local topic = self.currentTopic or "status"
+    local topic = self.currentTopic or "rules"
     return TAB_TOPIC_INDEX[topic] or 1
 end
 
@@ -294,7 +302,7 @@ function CropControlOverrideMenu:updateSubCategoryPages(subCategoryIndex)
     end
     idx = idx or self:getActiveTabIndex()
 
-    local topic = TAB_INDEX_TOPIC[idx] or "status"
+    local topic = TAB_INDEX_TOPIC[idx] or "rules"
     self:showTopic(topic, 1)
 end
 
@@ -376,6 +384,11 @@ function CropControlOverrideMenu:setContent(title, body, topic)
     self.pendingBody = body or ""
     self.tableTopic = TABLE_TOPICS[topic or self.currentTopic or ""] == true
     self.ruleRows = self.tableTopic and parseRuleRows(self.pendingBody) or {}
+    self.selectedRowIndex = nil
+    self.selectedRow = nil
+    self.stagedRule = nil
+    self.stagedDirty = false
+    self.forceApplyArmed = false
     self:updateContent()
 end
 
@@ -387,11 +400,139 @@ function CropControlOverrideMenu:getEmptyStateText()
     elseif topic == "disabled" then
         return "No disabled crops are configured for this save."
     elseif topic == "blockedrules" then
-        return "No crops are disabled or explicitly blocked for NPC use."
+        return "No crops are currently disabled for NPC use."
     elseif topic == "undiscovered" then
         return "All configured crops are currently loaded on this map/save."
     end
     return "No configured crop rules match this view."
+end
+
+
+
+local function ccoValueToBool(value)
+    local s = tostring(value or ""):lower()
+    return s == "yes" or s == "true" or s == "1"
+end
+
+local function ccoBoolText(value)
+    return value and "Yes" or "No"
+end
+
+local function ccoNpcToStage(value)
+    local s = tostring(value or ""):lower()
+    if s == "map default" or s == "mapdefault" then
+        return "mapDefault"
+    elseif s == "yes" or s == "true" or s == "1" then
+        return "yes"
+    end
+    return "no"
+end
+
+local function ccoNpcStageText(value)
+    if value == "mapDefault" then return "Map Default" end
+    if value == "yes" then return "Yes" end
+    return "No"
+end
+
+function CropControlOverrideMenu:createStagedRuleFromRow(row)
+    if row == nil then
+        self.stagedRule = nil
+        self.stagedDirty = false
+        return
+    end
+
+    self.stagedRule = {
+        crop = row.crop,
+        enabled = ccoValueToBool(row.enabled),
+        npc = ccoNpcToStage(row.npc),
+        maxHa = tonumber(row.maxHa or 0) or 0,
+        resetNpcFields = true,
+    }
+    self.stagedDirty = false
+    self.forceApplyArmed = false
+end
+
+function CropControlOverrideMenu:updateStagedButtons()
+    local staged = self.stagedRule
+
+    local function setButton(button, value, disabled)
+        if button ~= nil then
+            if button.setText ~= nil then
+                button:setText(tostring(value or "-"))
+            end
+            if button.setDisabled ~= nil then
+                button:setDisabled(disabled == true)
+            end
+        end
+    end
+
+    local function setText(element, value)
+        if element ~= nil and element.setText ~= nil then
+            element:setText(tostring(value or "-"))
+        end
+    end
+
+    if staged == nil then
+        setButton(self.editEnabledButton, "-", true)
+        setButton(self.editNpcButton, "-", true)
+        setButton(self.editMaxDownButton, "-1", true)
+        setButton(self.editMaxUpButton, "+1", true)
+        setButton(self.editResetButton, "-", true)
+        setButton(self.editApplyButton, "APPLY", true)
+        setButton(self.editDiscardButton, "DISCARD", true)
+        setText(self.editMaxHaText, "-")
+        setText(self.selectedDirtyText, "No crop selected.")
+        return
+    end
+
+    setButton(self.editEnabledButton, ccoBoolText(staged.enabled), false)
+    setButton(self.editNpcButton, ccoNpcStageText(staged.npc), false)
+    setButton(self.editMaxDownButton, "-1", false)
+    setButton(self.editMaxUpButton, "+1", false)
+    setButton(self.editResetButton, ccoBoolText(staged.resetNpcFields), false)
+    setButton(self.editApplyButton, self.forceApplyArmed and "FORCE APPLY" or "APPLY", not self.stagedDirty)
+    setButton(self.editDiscardButton, "DISCARD", not self.stagedDirty)
+    setText(self.editMaxHaText, string.format("%.2f", tonumber(staged.maxHa or 0) or 0))
+
+    if self.stagedDirty then
+        setText(self.selectedDirtyText, "Staged changes ready. Apply will save XML.")
+    else
+        setText(self.selectedDirtyText, "No staged changes.")
+    end
+end
+
+function CropControlOverrideMenu:updateSelectedDetails()
+    local row = self.selectedRow
+
+    local function set(element, value)
+        if element ~= nil and element.setText ~= nil then
+            element:setText(tostring(value or "-"))
+        end
+    end
+
+    if not self.tableTopic then
+        row = nil
+    end
+
+    if row == nil then
+        set(self.selectedCropText, "No crop selected")
+        set(self.selectedLoadedText, "-")
+        set(self.selectedStatusText, "-")
+        set(self.selectedInfoText, "Select a crop row to stage rule edits. Apply/save will be added in a later alpha build.")
+        self:createStagedRuleFromRow(nil)
+        self:updateStagedButtons()
+        return
+    end
+
+    if self.stagedRule == nil or self.stagedRule.crop ~= row.crop then
+        self:createStagedRuleFromRow(row)
+    end
+
+    set(self.selectedCropText, row.crop)
+    set(self.selectedLoadedText, row.loaded)
+    set(self.selectedStatusText, row.status)
+    set(self.selectedInfoText, "Apply writes the selected crop rule to the active CCO XML.")
+    self:updateStagedButtons()
 end
 
 function CropControlOverrideMenu:updateContent()
@@ -412,10 +553,17 @@ function CropControlOverrideMenu:updateContent()
     end
 
     if self.tableTopic then
+        local hasRows = #self.ruleRows > 0
+        if hasRows then
+            self.selectedRowIndex = self.selectedRowIndex or 1
+            self.selectedRow = self.ruleRows[self.selectedRowIndex]
+        end
         if self.ruleList ~= nil then
             self.ruleList:reloadData()
+            if hasRows and self.ruleList.setSelectedIndex ~= nil then
+                pcall(function() self.ruleList:setSelectedIndex(self.selectedRowIndex or 1, true) end)
+            end
         end
-        local hasRows = #self.ruleRows > 0
         if self.emptyStateText ~= nil then
             self.emptyStateText:setVisible(not hasRows)
             if self.emptyStateText.setText ~= nil then
@@ -429,6 +577,8 @@ function CropControlOverrideMenu:updateContent()
             self.ruleListSliderBox:setVisible(#self.ruleRows > 14)
         end
     end
+
+    self:updateSelectedDetails()
 end
 
 -- SmoothList data source / delegate ---------------------------------------
@@ -470,6 +620,12 @@ function CropControlOverrideMenu:populateCellForItemInSection(list, section, ind
 end
 
 function CropControlOverrideMenu:onListSelectionChanged(list, section, index)
+    local row = self.ruleRows[index]
+    if row ~= nil then
+        self.selectedRowIndex = index
+        self.selectedRow = row
+        self:updateSelectedDetails()
+    end
 end
 
 
@@ -499,6 +655,167 @@ function CropControlOverrideMenu:onPagePrevious()
         idx = #TAB_TEXTS
     end
     self:updateSubCategoryPages(idx)
+end
+
+
+function CropControlOverrideMenu:onClickToggleEnabled()
+    if self.stagedRule ~= nil then
+        self.stagedRule.enabled = not self.stagedRule.enabled
+        self.stagedDirty = true
+        self.forceApplyArmed = false
+        self:updateStagedButtons()
+    end
+end
+
+function CropControlOverrideMenu:onClickToggleNpc()
+    if self.stagedRule ~= nil then
+        if self.stagedRule.npc == "mapDefault" then
+            self.stagedRule.npc = "yes"
+        elseif self.stagedRule.npc == "yes" then
+            self.stagedRule.npc = "no"
+        else
+            self.stagedRule.npc = "mapDefault"
+        end
+        self.stagedDirty = true
+        self.forceApplyArmed = false
+        self:updateStagedButtons()
+    end
+end
+
+function CropControlOverrideMenu:onClickMaxDown()
+    if self.stagedRule ~= nil then
+        local value = tonumber(self.stagedRule.maxHa or 0) or 0
+        value = math.max(0, value - 1)
+        self.stagedRule.maxHa = value
+        self.stagedDirty = true
+        self.forceApplyArmed = false
+        self:updateStagedButtons()
+    end
+end
+
+function CropControlOverrideMenu:onClickMaxUp()
+    if self.stagedRule ~= nil then
+        local value = tonumber(self.stagedRule.maxHa or 0) or 0
+        value = math.min(999, value + 1)
+        self.stagedRule.maxHa = value
+        self.stagedDirty = true
+        self.forceApplyArmed = false
+        self:updateStagedButtons()
+    end
+end
+
+function CropControlOverrideMenu:onClickToggleReset()
+    if self.stagedRule ~= nil then
+        self.stagedRule.resetNpcFields = not self.stagedRule.resetNpcFields
+        self.stagedDirty = true
+        self.forceApplyArmed = false
+        self:updateStagedButtons()
+    end
+end
+
+
+function CropControlOverrideMenu:buildStagedRuleText()
+    local staged = self.stagedRule
+    if staged == nil then
+        return "No staged rule selected."
+    end
+
+    return string.format(
+        "crop=%s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s",
+        tostring(staged.crop or "-"),
+        tostring(staged.enabled == true),
+        tostring(ccoNpcStageText(staged.npc)),
+        tonumber(staged.maxHa or 0) or 0,
+        tostring(staged.resetNpcFields == true)
+    )
+end
+
+function CropControlOverrideMenu:onClickApplyDryRun()
+    if self.stagedRule == nil or not self.stagedDirty then
+        return
+    end
+
+    if CropControlOverride == nil or CropControlOverride.applyGuiStagedRule == nil then
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
+            self.selectedDirtyText:setText("Apply failed: CCO backend unavailable.")
+        end
+        return
+    end
+
+    local cropName = tostring(self.stagedRule.crop or "")
+    local ok, msg, canForce = CropControlOverride:applyGuiStagedRule(self.stagedRule, self.forceApplyArmed == true)
+    local resultText = tostring(msg or "")
+
+    if ok then
+        self.stagedDirty = false
+        self.forceApplyArmed = false
+
+        local validationFailed = resultText:lower():find("validation failed", 1, true) ~= nil
+        local offending = resultText:match("offendingNpcFields=(%d+)") or resultText:match("offending NPC field%(s%)=(%d+)")
+
+        local dirtyMessage = "Rule saved. Validation passed."
+        local infoMessage = "The selected crop rule was saved to the active CCO XML and rules were reapplied."
+
+        if validationFailed then
+            dirtyMessage = "Rule saved. Validation warning."
+            if offending ~= nil then
+                infoMessage = ("Validation found %s blocked NPC field(s). Review the VALIDATION tab before using ccoResetBlocked dryrun."):format(tostring(offending))
+            else
+                infoMessage = "Validation found blocked NPC fields. Review the VALIDATION tab before using ccoResetBlocked dryrun."
+            end
+        end
+
+        -- Refresh the active table/view from the newly written rule set.
+        local topic = self.currentTopic or "rules"
+        self:showTopic(topic, self.currentPage or 1)
+
+        -- Restore selection to the crop that was just applied where possible.
+        for i, row in ipairs(self.ruleRows or {}) do
+            if row.crop == cropName then
+                self.selectedRowIndex = i
+                self.selectedRow = row
+                self:createStagedRuleFromRow(row)
+                self:updateSelectedDetails()
+                if self.ruleList ~= nil and self.ruleList.setSelectedIndex ~= nil then
+                    pcall(function() self.ruleList:setSelectedIndex(i, true) end)
+                end
+                break
+            end
+        end
+
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
+            self.selectedDirtyText:setText(dirtyMessage)
+        end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
+            self.selectedInfoText:setText(infoMessage)
+        end
+    else
+        local message = tostring(msg or "Failed to save rule.")
+        local blocked = message:lower():find("apply blocked", 1, true) ~= nil or message:lower():find("blocked npc field", 1, true) ~= nil
+        if blocked and canForce == true then
+            self.forceApplyArmed = true
+        end
+        self:updateStagedButtons()
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
+            self.selectedDirtyText:setText(blocked and "Apply blocked. Rule not saved." or "Apply failed.")
+        end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
+            if blocked and canForce == true then
+                self.selectedInfoText:setText(message .. " Click FORCE APPLY to save anyway.")
+            else
+                self.selectedInfoText:setText(message)
+            end
+        end
+    end
+end
+
+function CropControlOverrideMenu:onClickDiscardStaged()
+    if self.selectedRow ~= nil then
+        self:createStagedRuleFromRow(self.selectedRow)
+    else
+        self:createStagedRuleFromRow(nil)
+    end
+    self:updateSelectedDetails()
 end
 
 function CropControlOverrideMenu:onClickStatus()
@@ -536,6 +853,8 @@ function CropControlOverrideMenu:onClickNextPage()
         CropControlOverride:openGui(topic, page + 1)
     end
 end
+
+
 
 function CropControlOverrideMenu:keyEvent(unicode, sym, modifier, isDown)
     if not isDown then
@@ -581,6 +900,34 @@ end
 
 function CropControlOverrideMenu:onClickValidate()
     self:showTopic("blocked", 1)
+end
+
+function CropControlOverrideMenu:onClickBlocked()
+    self:onClickValidate()
+end
+
+
+function CropControlOverrideMenu:onClickSaveDefaults()
+    if CropControlOverride ~= nil and CropControlOverride.saveCurrentRulesToTemplateConfig ~= nil then
+        local ok, resultOk, msg = pcall(function()
+            return CropControlOverride:saveCurrentRulesToTemplateConfig()
+        end)
+
+        if not ok then
+            msg = tostring(resultOk)
+            resultOk = false
+            print("CCO GUI: save defaults action failed: " .. tostring(msg))
+        end
+
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
+            self.selectedDirtyText:setText(resultOk and "Saved defaults." or "Save defaults failed.")
+        end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
+            self.selectedInfoText:setText(tostring(msg or "Template config updated."))
+        end
+
+        CropControlOverride._guiNotice = tostring(msg or "")
+    end
 end
 
 function CropControlOverrideMenu:onClickBack()

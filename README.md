@@ -1,321 +1,334 @@
 # FS25 Crop Control Override
 
-Version: `2.0.0-alpha.49`
+**Version:** 2.0.0-alpha.80  
+**Game:** Farming Simulator 25  
+**Type:** Script mod / crop policy manager
 
-Merged development credit: **SimGamerJen** and **Hyper138**.
+Crop Control Override lets you manage which crops are available to the player and which crops NPC farmers are allowed to use. It supports per-save crop rule files, NPC crop validation, blocked-field reporting, and an editable in-game GUI.
 
-Crop Control Override is a per-save crop policy mod for Farming Simulator 25. This merged alpha combines the original CropControlOverride idea with Hyper138's NPC crop-control and field-size governance concept.
+This is an alpha build of the 2.0.0 line. It is suitable for testing, but keep backups of important saves.
 
-## What this build does
+---
 
-- Reads global defaults from `modSettings/FS25_CropControlOverride/config.xml`.
-- Creates and uses per-save configs under `modSettings/FS25_CropControlOverride/saves/savegameX.xml`.
-- Reads and normalizes pre-2.0.0 / v1 entries such as `<fruit name="ONION" enabled="false" />`.
-- Supports v2 crop policy attributes:
-  - `enabled`
-  - `npcAllowed`
-  - `npcMaxHa`
-  - `resetNpcFields`
-- Applies crop disabling to supported fruitType flags.
-- Blocks disabled crops from NPC field selection and sowing missions where the relevant game hooks are available.
-- Supports NPC field-size limits, for example allowing maize only on fields up to 5 ha.
-- Scans existing saves and can manually reset offending NPC fields to cultivated state.
-- Prints a startup validation notice after map load.
-- Adds `ccoStatus` and `ccoHelp` for easier testing/release review.
-- Moves detailed NPC replacement/block trace messages to DEBUG log level to reduce normal log noise.
-- Automatically migrates legacy per-save XMLs to the v2 rule schema.
-- Preserves custom or currently undiscovered crop rules during migration and save writes.
+## Key features
 
-## Config locations
+- Per-save crop policy XML files.
+- Editable FS25-style GUI opened with `ALT+C`.
+- Player crop enable/disable rules.
+- NPC crop enable/disable rules.
+- NPC field-size limits by crop.
+- Guarded apply workflow to prevent accidental blocked NPC fields.
+- Force Apply workflow for deliberate policy changes.
+- Validation tab showing blocked NPC field details.
+- Save Defaults action to export the current active rule set to the template `config.xml`.
+- Automatic backup before overwriting template `config.xml`.
+- Console commands for diagnostics and cleanup workflows.
 
-Global template/default config:
+---
 
-```text
-<UserDocuments>/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/config.xml
-```
+## Configuration hierarchy
 
-Per-save config:
+Crop Control Override uses two levels of configuration.
+
+### Template config
 
 ```text
-<UserDocuments>/My Games/FarmingSimulator2025/modSettings/FS25_CropControlOverride/saves/savegameX.xml
+modSettings/FS25_CropControlOverride/config.xml
 ```
 
-The per-save file is preferred when it exists. Use `ccoWhichConfig` to confirm which file is active.
+This is the default/template rule file. It is used when creating or normalising per-save rule files.
 
-## Config examples
+### Per-save config
 
-Disable a crop completely and prevent NPC use:
-
-```xml
-<fruit name="COTTON" enabled="false" npcAllowed="false" npcMaxHa="0" resetNpcFields="true"/>
+```text
+modSettings/FS25_CropControlOverride/saves/savegameX.xml
 ```
 
-Allow a crop generally, but restrict NPCs to fields up to 5 ha:
+This is the active rule file for a specific savegame.
 
-```xml
-<fruit name="MAIZE" enabled="true" npcAllowed="true" npcMaxHa="5" resetNpcFields="true"/>
+The GUI normally edits the active per-save XML. It does **not** automatically overwrite the template config.
+
+---
+
+## Opening the GUI
+
+Default input action:
+
+```text
+ALT+C
 ```
 
-Keep the crop enabled and use the map/default NPC setting unless a size rule applies:
+The keybind can be changed from the in-game controls menu if required.
 
-```xml
-<fruit name="POTATO" enabled="true" npcAllowed="mapDefault" npcMaxHa="10" resetNpcFields="true"/>
+The GUI opens on **ALL RULES**.
+
+---
+
+## GUI tabs
+
+### ALL RULES
+
+Shows all configured crop rules.
+
+Use this tab to select a crop and edit its policy in the right-side details panel.
+
+### DISABLED
+
+Shows crops disabled globally by rule.
+
+A globally disabled crop is unavailable under the crop policy.
+
+### LIMITED
+
+Shows crops with an NPC maximum field-size limit.
+
+A value of `0.00 ha` means no CCO size limit is applied.
+
+### NPC DISABLED
+
+Shows crops that NPCs should not plant.
+
+Globally disabled crops also count as NPC-disabled because they are unavailable to NPCs.
+
+### VALIDATION
+
+Checks the current save against the active crop policy.
+
+If existing NPC fields violate the active rules, this tab lists blocked NPC field details, including field ID, crop, size, and reason.
+
+### SUMMARY
+
+Shows the active config path, rule counts, policy summary, validation status, and config hierarchy notes.
+
+### HELP
+
+Shows in-game guidance for navigation, policy terms, config files, cleanup, and editing.
+
+---
+
+## Editing crop rules
+
+Select a crop row, then use the right-side details panel.
+
+Editable staged values:
+
+- **Player Permitted**
+- **NPC Permitted**
+- **Max Field (ha)**
+- **Reset NPC Fields**
+
+Changes are staged first. They are not written until you use **APPLY**.
+
+### APPLY
+
+Writes the selected staged crop rule to the active per-save XML if validation passes.
+
+After apply, CCO reapplies rules, refreshes the GUI, and reports validation status.
+
+### APPLY BLOCKED
+
+If the staged change would create blocked NPC fields, the first apply is blocked and the XML is not changed.
+
+The button changes to **FORCE APPLY**.
+
+### FORCE APPLY
+
+Writes the staged rule deliberately even if it creates blocked NPC fields.
+
+Use this when you intentionally want to save a new policy and then review/clean up affected NPC fields.
+
+After Force Apply, check the **VALIDATION** tab.
+
+### DISCARD
+
+Resets staged values back to the selected row’s current saved values.
+
+---
+
+## Save Defaults
+
+The **SAVE DEFAULTS TO CONFIG.XML** button is in the right-side details panel.
+
+It exports the current complete active rule set to:
+
+```text
+modSettings/FS25_CropControlOverride/config.xml
 ```
+
+Before overwriting the template config, CCO creates a backup in:
+
+```text
+modSettings/FS25_CropControlOverride/backups/
+```
+
+Example backup name:
+
+```text
+config_backup_YYYYMMDD_HHMMSS.xml
+```
+
+Save Defaults does **not** overwrite existing per-save XML files.
+
+---
+
+## Validation and blocked NPC fields
+
+Two concepts are intentionally separate.
+
+### NPC-disabled crops
+
+These are crops the rules say NPCs should not plant.
+
+This is a policy/configuration state.
+
+### Blocked NPC fields
+
+These are existing NPC fields in the current save that already violate the active policy.
+
+This is a save-state validation issue.
+
+Example:
+
+```text
+BARLEY NPC Permitted = No
+```
+
+If no NPC fields currently contain barley, validation passes.
+
+If an NPC field already contains barley, validation reports a blocked NPC field.
+
+---
+
+## Cleanup workflow
+
+Cleanup remains console-led in this alpha build.
+
+Recommended order:
+
+```text
+ccoScanBlocked
+ccoResetBlocked dryrun
+ccoResetBlocked
+```
+
+Use `ccoResetBlocked dryrun` before making save-state changes.
+
+---
 
 ## Console commands
 
+### GUI and status
+
 ```text
-ccoHelp [rules|scan|reset|debug]
+ccoGui
+ccoGui rules
+ccoGui disabled
+ccoGui limited
+ccoGui blockedrules
+ccoGui blocked
+ccoGui help
 ccoStatus
 ccoWhichConfig
 ccoReload
+```
+
+### Rule inspection
+
+```text
+ccoExplain <CROP>
 ccoListRules [CROP]
 ccoListConfigured [CROP]
-ccoListUndiscovered
-ccoNormalizeConfig [dryrun]
-ccoSetCrop <CROP> <enabled:true|false> [npcAllowed:true|false|mapDefault] [npcMaxHa]
-ccoExplain <CROP>
-ccoListFlags [CROP]
-ccoFindFruit <text>
-ccoListLimited
 ccoListDisabled
 ccoListBlockedRules
-ccoListNpcCandidates <FIELD_ID>
+ccoListLimited
+ccoListUndiscovered
+ccoNormalizeConfig [dryrun]
+```
+
+### Rule editing
+
+```text
+ccoSetCrop <CROP> <enabled:true|false> [npcAllowed:true|false|mapDefault] [npcMaxHa]
+```
+
+The GUI is now the preferred editing method for normal use.
+
+### Field scanning and validation
+
+```text
 ccoScanFields [CROP]
 ccoScanBlocked [CROP]
 ccoScanSummary [CROP]
 ccoValidateSave
+ccoListNpcCandidates <FIELD_ID>
+```
+
+### Cleanup
+
+```text
+ccoResetBlocked dryrun
+ccoResetBlocked
 ccoResetNpcFields [CROP|all] [dryrun]
-ccoResetBlocked [dryrun]
+```
+
+### Debug/logging
+
+```text
 ccoDebug on|off|toggle
 ccoLogLevel DEBUG|INFO|WARN|ERROR
 ```
 
-## Legacy config migration
+NPC replacement and field-blocking detail is logged at DEBUG level.
 
-Pre-2.0.0 CCO configs used entries such as:
+---
 
-```xml
-<fruit name="COTTON" enabled="false"/>
-```
+## Notes for alpha testing
 
-Alpha 9 and later normalize those rules into the v2 schema:
+- Test on copied saves first.
+- Keep backups of important savegames.
+- Use the Validation tab after Force Apply.
+- Use dry-run cleanup commands before resetting NPC fields.
+- Report any GUI rendering issues with screenshots and the relevant log section.
 
-```xml
-<fruit name="COTTON" enabled="false" npcAllowed="false" npcMaxHa="0" resetNpcFields="true"/>
-```
+---
 
-Migration behaviour:
+## Known future work
 
-- `enabled="false"` becomes `enabled="false" npcAllowed="false" npcMaxHa="0" resetNpcFields="true"`.
-- `enabled="true"` becomes `enabled="true" npcAllowed="mapDefault" npcMaxHa="0" resetNpcFields="true"` unless explicit v2 values already exist.
-- Custom crop rules are preserved even when the fruitType is not loaded on the active map/save.
-- Newly discovered map/DLC/mod fruitTypes are added to the per-save XML with default allowed rules.
+- Convert the standalone GUI to a proper in-game menu frame.
+- Use native menu button info handling once the menu-frame conversion is done.
+- Consider GUI-driven blocked-field cleanup with confirmation prompts.
+- Additional localisation polish before ModHub submission.
 
-Useful checks:
+---
 
-```text
-ccoNormalizeConfig dryrun
-ccoNormalizeConfig
-ccoListConfigured
-ccoListUndiscovered
-```
+## Changelog
 
-## Existing-save cleanup workflow
+### 2.0.0-alpha.80
 
-Use this when CCO is added to a save that was already generated, or after changing crop rules.
+- README updated to match the current editable GUI workflow.
+- Documented config hierarchy: template `config.xml` vs active per-save XML.
+- Documented APPLY / FORCE APPLY / DISCARD workflow.
+- Documented SAVE DEFAULTS and automatic backup behaviour.
+- Documented Validation tab and blocked NPC field terminology.
+- Updated console command documentation.
+- No code behaviour changes from alpha.77.
 
-```text
-ccoWhichConfig
-ccoValidateSave
-ccoScanBlocked
-ccoResetBlocked dryrun
-ccoResetBlocked
-ccoValidateSave
-```
+### 2.0.0-alpha.77
 
-`ccoResetBlocked` only targets NPC-owned fields that violate active CCO rules. It does not intentionally reset player-owned fields. Use `dryrun` first.
+- Included the confirmed details-panel placement update: `ruleDetailsPanel position="1080px -50px"`.
+- Reduced routine startup/hook/reapply log noise by demoting routine messages to DEBUG.
+- Kept important operational APPLY, SAVE DEFAULTS, validation, and cleanup output visible.
+- Aligned console wording around NPC-disabled crop rules and blocked NPC fields.
 
-## Field-size limit test workflow
+### 2.0.0-alpha.76
 
-Example using maize, allowing NPC maize only on fields up to 5 ha:
+- Moved Save Defaults into the right-side details panel.
+- Restored footer to navigation/reload/back actions.
+- Removed Return/MENU_ACCEPT handling for Save Defaults.
 
-```text
-ccoSetCrop MAIZE true true 5
-ccoReload
-ccoScanSummary MAIZE
-ccoResetNpcFields MAIZE dryrun
-```
+---
 
-If the dry-run output is correct:
+## Licence / attribution
 
-```text
-ccoResetNpcFields MAIZE
-ccoValidateSave
-```
-
-## Startup validation
-
-CCO prints a one-line startup validation notice after map load.
-
-If the save is clean, the log should show a pass message with checked/NPC/player field counts.
-
-If blocked NPC fields are found, the log will suggest:
-
-```text
-ccoScanBlocked
-ccoResetBlocked dryrun
-```
-
-This is intentionally only a notice. CCO does not auto-reset fields on load. Manual cleanup remains the safe default.
-
-## Tested alpha workflows
-
-The merged alpha has been validated in-game for:
-
-- Detecting disabled crops already present in a save created without CCO.
-- Resetting disabled NPC crop fields to cultivated state.
-- Keeping player-owned fields out of reset operations.
-- Detecting and resetting NPC field-size violations.
-- Revalidating after sleeping one in-game day.
-- Compact summary reporting and pass/fail validation.
-
-## Notes
-
-This build is still console/XML driven. A GUI can be added later once the policy engine has had more savegame and map testing.
-
-## Release readiness
-
-Alpha 10 is intended as a beta-candidate preparation build. The validated enforcement paths from alpha 7 through alpha 9 are unchanged. Testing should focus on packaging, command wording, migration behaviour on real older saves, and normal savegame workflows rather than forcing new crop-policy logic changes.
-
-Recommended final pre-beta checks:
-
-```text
-ccoStatus
-ccoWhichConfig
-ccoNormalizeConfig dryrun
-ccoListConfigured
-ccoListUndiscovered
-ccoValidateSave
-ccoScanSummary
-```
-
-
-### Alpha 7 NPC candidate diagnostics
-
-`ccoListNpcCandidates <FIELD_ID>` lists every discovered fruitType and explains whether it is a valid NPC planting candidate for the specified field under the current CCO rules. This is intended for testing replacement behaviour when the vanilla NPC crop choice is blocked.
-
-### Alpha 8 release-prep changes
-
-Alpha 8 does not intentionally change the validated field reset or NPC crop replacement logic. It is a polish build for testing and release review.
-
-Changes:
-
-- Added `ccoStatus` for a compact version/config/rule/field health check.
-- Added `ccoHelp [rules|scan|reset|debug]` for in-game command discovery.
-- Moved detailed NPC crop replacement/block and sow-mission block messages to DEBUG log level. Use `ccoLogLevel DEBUG` when actively testing candidate replacement.
-- Kept startup validation and normal command output visible at INFO/default behaviour.
-
-
-### Alpha 9 migration changes
-
-Alpha 9 keeps the validated alpha 7/8 field reset and NPC replacement logic intact. It adds explicit migration/normalization for pre-2.0.0 per-save XML files and better visibility of configured but undiscovered crop rules.
-
-Changes:
-
-- Auto-normalizes legacy per-save XMLs when loaded.
-- Adds `ccoNormalizeConfig [dryrun]`.
-- Adds `ccoListConfigured [CROP]`.
-- Adds `ccoListUndiscovered`.
-- Writes newly discovered custom map crops back to the per-save XML after map load.
-- Preserves configured rules for custom/DLC/map crops even when they are not currently discovered.
-
-
-### Alpha 10 release-prep changes
-
-Alpha 10 is a packaging and beta-candidate preparation build. It does not intentionally alter the validated field reset, NPC crop replacement, or legacy XML migration logic.
-
-Changes:
-
-- Version/build tags updated to `2.0.0-alpha.10`.
-- README reorganised for beta-candidate review.
-- modDesc description updated to make the migration and release-prep status clearer.
-- Keeps custom crop discovery and pre-2.0.0 per-save XML migration from alpha 9.
-- Keeps detailed NPC replacement/block traces at DEBUG log level.
-
-
-## Alpha.11 GUI foundation
-
-Alpha.11 adds the first read-only GUI/dialog layer through `ccoGui`. It is intentionally non-destructive and does not alter the validated policy, reset, migration, or NPC replacement logic.
-
-Commands:
-
-```text
-ccoGui
-ccoGui status
-ccoGui rules
-ccoGui disabled
-ccoGui limited
-ccoGui blocked
-ccoGui undiscovered
-ccoGui help
-```
-
-This is a foundation for the later editable management screen. Editing remains through XML and console commands in this alpha.
-
-
-## Alpha 12 GUI bootstrap note
-
-`ccoGui` now attempts multiple GIANTS custom GUI screen/dialog-registry API paths before using the console fallback. If the log reports `no GIANTS dialog API path succeeded`, the data backend is still working but the GUI bootstrap path needs another FS25-specific screen implementation.
-
-### Alpha 13 GUI note
-
-`ccoGui` now uses the minimal documented `g_gui:showcustom GUI screen({ text = ... })` payload first. Alpha 12 could open an icon-only custom GUI screen on some FS25 builds because extra dialog keys were accepted but the text was not rendered. `ccoGuiTest` opens a short hard-coded text dialog to verify whether the built-in custom GUI screen path is viable before moving to a custom XML screen. Console output is still printed as a safety fallback during GUI development.
-
-
-## 2.0.0-alpha.22
-
-- Added paging support to read-only GUI rule tables.
-- `ccoGui rules [page]`, `ccoGui disabled [page]`, `ccoGui limited [page]`, and `ccoGui undiscovered [page]` now show page indicators and next-page hints.
-- Backend crop policy, migration, NPC replacement, validation, and reset logic unchanged.
-
-## 2.0.0-alpha.49
-
-- Removed NEXT/PREV footer actions now that native SmoothList scrolling is in place.
-- Replaced number-key/F1 shortcuts with mnemonic shortcuts:
-  - S = Status
-  - A = All Rules
-  - D = Disabled
-  - L = Limited
-  - N = NPC Blocked
-  - V = Validation
-  - R = Reload
-  - H = Help, or click the top-right ? button
-  - ESC = Back
-- Updated the bottom GUI command bar to use those shortcut labels.
-- Removed CCO handling for left/right arrow page navigation so list controls can own scrolling/navigation.
-- Backend crop policy, migration, NPC replacement, validation, and reset logic unchanged.
-
-## 2.0.0-alpha.49
-
-- Improved custom GUI Back handling by using the native screen close path before falling back to `g_gui:showGui("")`.
-- Made `MENU_BACK` action registration more tolerant of different GIANTS return-value patterns.
-- Kept the footer action labels white when focused/highlighted so only the shortcut badges use the CCO green accent.
-- Added a GUI-root escape callback as an additional fallback.
-- Backend crop-policy logic unchanged.
-
-## 2.0.0-alpha.49
-
-- Replaced the custom hand-built GUI footer with a native `fs25_dialogButtonBox` style command row.
-- Uses standard FS25 button profiles such as `buttonMenuPrev`, `buttonMenuNext`, `buttonOK`, `buttonCancel`, `buttonExtra1`, and `buttonBack`.
-- Keeps the SmoothList crop table and all backend crop-policy logic unchanged.
-- This is a GUI footer/input-binding experiment before moving toward a proper ESC-menu frame integration.
-
-
-## 2.0.0-alpha.49
-
-- Removed Reload from the native dialog footer to avoid duplicate Backspace/Escape-style binding conflicts.
-- Kept Reload available through `ccoReload` and status/help text.
-- Reworked the top-right `?` Help control to use a real `buttonBase`-derived button profile so it should be clickable.
-- Kept Back as the only native `buttonBack` / Escape-style action.
+This mod is developed for Farming Simulator 25 by SimGamerJen.
 
