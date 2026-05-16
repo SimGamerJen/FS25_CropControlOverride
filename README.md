@@ -72,6 +72,8 @@ Shows all configured crop rules.
 
 Use this tab to select a crop and edit its policy in the right-side details panel.
 
+<img width="3840" height="2160" alt="CCO_all_rules" src="https://github.com/user-attachments/assets/284a0ff3-c47b-44b8-8d6c-a8a3e67ecc70" />
+
 ### DISABLED
 
 Shows crops disabled globally by rule.
@@ -83,6 +85,8 @@ A globally disabled crop is unavailable under the crop policy.
 Shows crops with an NPC maximum field-size limit.
 
 A value of `0.00 ha` means no CCO size limit is applied.
+
+<img width="3840" height="2160" alt="CCO_field_size_limited" src="https://github.com/user-attachments/assets/3b49aca8-2455-405e-a132-a79d8f70b373" />
 
 ### NPC DISABLED
 
@@ -100,9 +104,13 @@ If existing NPC fields violate the active rules, this tab lists blocked NPC fiel
 
 Shows the active config path, rule counts, policy summary, validation status, and config hierarchy notes.
 
+<img width="3840" height="2160" alt="CCO_summary" src="https://github.com/user-attachments/assets/83946254-f37d-4213-b57f-5f589b89d050" />
+
 ### HELP
 
 Shows in-game guidance for navigation, policy terms, config files, cleanup, and editing.
+
+<img width="3840" height="2160" alt="CCO_help" src="https://github.com/user-attachments/assets/aecdd7ec-2b14-4ec5-9ee5-55c2ebfdc982" />
 
 ---
 
