@@ -5,6 +5,18 @@ A lightweight Farming Simulator 25 script mod that **disables selected crops for
 > **Scope:** AI-only toggle (`useForFieldJob`). No PDA re-ordering or hiding.  
 > **Policy:** New-save only for newly added fruits (engine limitation).
 
+## Current test release
+
+The current recommended alpha test build is:
+
+**v2.0.0-alpha.80**
+
+Download it from the GitHub Releases page and use the asset named:
+
+`FS25_CropControlOverride_2.0.0-alpha.80-release-config.zip`
+
+Older alpha releases are retained for history only.
+
 ---
 
 ## ✨ Features
