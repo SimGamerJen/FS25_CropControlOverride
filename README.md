@@ -1,6 +1,6 @@
 # FS25 Crop Control Override
 
-**Version:** 2.0.0-alpha.80  
+**Version:** 2.0.0-alpha.82  
 **Game:** Farming Simulator 25  
 **Type:** Script mod / crop policy manager
 
@@ -303,7 +303,7 @@ NPC replacement and field-blocking detail is logged at DEBUG level.
 
 ## Changelog
 
-### 2.0.0-alpha.80
+### 2.0.0-alpha.82
 
 - README updated to match the current editable GUI workflow.
 - Documented config hierarchy: template `config.xml` vs active per-save XML.

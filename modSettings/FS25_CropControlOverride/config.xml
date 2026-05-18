@@ -1,5 +1,5 @@
-﻿<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<cropControl version="2" modVersion="2.0.0-alpha.80">
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<cropControl version="2" modVersion="2.0.0-alpha.82">
     <fruits>
         <fruit name="BARLEY" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
         <fruit name="BEETROOT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>

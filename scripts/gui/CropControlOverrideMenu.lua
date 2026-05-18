@@ -604,19 +604,66 @@ function CropControlOverrideMenu:populateCellForItemInSection(list, section, ind
         return
     end
 
-    local function set(name, value)
-        local element = cell.getDescendantByName ~= nil and cell:getDescendantByName(name) or nil
-        if element ~= nil and element.setText ~= nil then
-            element:setText(tostring(value or ""))
+    local COLOR_DEFAULT = {0.88, 0.90, 0.86, 1.00}
+    local COLOR_GREEN   = {0.55, 0.90, 0.25, 1.00}
+    local COLOR_RED     = {0.95, 0.22, 0.18, 1.00}
+    local COLOR_YELLOW  = {1.00, 0.78, 0.20, 1.00}
+
+    local function applyTextColor(element, color)
+        if element == nil or color == nil then
+            return
+        end
+
+        if element.setTextColor ~= nil then
+            element:setTextColor(color[1], color[2], color[3], color[4])
+        elseif element.applyProfile ~= nil then
+            -- Safe fallback: keep the existing profile if direct runtime colour is unavailable.
+            -- Profile-based colouring can be added later if any FS25 build lacks setTextColor.
         end
     end
 
-    set("cellCrop", row.crop)
-    set("cellEnabled", row.enabled)
-    set("cellNpc", row.npc)
-    set("cellMaxHa", row.maxHa)
-    set("cellLoaded", row.loaded)
-    set("cellStatus", row.status)
+    local function set(name, value, color)
+        local element = cell.getDescendantByName ~= nil and cell:getDescendantByName(name) or nil
+        if element ~= nil then
+            if element.setText ~= nil then
+                element:setText(tostring(value or ""))
+            end
+            applyTextColor(element, color or COLOR_DEFAULT)
+        end
+    end
+
+    local function valueColor(value)
+        local text = tostring(value or ""):upper()
+
+        if text == "YES" or text == "ALLOWED" or text == "MAP DEFAULT" or text == "PASS" then
+            return COLOR_GREEN
+        end
+
+        if text == "NO" or text == "DISABLED" or text == "NPC DISABLED" or text == "FAILED" then
+            return COLOR_RED
+        end
+
+        if text == "SIZE LIMITED" then
+            return COLOR_YELLOW
+        end
+
+        return COLOR_DEFAULT
+    end
+
+    local function maxHaColor(value)
+        local n = tonumber(value or 0) or 0
+        if n > 0 then
+            return COLOR_YELLOW
+        end
+        return COLOR_DEFAULT
+    end
+
+    set("cellCrop", row.crop, COLOR_DEFAULT)
+    set("cellEnabled", row.enabled, valueColor(row.enabled))
+    set("cellNpc", row.npc, valueColor(row.npc))
+    set("cellMaxHa", row.maxHa, maxHaColor(row.maxHa))
+    set("cellLoaded", row.loaded, valueColor(row.loaded))
+    set("cellStatus", row.status, valueColor(row.status))
 end
 
 function CropControlOverrideMenu:onListSelectionChanged(list, section, index)
