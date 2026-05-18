@@ -72,7 +72,8 @@ Shows all configured crop rules.
 
 Use this tab to select a crop and edit its policy in the right-side details panel.
 
-<img width="3840" height="2160" alt="CCO_all_rules" src="https://github.com/user-attachments/assets/284a0ff3-c47b-44b8-8d6c-a8a3e67ecc70" />
+<img width="3840" height="2160" alt="Screenshot 2026-05-18 151748" src="https://github.com/user-attachments/assets/bed68709-6372-4b09-ab89-bff95cd7944d" />
+
 
 ### DISABLED
 
