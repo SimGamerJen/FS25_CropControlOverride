@@ -20,6 +20,7 @@ function CropControlOverrideMenu.new(target, customMt)
     self.stagedRule = nil
     self.stagedDirty = false
     self.forceApplyArmed = false
+    self.resetConfirmArmed = false
     self.tableTopic = false
     self.menuBackEventId = nil
     self.suppressTabCallback = false
@@ -552,6 +553,24 @@ function CropControlOverrideMenu:updateContent()
         end
     end
 
+    if self.resetBlockedDryRunButton ~= nil then
+        local showResetDryRun = (self.currentTopic == "blocked" or self.currentTopic == "validation") and not self.tableTopic
+        self.resetBlockedDryRunButton:setVisible(showResetDryRun)
+        if self.resetBlockedDryRunButton.setDisabled ~= nil then
+            local disabled = false
+            if showResetDryRun and CropControlOverride ~= nil and CropControlOverride.buildFieldSummary ~= nil then
+                local summary = CropControlOverride:buildFieldSummary(nil)
+                disabled = (tonumber(summary.offending or 0) or 0) == 0
+            end
+            self.resetBlockedDryRunButton:setDisabled(disabled)
+        end
+    end
+
+    if self.confirmBlockedResetButton ~= nil then
+        local showConfirmReset = (self.currentTopic == "blocked" or self.currentTopic == "validation") and not self.tableTopic and self.resetConfirmArmed == true
+        self.confirmBlockedResetButton:setVisible(showConfirmReset)
+    end
+
     if self.tableTopic then
         local hasRows = #self.ruleRows > 0
         if hasRows then
@@ -975,6 +994,63 @@ function CropControlOverrideMenu:onClickSaveDefaults()
 
         CropControlOverride._guiNotice = tostring(msg or "")
     end
+end
+
+
+function CropControlOverrideMenu:onClickResetBlockedDryRun()
+    if CropControlOverride == nil or CropControlOverride.resetBlockedFieldsDryRunFromGui == nil then
+        return
+    end
+
+    local ok, result, wouldQueue = pcall(function()
+        return CropControlOverride:resetBlockedFieldsDryRunFromGui()
+    end)
+
+    local msg = ok and tostring(result or "Dry-run complete.") or ("Dry-run failed: " .. tostring(result))
+    self.resetConfirmArmed = ok and (tonumber(wouldQueue or 0) or 0) > 0
+
+    local body = ""
+    if CropControlOverride.buildGuiBlockedText ~= nil then
+        body = CropControlOverride:buildGuiBlockedText()
+    end
+
+    local confirmHint = ""
+    if self.resetConfirmArmed then
+        confirmHint = "\n\nCONFIRM RESET is now available. Use it only if the dry-run output looks correct."
+    end
+
+    self.pendingTitle = "Crop Control Override - Validation"
+    self.pendingBody = tostring(body or "") .. "\n\nDRY-RUN RESULT\n" .. msg .. confirmHint
+    self.currentTopic = "blocked"
+    self.tableTopic = false
+    self:updateContent()
+end
+
+function CropControlOverrideMenu:onClickConfirmBlockedReset()
+    if self.resetConfirmArmed ~= true then
+        return
+    end
+    if CropControlOverride == nil or CropControlOverride.resetBlockedFieldsFromGui == nil then
+        return
+    end
+
+    local ok, result = pcall(function()
+        return CropControlOverride:resetBlockedFieldsFromGui()
+    end)
+
+    local msg = ok and tostring(result or "Reset complete.") or ("Reset failed: " .. tostring(result))
+    self.resetConfirmArmed = false
+
+    local body = ""
+    if CropControlOverride.buildGuiBlockedText ~= nil then
+        body = CropControlOverride:buildGuiBlockedText()
+    end
+
+    self.pendingTitle = "Crop Control Override - Validation"
+    self.pendingBody = tostring(body or "") .. "\n\nRESET RESULT\n" .. msg
+    self.currentTopic = "blocked"
+    self.tableTopic = false
+    self:updateContent()
 end
 
 function CropControlOverrideMenu:onClickBack()

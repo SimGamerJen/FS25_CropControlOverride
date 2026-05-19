@@ -277,4 +277,50 @@
         <sendActionOnRelease value="true"/>
     </Profile>
 
+
+    <Profile name="ccoValidationActionButton" extends="buttonBase" with="anchorTopLeft">
+        <size value="300px 34px"/>
+        <textSize value="20px"/>
+        <textBold value="true"/>
+        <textUpperCase value="true"/>
+        <textColor value="$preset_fs25_colorMainLight"/>
+        <textFocusedColor value="$preset_fs25_colorMainLight"/>
+        <textHighlightedColor value="$preset_fs25_colorMainLight"/>
+        <textPressedColor value="$preset_fs25_colorMainLight"/>
+        <textDisabledColor value="$preset_colorDisabled"/>
+        <textAlignment value="center"/>
+        <textVerticalAlignment value="middle"/>
+        <imageSliceId value="gui.empty"/>
+        <imageColor value="0.12 0.14 0.12 0.92"/>
+        <imageFocusedColor value="0.68 0.96 0.08 0.32"/>
+        <imageHighlightedColor value="0.68 0.96 0.08 0.32"/>
+        <imagePressedColor value="0.68 0.96 0.08 0.46"/>
+        <imageDisabledColor value="0.08 0.09 0.08 0.30"/>
+        <clickSound value="DEFAULT_CLICK"/>
+        <sendActionOnRelease value="true"/>
+    </Profile>
+
+
+    <Profile name="ccoValidationDangerButton" extends="buttonBase" with="anchorTopLeft">
+        <size value="320px 34px"/>
+        <textSize value="20px"/>
+        <textBold value="true"/>
+        <textUpperCase value="true"/>
+        <textColor value="$preset_fs25_colorMainLight"/>
+        <textFocusedColor value="$preset_fs25_colorMainLight"/>
+        <textHighlightedColor value="$preset_fs25_colorMainLight"/>
+        <textPressedColor value="$preset_fs25_colorMainLight"/>
+        <textDisabledColor value="$preset_colorDisabled"/>
+        <textAlignment value="center"/>
+        <textVerticalAlignment value="middle"/>
+        <imageSliceId value="gui.empty"/>
+        <imageColor value="0.42 0.06 0.04 0.92"/>
+        <imageFocusedColor value="0.72 0.12 0.08 0.95"/>
+        <imageHighlightedColor value="0.72 0.12 0.08 0.95"/>
+        <imagePressedColor value="0.50 0.08 0.05 0.95"/>
+        <imageDisabledColor value="0.08 0.09 0.08 0.30"/>
+        <clickSound value="DEFAULT_CLICK"/>
+        <sendActionOnRelease value="true"/>
+    </Profile>
+
 </GUIProfiles>

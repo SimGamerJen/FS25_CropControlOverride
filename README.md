@@ -1,6 +1,6 @@
 # FS25 Crop Control Override
 
-**Version:** 2.0.0-alpha.82  
+**Version:** 2.0.0-alpha.88  
 **Game:** Farming Simulator 25  
 **Type:** Script mod / crop policy manager
 
@@ -19,7 +19,7 @@ This is an alpha build of the 2.0.0 line. It is suitable for testing, but keep b
 - NPC field-size limits by crop.
 - Guarded apply workflow to prevent accidental blocked NPC fields.
 - Force Apply workflow for deliberate policy changes.
-- Validation tab showing blocked NPC field details.
+- Validation tab showing blocked NPC field details and guarded reset actions and guarded reset actions.
 - Save Defaults action to export the current active rule set to the template `config.xml`.
 - Automatic backup before overwriting template `config.xml`.
 - Console commands for diagnostics and cleanup workflows.
@@ -72,8 +72,6 @@ Shows all configured crop rules.
 
 Use this tab to select a crop and edit its policy in the right-side details panel.
 
-<img width="3840" height="2160" alt="CCO_all_rules" src="https://github.com/user-attachments/assets/284a0ff3-c47b-44b8-8d6c-a8a3e67ecc70" />
-
 ### DISABLED
 
 Shows crops disabled globally by rule.
@@ -85,8 +83,6 @@ A globally disabled crop is unavailable under the crop policy.
 Shows crops with an NPC maximum field-size limit.
 
 A value of `0.00 ha` means no CCO size limit is applied.
-
-<img width="3840" height="2160" alt="CCO_field_size_limited" src="https://github.com/user-attachments/assets/3b49aca8-2455-405e-a132-a79d8f70b373" />
 
 ### NPC DISABLED
 
@@ -100,17 +96,20 @@ Checks the current save against the active crop policy.
 
 If existing NPC fields violate the active rules, this tab lists blocked NPC field details, including field ID, crop, size, and reason.
 
+This tab also provides the guarded cleanup workflow:
+
+```text
+RESET BLOCKED DRY-RUN
+CONFIRM RESET
+```
+
 ### SUMMARY
 
 Shows the active config path, rule counts, policy summary, validation status, and config hierarchy notes.
 
-<img width="3840" height="2160" alt="CCO_summary" src="https://github.com/user-attachments/assets/83946254-f37d-4213-b57f-5f589b89d050" />
-
 ### HELP
 
 Shows in-game guidance for navigation, policy terms, config files, cleanup, and editing.
-
-<img width="3840" height="2160" alt="CCO_help" src="https://github.com/user-attachments/assets/aecdd7ec-2b14-4ec5-9ee5-55c2ebfdc982" />
 
 ---
 
@@ -311,7 +310,7 @@ NPC replacement and field-blocking detail is logged at DEBUG level.
 
 ## Changelog
 
-### 2.0.0-alpha.82
+### 2.0.0-alpha.88
 
 - README updated to match the current editable GUI workflow.
 - Documented config hierarchy: template `config.xml` vs active per-save XML.

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modDesc descVersion="100">
     <author>SimGamerJen, Hyper138</author>
-    <version>2.0.0-alpha.82</version>
+    <version>2.0.0-alpha.88</version>
     <title>
         <en>Crop Control Override</en>
     </title>
@@ -17,7 +17,7 @@ Main GUI features:
 - DISABLED: view globally disabled crops.
 - LIMITED: view crops with NPC field-size limits.
 - NPC DISABLED: view crops NPCs should not plant.
-- VALIDATION: view existing NPC fields that violate the active policy.
+- VALIDATION: view existing NPC fields that violate the active policy and use the guarded dry-run / confirm reset workflow.
 - SUMMARY: view active config, rule counts, and validation state.
 - HELP: view in-game guidance.
 
@@ -26,6 +26,7 @@ Configuration:
 - DISCARD resets staged values.
 - SAVE DEFAULTS TO CONFIG.XML backs up the existing template config and writes the current full active rule set to config.xml.
 - Existing per-save XML files are not overwritten by Save Defaults.
+- RESET BLOCKED DRY-RUN does not change the save state. CONFIRM RESET performs the actual blocked-field reset after review.
 
 Hotkeys:
 ALT+C opens the Crop Control Override GUI. This keybind can be changed in the in-game controls menu.
@@ -49,7 +50,7 @@ Wichtige GUI-Funktionen:
 - DEAKTIVIERT: global deaktivierte Fruchtarten anzeigen.
 - BEGRENZT: Fruchtarten mit NPC-Feldgrößenbegrenzung anzeigen.
 - NPC DEAKTIVIERT: Fruchtarten anzeigen, die NPCs nicht anbauen sollen.
-- VALIDIERUNG: bestehende NPC-Felder anzeigen, die gegen die aktive Regel verstoßen.
+- VALIDIERUNG: bestehende NPC-Felder anzeigen, die gegen die aktive Regel verstoßen, und den geschützten Testlauf-/Bestätigungsablauf zum Zurücksetzen verwenden.
 - ZUSAMMENFASSUNG: aktive Konfiguration, Regelanzahl und Validierungsstatus anzeigen.
 - HILFE: Hinweise zur Bedienung im Spiel anzeigen.
 
@@ -58,6 +59,7 @@ Konfiguration:
 - VERWERFEN setzt vorbereitete Werte zurück.
 - STANDARD SPEICHERN IN CONFIG.XML erstellt zuerst eine Sicherung der bestehenden Vorlagenkonfiguration und schreibt anschließend den aktuellen vollständigen Regelsatz in config.xml.
 - Bestehende XML-Dateien einzelner Spielstände werden durch Standard Speichern nicht überschrieben.
+- RESET BLOCKED DRY-RUN ändert den Spielstand nicht. CONFIRM RESET führt das tatsächliche Zurücksetzen blockierter Felder nach der Prüfung aus.
 
 Tastenkombinationen:
 ALT+C öffnet die Crop Control Override GUI. Diese Tastenkombination kann im Steuerungsmenü des Spiels geändert werden.
@@ -81,7 +83,7 @@ Fonctions principales de l’interface :
 - DÉSACTIVÉES : afficher les cultures désactivées globalement.
 - LIMITÉES : afficher les cultures avec une limite de taille de champ PNJ.
 - PNJ DÉSACTIVÉ : afficher les cultures que les PNJ ne doivent pas semer.
-- VALIDATION : afficher les champs PNJ existants qui ne respectent pas la règle active.
+- VALIDATION : afficher les champs PNJ existants qui ne respectent pas la règle active et utiliser le flux sécurisé d’essai / confirmation de réinitialisation.
 - RÉSUMÉ : afficher la configuration active, le nombre de règles et l’état de validation.
 - AIDE : afficher l’aide intégrée.
 
@@ -90,6 +92,7 @@ Configuration :
 - ANNULER réinitialise les valeurs préparées.
 - ENREGISTRER LES VALEURS PAR DÉFAUT DANS CONFIG.XML sauvegarde d’abord la configuration modèle existante, puis écrit l’ensemble complet des règles actives dans config.xml.
 - Les fichiers XML des sauvegardes existantes ne sont pas écrasés par cette action.
+- RESET BLOCKED DRY-RUN ne modifie pas la sauvegarde. CONFIRM RESET effectue la réinitialisation réelle des champs bloqués après vérification.
 
 Raccourcis :
 ALT+C ouvre l’interface Crop Control Override. Ce raccourci peut être modifié dans le menu des commandes du jeu.

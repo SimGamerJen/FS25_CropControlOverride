@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.0.0-alpha.82",
+    VERSION = "2.0.0-alpha.88",
 
     _origFlags = {},
     _rules = {},
@@ -2025,6 +2025,52 @@ local function parseResetArgs(first, second)
 
     return cropName, dryRun
 end
+
+
+function CCO:resetBlockedFieldsDryRunFromGui()
+    local wouldQueue, skipped = self:resetNpcFields(nil, true)
+    local summary = self:buildFieldSummary(nil)
+
+    local msg = ("Dry-run complete. %d blocked NPC field(s) would be reset. skipped=%d. No save-state changes were made."):format(
+        tonumber(wouldQueue or 0) or 0,
+        tonumber(skipped or 0) or 0
+    )
+
+    if tonumber(summary.offending or 0) == 0 then
+        msg = "Dry-run complete. No blocked NPC fields were detected. No save-state changes were made."
+    end
+
+    print("CCO GUI RESET DRY-RUN: " .. msg)
+    self._guiNotice = msg
+    return msg, tonumber(wouldQueue or 0) or 0, tonumber(skipped or 0) or 0
+end
+
+function CCO:resetBlockedFieldsFromGui()
+    local before = self:buildFieldSummary(nil)
+    local beforeCount = tonumber(before.offending or 0) or 0
+
+    if beforeCount <= 0 then
+        local msg = "Reset skipped. No blocked NPC fields were detected."
+        print("CCO GUI RESET BLOCKED: " .. msg)
+        self._guiNotice = msg
+        return msg, 0, 0
+    end
+
+    local queued, skipped = self:resetNpcFields(nil, false)
+    local after = self:buildFieldSummary(nil)
+    local remaining = tonumber(after.offending or 0) or 0
+
+    local msg = ("Reset complete. queued=%d skipped=%d remainingBlockedNpcFields=%d."):format(
+        tonumber(queued or 0) or 0,
+        tonumber(skipped or 0) or 0,
+        remaining
+    )
+
+    print("CCO GUI RESET BLOCKED: " .. msg)
+    self._guiNotice = msg
+    return msg, tonumber(queued or 0) or 0, tonumber(skipped or 0) or 0
+end
+
 
 function CCO:consoleResetNpcFields(cropNameArg, modeArg)
     local cropName, dryRun = parseResetArgs(cropNameArg, modeArg)
