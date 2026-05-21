@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.0.0-alpha.88",
+    VERSION = "2.0.0-alpha.90",
 
     _origFlags = {},
     _rules = {},
@@ -568,6 +568,7 @@ function CCO:loadRulesForMission(missionInfo)
         if not next(rules) then rules = buildDefaultRules() end
         rules = mergeMissingDiscoveredFruits(rules)
         if per ~= nil and writeConfig(per, rules) then
+            path = per
             if meta ~= nil and meta.needsNormalize then
                 debug(("created per-save config from legacy template at %s (%s)"):format(per, describeNormalization(meta)))
             else
@@ -1537,10 +1538,19 @@ function CCO:applyGuiStagedRule(staged, forceApply)
 
     self._rules = proposedRules
 
-    if self._configPath == nil then
-        local sid = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo)
-        local per = sid ~= nil and perSavePathForId(sid) or nil
-        self._configPath = (per ~= nil and fileExists(per)) and per or templatePath()
+    local sid = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo)
+    local per = sid ~= nil and perSavePathForId(sid) or nil
+    local tpl = templatePath()
+
+    if per ~= nil then
+        if self._configPath == nil or self._configPath == tpl or self._configPath ~= per then
+            if not fileExists(per) then
+                writeConfig(per, self._rules)
+            end
+            self._configPath = per
+        end
+    elseif self._configPath == nil then
+        self._configPath = tpl
     end
 
     local writeOk = writeConfig(self._configPath, self._rules)
@@ -1562,6 +1572,7 @@ function CCO:applyGuiStagedRule(staged, forceApply)
     if forceApply == true then
         msg = msg .. " (forced)"
     end
+    msg = msg .. "; target=" .. tostring(self._configPath)
     print("CCO GUI APPLY: " .. msg)
     self._guiNotice = msg
     return true, msg
@@ -1658,7 +1669,24 @@ end
 -- Console commands ---------------------------------------------------------
 function CCO:consoleReload()
     local sid = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo)
-    local path = (sid ~= nil and perSavePathForId(sid) ~= nil and fileExists(perSavePathForId(sid))) and perSavePathForId(sid) or templatePath()
+    local per = sid ~= nil and perSavePathForId(sid) or nil
+    local tpl = templatePath()
+    local path = tpl
+
+    if per ~= nil then
+        if not fileExists(per) then
+            local templateRules = readConfig(tpl)
+            if not next(templateRules) then templateRules = buildDefaultRules() end
+            templateRules = mergeMissingDiscoveredFruits(templateRules)
+            if writeConfig(per, templateRules) then
+                print(("CCO: created per-save config during reload: %s"):format(tostring(per)))
+            end
+        end
+        if fileExists(per) then
+            path = per
+        end
+    end
+
     local meta = inspectConfigNormalization(path)
     local rules = readConfig(path)
     if not next(rules) then rules = buildDefaultRules() end

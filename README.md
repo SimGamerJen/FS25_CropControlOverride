@@ -1,6 +1,6 @@
 # FS25 Crop Control Override
 
-**Version:** 2.0.0-alpha.88  
+**Version:** 2.0.0-alpha.90  
 **Game:** Farming Simulator 25  
 **Type:** Script mod / crop policy manager
 
@@ -72,12 +72,6 @@ Shows all configured crop rules.
 
 Use this tab to select a crop and edit its policy in the right-side details panel.
 
-<<<<<<< HEAD
-=======
-<img width="3840" height="2160" alt="Screenshot 2026-05-18 151748" src="https://github.com/user-attachments/assets/bed68709-6372-4b09-ab89-bff95cd7944d" />
-
-
->>>>>>> 0a01644bf2ffcf5a29f5e18a1618290fb03ef8fb
 ### DISABLED
 
 Shows crops disabled globally by rule.
@@ -316,7 +310,7 @@ NPC replacement and field-blocking detail is logged at DEBUG level.
 
 ## Changelog
 
-### 2.0.0-alpha.88
+### 2.0.0-alpha.90
 
 - README updated to match the current editable GUI workflow.
 - Documented config hierarchy: template `config.xml` vs active per-save XML.
@@ -326,14 +320,14 @@ NPC replacement and field-blocking detail is logged at DEBUG level.
 - Updated console command documentation.
 - No code behaviour changes from alpha.77.
 
-### 2.0.0-alpha.77
+### 2.0.0-alpha.90
 
 - Included the confirmed details-panel placement update: `ruleDetailsPanel position="1080px -50px"`.
 - Reduced routine startup/hook/reapply log noise by demoting routine messages to DEBUG.
 - Kept important operational APPLY, SAVE DEFAULTS, validation, and cleanup output visible.
 - Aligned console wording around NPC-disabled crop rules and blocked NPC fields.
 
-### 2.0.0-alpha.76
+### 2.0.0-alpha.90
 
 - Moved Save Defaults into the right-side details panel.
 - Restored footer to navigation/reload/back actions.
@@ -345,3 +339,10 @@ NPC replacement and field-blocking detail is logged at DEBUG level.
 
 This mod is developed for Farming Simulator 25 by SimGamerJen.
 
+
+
+### 2.0.0-alpha.90 ModHub TestRunner package refresh
+
+- Replaced `modDesc.xml` with ModHub TestRunner-compliant version supplied by user.
+- Replaced DDS icon with ModHub TestRunner-compliant `icon_CropControlOverride.dds`.
+- Scripts, GUI, and config files otherwise retained from alpha.88.
