@@ -72,6 +72,12 @@ Shows all configured crop rules.
 
 Use this tab to select a crop and edit its policy in the right-side details panel.
 
+<<<<<<< HEAD
+=======
+=======
+<img width="3840" height="2160" alt="Screenshot 2026-05-18 151748" src="https://github.com/user-attachments/assets/bed68709-6372-4b09-ab89-bff95cd7944d" />
+
+>>>>>>> 31fb4c7ff0223c0b15a0ffc8dae16ea690cdb116
 ### DISABLED
 
 Shows crops disabled globally by rule.
