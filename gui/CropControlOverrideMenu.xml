@@ -18,10 +18,10 @@
             <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[2]" text="DISABLED" onClick="onClickDisabled">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[3]" text="LIMITED" onClick="onClickLimited">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[3]" text="NPC DISABLED" onClick="onClickBlockedRules">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[4]" text="NPC DISABLED" onClick="onClickBlockedRules">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[4]" text="LIMITED" onClick="onClickLimited">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
             <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[5]" text="VALIDATION" onClick="onClickValidate">
@@ -39,7 +39,8 @@
 
         <GuiElement profile="fs25_subCategorySelectorTabbedContainer" id="ccoMainPage">
             <Bitmap position="-20px 150px" size="1525px 615px" imageColor="0.015 0.017 0.015 0.28"/>
-            <Text text="Crop policy editor | Select a crop row, stage changes, then Apply | Save Defaults is in the details panel" position="0px 12px" size="1480px 25px" textSize="15px" textColor="0.55 0.63 0.50 1" textVerticalAlignment="middle" textAlignment="left"/>
+            <Text text="Crop policy editor | Apply writes per-save XML | Load Defaults imports config.xml" position="0px 12px" size="1480px 25px" textSize="15px" textColor="0.55 0.63 0.50 1" textVerticalAlignment="middle" textAlignment="left"/>
+            <Button profile="ccoValidationActionButton" id="resetScopeButton" position="1180px -8px" size="320px 34px" text="RESET SCOPE: ALL" onClick="onClickResetScope" visible="false"/>
 
             <Button profile="ccoValidationActionButton" id="resetBlockedDryRunButton" position="1180px -50px" size="320px 34px" text="RESET BLOCKED DRY-RUN" onClick="onClickResetBlockedDryRun" visible="false"/>
             <Button profile="ccoValidationDangerButton" id="confirmBlockedResetButton" position="1180px -92px" size="320px 34px" text="CONFIRM RESET" onClick="onClickConfirmBlockedReset" visible="false"/>
@@ -118,7 +119,7 @@
         <BoxLayout profile="fs25_dialogButtonBox">
             <Button profile="buttonMenuPrev" text="PREV TAB" onClick="onPagePrevious" id="prevTabButton"/>
             <Button profile="buttonMenuNext" text="NEXT TAB" onClick="onPageNext" id="nextTabButton"/>
-            <Button profile="buttonExtra1" text="RELOAD" onClick="onClickReload" id="reloadButton"/>
+            <Button profile="buttonExtra1" text="LOAD DEFAULTS" onClick="onClickReload" id="reloadButton"/>
             <Button profile="buttonBack" text="$l10n_button_back" onClick="onClickBack" id="backButton"/>
         </BoxLayout>
     </GuiElement>

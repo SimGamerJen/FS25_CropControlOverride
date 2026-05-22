@@ -21,6 +21,8 @@ function CropControlOverrideMenu.new(target, customMt)
     self.stagedDirty = false
     self.forceApplyArmed = false
     self.resetConfirmArmed = false
+    self.resetScopeIndex = 1
+    self.resetScopes = {"ALL"}
     self.tableTopic = false
     self.menuBackEventId = nil
     self.suppressTabCallback = false
@@ -121,9 +123,9 @@ local TABLE_TOPICS = {
 local TAB_TOPIC_INDEX = {
     rules = 1,
     disabled = 2,
-    limited = 3,
-    blockedrules = 4,
-    ["blocked-rules"] = 4,
+    blockedrules = 3,
+    ["blocked-rules"] = 3,
+    limited = 4,
     blocked = 5,
     validation = 5,
     status = 6,
@@ -133,8 +135,8 @@ local TAB_TOPIC_INDEX = {
 local TAB_INDEX_TOPIC = {
     [1] = "rules",
     [2] = "disabled",
-    [3] = "limited",
-    [4] = "blockedrules",
+    [3] = "blockedrules",
+    [4] = "limited",
     [5] = "blocked",
     [6] = "status",
     [7] = "help",
@@ -143,8 +145,8 @@ local TAB_INDEX_TOPIC = {
 local TAB_TEXTS = {
     "ALL RULES",
     "DISABLED",
-    "LIMITED",
     "NPC DISABLED",
+    "LIMITED",
     "VALIDATION",
     "SUMMARY",
     "HELP",
@@ -553,21 +555,36 @@ function CropControlOverrideMenu:updateContent()
         end
     end
 
+    local showResetControls = (self.currentTopic == "blocked" or self.currentTopic == "validation") and not self.tableTopic
+
+    if showResetControls then
+        self:refreshResetScopes()
+    end
+
+    if self.resetScopeButton ~= nil then
+        self.resetScopeButton:setVisible(showResetControls)
+        self:updateResetScopeButton()
+    end
+
     if self.resetBlockedDryRunButton ~= nil then
-        local showResetDryRun = (self.currentTopic == "blocked" or self.currentTopic == "validation") and not self.tableTopic
-        self.resetBlockedDryRunButton:setVisible(showResetDryRun)
+        self.resetBlockedDryRunButton:setVisible(showResetControls)
         if self.resetBlockedDryRunButton.setDisabled ~= nil then
             local disabled = false
-            if showResetDryRun and CropControlOverride ~= nil and CropControlOverride.buildFieldSummary ~= nil then
-                local summary = CropControlOverride:buildFieldSummary(nil)
-                disabled = (tonumber(summary.offending or 0) or 0) == 0
+            if showResetControls and CropControlOverride ~= nil then
+                local scope = self:getCurrentResetScope()
+                if CropControlOverride.getBlockedCountForGuiScope ~= nil then
+                    disabled = (tonumber(CropControlOverride:getBlockedCountForGuiScope(scope) or 0) or 0) == 0
+                elseif CropControlOverride.buildFieldSummary ~= nil then
+                    local summary = CropControlOverride:buildFieldSummary(nil)
+                    disabled = (tonumber(summary.offending or 0) or 0) == 0
+                end
             end
             self.resetBlockedDryRunButton:setDisabled(disabled)
         end
     end
 
     if self.confirmBlockedResetButton ~= nil then
-        local showConfirmReset = (self.currentTopic == "blocked" or self.currentTopic == "validation") and not self.tableTopic and self.resetConfirmArmed == true
+        local showConfirmReset = showResetControls and self.resetConfirmArmed == true
         self.confirmBlockedResetButton:setVisible(showConfirmReset)
     end
 
@@ -950,15 +967,16 @@ function CropControlOverrideMenu:onClickHelp()
 end
 
 function CropControlOverrideMenu:onClickReload()
-    if CropControlOverride ~= nil and CropControlOverride.consoleReload ~= nil then
-        local ok, err = pcall(function()
-            CropControlOverride:consoleReload()
+    if CropControlOverride ~= nil and CropControlOverride.loadTemplateDefaultsIntoCurrentSave ~= nil then
+        local ok, resultOk, msg = pcall(function()
+            return CropControlOverride:loadTemplateDefaultsIntoCurrentSave()
         end)
-        if ok then
-            CropControlOverride._guiNotice = "Config reloaded from GUI."
-        else
-            CropControlOverride._guiNotice = "Reload failed: " .. tostring(err)
-            print("CCO GUI: reload action failed: " .. tostring(err))
+
+        if not ok then
+            CropControlOverride._guiNotice = "Load Defaults failed: " .. tostring(resultOk)
+            print("CCO GUI: load defaults action failed: " .. tostring(resultOk))
+        elseif resultOk ~= true then
+            CropControlOverride._guiNotice = tostring(msg or "Load Defaults failed.")
         end
     end
     self:showTopic("status", 1)
@@ -997,13 +1015,85 @@ function CropControlOverrideMenu:onClickSaveDefaults()
 end
 
 
+
+function CropControlOverrideMenu:refreshResetScopes()
+    local scopes = {
+        { mode = "all", label = "ALL" }
+    }
+
+    if CropControlOverride ~= nil and CropControlOverride.getBlockedResetScopeList ~= nil then
+        local ok, result = pcall(function()
+            return CropControlOverride:getBlockedResetScopeList()
+        end)
+        if ok and type(result) == "table" and #result > 0 then
+            scopes = result
+        end
+    elseif CropControlOverride ~= nil and CropControlOverride.getBlockedCropList ~= nil then
+        local ok, crops = pcall(function()
+            return CropControlOverride:getBlockedCropList()
+        end)
+        if ok and type(crops) == "table" then
+            for _, crop in ipairs(crops) do
+                table.insert(scopes, { mode = "crop", crop = tostring(crop), label = "CROP: " .. tostring(crop) })
+            end
+        end
+    end
+
+    self.resetScopes = scopes
+    if self.resetScopeIndex == nil or self.resetScopeIndex < 1 or self.resetScopeIndex > #self.resetScopes then
+        self.resetScopeIndex = 1
+    end
+end
+
+function CropControlOverrideMenu:getCurrentResetScope()
+    self:refreshResetScopes()
+    local value = self.resetScopes[self.resetScopeIndex or 1] or { mode = "all", label = "ALL" }
+    local label = type(value) == "table" and tostring(value.label or "ALL") or tostring(value or "ALL")
+    if type(value) == "table" then
+        return value, label
+    end
+    if value == "ALL" then
+        return { mode = "all", label = "ALL" }, "ALL"
+    end
+    return { mode = "crop", crop = tostring(value), label = tostring(value) }, tostring(value)
+end
+
+function CropControlOverrideMenu:updateResetScopeButton()
+    if self.resetScopeButton ~= nil then
+        self:refreshResetScopes()
+        local value = self.resetScopes[self.resetScopeIndex or 1] or { label = "ALL" }
+        local label = type(value) == "table" and tostring(value.label or "ALL") or tostring(value or "ALL")
+        if self.resetScopeButton.setText ~= nil then
+            self.resetScopeButton:setText("RESET SCOPE: " .. label)
+        end
+        if self.resetScopeButton.setDisabled ~= nil then
+            self.resetScopeButton:setDisabled(#(self.resetScopes or {}) <= 1)
+        end
+    end
+end
+
+function CropControlOverrideMenu:onClickResetScope()
+    self:refreshResetScopes()
+    if #(self.resetScopes or {}) > 1 then
+        self.resetScopeIndex = (self.resetScopeIndex or 1) + 1
+        if self.resetScopeIndex > #self.resetScopes then
+            self.resetScopeIndex = 1
+        end
+        self.resetConfirmArmed = false
+        self:updateResetScopeButton()
+        self:updateContent()
+    end
+end
+
 function CropControlOverrideMenu:onClickResetBlockedDryRun()
     if CropControlOverride == nil or CropControlOverride.resetBlockedFieldsDryRunFromGui == nil then
         return
     end
 
+    local scopeCrop, scopeText = self:getCurrentResetScope()
+
     local ok, result, wouldQueue = pcall(function()
-        return CropControlOverride:resetBlockedFieldsDryRunFromGui()
+        return CropControlOverride:resetBlockedFieldsDryRunFromGui(scopeCrop)
     end)
 
     local msg = ok and tostring(result or "Dry-run complete.") or ("Dry-run failed: " .. tostring(result))
@@ -1016,7 +1106,7 @@ function CropControlOverrideMenu:onClickResetBlockedDryRun()
 
     local confirmHint = ""
     if self.resetConfirmArmed then
-        confirmHint = "\n\nCONFIRM RESET is now available. Use it only if the dry-run output looks correct."
+        confirmHint = "\n\nCONFIRM RESET is now available for scope=" .. tostring(scopeText or "ALL") .. ". Use it only if the dry-run output looks correct."
     end
 
     self.pendingTitle = "Crop Control Override - Validation"
@@ -1034,12 +1124,15 @@ function CropControlOverrideMenu:onClickConfirmBlockedReset()
         return
     end
 
+    local scopeCrop = self:getCurrentResetScope()
+
     local ok, result = pcall(function()
-        return CropControlOverride:resetBlockedFieldsFromGui()
+        return CropControlOverride:resetBlockedFieldsFromGui(scopeCrop)
     end)
 
     local msg = ok and tostring(result or "Reset complete.") or ("Reset failed: " .. tostring(result))
     self.resetConfirmArmed = false
+    self:refreshResetScopes()
 
     local body = ""
     if CropControlOverride.buildGuiBlockedText ~= nil then

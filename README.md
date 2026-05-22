@@ -1,28 +1,30 @@
 # FS25 Crop Control Override
 
-**Version:** 2.0.0-alpha.90  
+**Version:** 2.0.0-alpha.97  
 **Game:** Farming Simulator 25  
 **Type:** Script mod / crop policy manager
 
-Crop Control Override lets you manage which crops are available to the player and which crops NPC farmers are allowed to use. It supports per-save crop rule files, NPC crop validation, blocked-field reporting, and an editable in-game GUI.
+Crop Control Override manages crop availability and NPC crop behaviour on a per-save basis. It lets you control which crops are available, which crops NPC farmers may plant, and whether NPC crops should be limited by actual field size.
 
-This is an alpha build of the 2.0.0 line. It is suitable for testing, but keep backups of important saves.
+This is an alpha test build. Use copied saves and keep backups of important savegames.
 
 ---
 
 ## Key features
 
-- Per-save crop policy XML files.
 - Editable FS25-style GUI opened with `ALT+C`.
+- Per-save crop policy XML files.
 - Player crop enable/disable rules.
 - NPC crop enable/disable rules.
-- NPC field-size limits by crop.
-- Guarded apply workflow to prevent accidental blocked NPC fields.
-- Force Apply workflow for deliberate policy changes.
-- Validation tab showing blocked NPC field details and guarded reset actions and guarded reset actions.
-- Save Defaults action to export the current active rule set to the template `config.xml`.
-- Automatic backup before overwriting template `config.xml`.
-- Console commands for diagnostics and cleanup workflows.
+- NPC crop field-size limits using actual field area, not plot/farmland area.
+- Colour-coded crop rules table.
+- Guarded `APPLY` / `FORCE APPLY` workflow.
+- `DISCARD` for staged GUI edits.
+- `SAVE DEFAULTS TO CONFIG.XML` with automatic backup.
+- `LOAD DEFAULTS` to import template `config.xml` into the active save.
+- `VALIDATION` tab with blocked NPC field details.
+- GUI blocked-field cleanup by `ALL`, `CROP`, or individual `FIELD`.
+- Console diagnostics and cleanup commands remain available.
 
 ---
 
@@ -36,7 +38,7 @@ Crop Control Override uses two levels of configuration.
 modSettings/FS25_CropControlOverride/config.xml
 ```
 
-This is the default/template rule file. It is used when creating or normalising per-save rule files.
+This is the default/template rule file. It is used as the source for new or reset save-level rule sets.
 
 ### Per-save config
 
@@ -46,7 +48,7 @@ modSettings/FS25_CropControlOverride/saves/savegameX.xml
 
 This is the active rule file for a specific savegame.
 
-The GUI normally edits the active per-save XML. It does **not** automatically overwrite the template config.
+Normal GUI editing writes to the active per-save XML.
 
 ---
 
@@ -58,70 +60,47 @@ Default input action:
 ALT+C
 ```
 
-The keybind can be changed from the in-game controls menu if required.
-
-The GUI opens on **ALL RULES**.
+The keybind can be changed from the in-game controls menu.
 
 ---
 
 ## GUI tabs
 
+```text
+ALL RULES | DISABLED | NPC DISABLED | LIMITED | VALIDATION | SUMMARY | HELP
+```
+
 ### ALL RULES
 
-Shows all configured crop rules.
+Main editing view. Select a crop row, stage changes in the right-side panel, then use `APPLY`.
 
-Use this tab to select a crop and edit its policy in the right-side details panel.
-
-<<<<<<< HEAD
-=======
-=======
-<img width="3840" height="2160" alt="Screenshot 2026-05-18 151748" src="https://github.com/user-attachments/assets/bed68709-6372-4b09-ab89-bff95cd7944d" />
-
->>>>>>> 31fb4c7ff0223c0b15a0ffc8dae16ea690cdb116
 ### DISABLED
 
 Shows crops disabled globally by rule.
 
-A globally disabled crop is unavailable under the crop policy.
+### NPC DISABLED
+
+Shows crops NPCs should not plant.
 
 ### LIMITED
 
 Shows crops with an NPC maximum field-size limit.
 
-A value of `0.00 ha` means no CCO size limit is applied.
-
-### NPC DISABLED
-
-Shows crops that NPCs should not plant.
-
-Globally disabled crops also count as NPC-disabled because they are unavailable to NPCs.
-
 ### VALIDATION
 
-Checks the current save against the active crop policy.
-
-If existing NPC fields violate the active rules, this tab lists blocked NPC field details, including field ID, crop, size, and reason.
-
-This tab also provides the guarded cleanup workflow:
-
-```text
-RESET BLOCKED DRY-RUN
-CONFIRM RESET
-```
+Shows existing NPC fields that violate the active policy and provides guarded cleanup controls.
 
 ### SUMMARY
 
-Shows the active config path, rule counts, policy summary, validation status, and config hierarchy notes.
+Shows active config path, rule counts, policy summary, validation status, and workflow notes.
 
 ### HELP
 
-Shows in-game guidance for navigation, policy terms, config files, cleanup, and editing.
+Shows in-game guidance for navigation, editing, config files, policy terms, and cleanup.
 
 ---
 
 ## Editing crop rules
-
-Select a crop row, then use the right-side details panel.
 
 Editable staged values:
 
@@ -130,27 +109,19 @@ Editable staged values:
 - **Max Field (ha)**
 - **Reset NPC Fields**
 
-Changes are staged first. They are not written until you use **APPLY**.
+Changes are staged first. They are not written until `APPLY` or `FORCE APPLY`.
 
 ### APPLY
 
-Writes the selected staged crop rule to the active per-save XML if validation passes.
+Writes the selected staged crop rule to the active per-save XML if the edited crop passes preflight validation.
 
-After apply, CCO reapplies rules, refreshes the GUI, and reports validation status.
-
-### APPLY BLOCKED
-
-If the staged change would create blocked NPC fields, the first apply is blocked and the XML is not changed.
-
-The button changes to **FORCE APPLY**.
+Preflight validation is crop-specific. Editing one crop is not blocked by unrelated crops that are already invalid.
 
 ### FORCE APPLY
 
-Writes the staged rule deliberately even if it creates blocked NPC fields.
+If the edited crop would create blocked NPC fields, the first `APPLY` is blocked and the button changes to `FORCE APPLY`.
 
-Use this when you intentionally want to save a new policy and then review/clean up affected NPC fields.
-
-After Force Apply, check the **VALIDATION** tab.
+Use `FORCE APPLY` only when you deliberately want to save the policy and then review cleanup under `VALIDATION`.
 
 ### DISCARD
 
@@ -158,11 +129,11 @@ Resets staged values back to the selected row’s current saved values.
 
 ---
 
-## Save Defaults
+## Save Defaults and Load Defaults
 
-The **SAVE DEFAULTS TO CONFIG.XML** button is in the right-side details panel.
+### SAVE DEFAULTS TO CONFIG.XML
 
-It exports the current complete active rule set to:
+Exports the current full active rule set to:
 
 ```text
 modSettings/FS25_CropControlOverride/config.xml
@@ -174,57 +145,84 @@ Before overwriting the template config, CCO creates a backup in:
 modSettings/FS25_CropControlOverride/backups/
 ```
 
-Example backup name:
+Existing per-save XML files are not overwritten.
 
-```text
-config_backup_YYYYMMDD_HHMMSS.xml
-```
+### LOAD DEFAULTS
 
-Save Defaults does **not** overwrite existing per-save XML files.
+Imports template `config.xml` into the active save and overwrites the active per-save XML.
+
+Use this when you want the current save to return to the template/default crop policy.
 
 ---
 
 ## Validation and blocked NPC fields
 
-Two concepts are intentionally separate.
+The **VALIDATION** tab lists blocked NPC fields, including:
+
+- field ID
+- crop
+- actual field size
+- blocking reason
+
+Two concepts are intentionally separate:
 
 ### NPC-disabled crops
 
-These are crops the rules say NPCs should not plant.
-
-This is a policy/configuration state.
+Crops the rules say NPCs should not plant.
 
 ### Blocked NPC fields
 
-These are existing NPC fields in the current save that already violate the active policy.
-
-This is a save-state validation issue.
-
-Example:
-
-```text
-BARLEY NPC Permitted = No
-```
-
-If no NPC fields currently contain barley, validation passes.
-
-If an NPC field already contains barley, validation reports a blocked NPC field.
+Existing NPC fields in the current save that already violate the active policy.
 
 ---
 
-## Cleanup workflow
+## GUI cleanup workflow
 
-Cleanup remains console-led in this alpha build.
+Blocked NPC field cleanup is available from the **VALIDATION** tab.
 
 Recommended order:
 
 ```text
-ccoScanBlocked
-ccoResetBlocked dryrun
-ccoResetBlocked
+RESET SCOPE
+RESET BLOCKED DRY-RUN
+CONFIRM RESET
 ```
 
-Use `ccoResetBlocked dryrun` before making save-state changes.
+### RESET SCOPE
+
+Cycles through available cleanup targets:
+
+```text
+ALL
+CROP: <crop>
+FIELD: <fieldId> <crop>
+```
+
+### RESET BLOCKED DRY-RUN
+
+Shows what would be reset for the selected scope.
+
+This does not modify the save state.
+
+### CONFIRM RESET
+
+Only appears after a dry-run finds blocked fields. It performs the reset for the selected scope.
+
+After a reset, reopen `VALIDATION` or run another dry-run after refresh.
+
+---
+
+## Field-size limits
+
+`Max Field (ha)` uses actual field area where available.
+
+Farmland or plot area is used only as a last-resort fallback because plots can include yards, roads, woodland, or multiple field pieces.
+
+Diagnostic command:
+
+```text
+ccoFieldSizeProbe <FIELD_ID>
+```
 
 ---
 
@@ -264,7 +262,7 @@ ccoNormalizeConfig [dryrun]
 ccoSetCrop <CROP> <enabled:true|false> [npcAllowed:true|false|mapDefault] [npcMaxHa]
 ```
 
-The GUI is now the preferred editing method for normal use.
+The GUI is the preferred editing method for normal use.
 
 ### Field scanning and validation
 
@@ -274,6 +272,7 @@ ccoScanBlocked [CROP]
 ccoScanSummary [CROP]
 ccoValidateSave
 ccoListNpcCandidates <FIELD_ID>
+ccoFieldSizeProbe <FIELD_ID>
 ```
 
 ### Cleanup
@@ -284,6 +283,8 @@ ccoResetBlocked
 ccoResetNpcFields [CROP|all] [dryrun]
 ```
 
+The GUI cleanup workflow is recommended for normal use.
+
 ### Debug/logging
 
 ```text
@@ -291,64 +292,76 @@ ccoDebug on|off|toggle
 ccoLogLevel DEBUG|INFO|WARN|ERROR
 ```
 
-NPC replacement and field-blocking detail is logged at DEBUG level.
-
 ---
 
-## Notes for alpha testing
+## Testing notes
 
-- Test on copied saves first.
-- Keep backups of important savegames.
-- Use the Validation tab after Force Apply.
-- Use dry-run cleanup commands before resetting NPC fields.
-- Report any GUI rendering issues with screenshots and the relevant log section.
+Please report:
+
+- GUI layout/rendering issues
+- crops appearing in the wrong filtered tab
+- validation mismatches
+- blocked NPC fields not appearing as expected
+- Save Defaults or Load Defaults issues
+- any case where APPLY does not target `saves/savegameX.xml`
+- reset scope issues with `ALL`, `CROP`, or `FIELD`
+- log warnings or script errors
+
+Attach the relevant `log.txt` section where possible.
 
 ---
 
 ## Known future work
 
-- Convert the standalone GUI to a proper in-game menu frame.
-- Use native menu button info handling once the menu-frame conversion is done.
-- Consider GUI-driven blocked-field cleanup with confirmation prompts.
-- Additional localisation polish before ModHub submission.
+- Convert the standalone GUI into a proper in-game menu frame.
+- Consider converting Validation output into a selectable table.
+- Continue localisation and ModHub readiness polish.
+- Wider map/mod crop testing.
 
 ---
 
 ## Changelog
 
-### 2.0.0-alpha.90
+### 2.0.0-alpha.97
 
-- README updated to match the current editable GUI workflow.
-- Documented config hierarchy: template `config.xml` vs active per-save XML.
-- Documented APPLY / FORCE APPLY / DISCARD workflow.
-- Documented SAVE DEFAULTS and automatic backup behaviour.
-- Documented Validation tab and blocked NPC field terminology.
-- Updated console command documentation.
-- No code behaviour changes from alpha.77.
+- Cleaned up README for the current GUI workflow.
+- Updated in-game HELP, SUMMARY, and VALIDATION wording.
+- Replaced legacy console-led cleanup guidance with current GUI reset workflow.
+- Clarified Save Defaults vs Load Defaults.
+- Clarified actual field size versus farmland/plot size.
+- No code behaviour changes from alpha.96.
 
-### 2.0.0-alpha.90
+### 2.0.0-alpha.96
 
-- Included the confirmed details-panel placement update: `ruleDetailsPanel position="1080px -50px"`.
-- Reduced routine startup/hook/reapply log noise by demoting routine messages to DEBUG.
-- Kept important operational APPLY, SAVE DEFAULTS, validation, and cleanup output visible.
-- Aligned console wording around NPC-disabled crop rules and blocked NPC fields.
+- Fixed RESET BLOCKED DRY-RUN remaining disabled for structured field-level reset scopes.
+- Added scope-aware blocked-field counting for GUI reset controls.
 
-### 2.0.0-alpha.90
+### 2.0.0-alpha.95
 
-- Moved Save Defaults into the right-side details panel.
-- Restored footer to navigation/reload/back actions.
-- Removed Return/MENU_ACCEPT handling for Save Defaults.
+- Added field-level reset scope.
+- RESET SCOPE now supports ALL, CROP, and FIELD targets.
+
+### 2.0.0-alpha.94
+
+- Removed potentially stale remaining-blocked count from reset completion messages.
+
+### 2.0.0-alpha.93
+
+- Added crop-scoped reset.
+
+### 2.0.0-alpha.92
+
+- Fixed field-size checks to prefer actual field area over farmland/plot area.
+- Added `ccoFieldSizeProbe`.
+
+### 2.0.0-alpha.91
+
+- Swapped NPC DISABLED and LIMITED tab order.
+- Changed APPLY preflight validation to check only the edited crop.
+- Replaced GUI RELOAD with LOAD DEFAULTS.
 
 ---
 
-## Licence / attribution
+## Credits
 
-This mod is developed for Farming Simulator 25 by SimGamerJen.
-
-
-
-### 2.0.0-alpha.90 ModHub TestRunner package refresh
-
-- Replaced `modDesc.xml` with ModHub TestRunner-compliant version supplied by user.
-- Replaced DDS icon with ModHub TestRunner-compliant `icon_CropControlOverride.dds`.
-- Scripts, GUI, and config files otherwise retained from alpha.88.
+Developed by SimGamerJen and Hyper138.

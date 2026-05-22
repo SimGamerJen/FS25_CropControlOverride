@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modDesc descVersion="108">
     <author>SimGamerJen, Hyper138</author>
-    <version>2.0.0-alpha.90</version>
+    <version>2.0.0-alpha.97</version>
     <title>
         <en>Crop Control Override</en>
         <fr>Remplacement Du Contrôle Des Cultures</fr>
@@ -32,7 +32,7 @@ Configuration:
 Hotkeys:
 ALT+C opens the Crop Control Override GUI. This keybind can be changed in the in-game controls menu.
 Mouse: use the GUI tabs, table rows, and buttons.
-Keyboard: use the displayed FS25 footer actions for tab navigation, reload, and back.
+Keyboard: use the displayed FS25 footer actions for tab navigation, Load Defaults, and back.
 
 Useful console commands:
 ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoHelp
@@ -65,7 +65,7 @@ Konfiguration:
 Tastenkombinationen:
 ALT+C öffnet die Crop Control Override GUI. Diese Tastenkombination kann im Steuerungsmenü des Spiels geändert werden.
 Maus: GUI-Reiter, Tabellenzeilen und Schaltflächen verwenden.
-Tastatur: die angezeigten FS25-Fußleistenaktionen für Reiterwechsel, Neuladen und Zurück verwenden.
+Tastatur: die angezeigten FS25-Fußleistenaktionen für Reiterwechsel, Standardwerte laden und Zurück verwenden.
 
 Nützliche Konsolenbefehle:
 ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoHelp
@@ -98,7 +98,7 @@ Configuration :
 Raccourcis :
 ALT+C ouvre l’interface Crop Control Override. Ce raccourci peut être modifié dans le menu des commandes du jeu.
 Souris : utiliser les onglets, les lignes du tableau et les boutons de l’interface.
-Clavier : utiliser les actions affichées dans la barre inférieure FS25 pour changer d’onglet, recharger et revenir en arrière.
+Clavier : utiliser les actions affichées dans la barre inférieure FS25 pour changer d’onglet, charger les valeurs par défaut et revenir en arrière.
 
 Commandes console utiles :
 ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoHelp

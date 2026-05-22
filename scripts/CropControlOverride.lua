@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.0.0-alpha.90",
+    VERSION = "2.0.0-alpha.97",
 
     _origFlags = {},
     _rules = {},
@@ -149,10 +149,37 @@ end
 
 local function getFieldSizeHa(field)
     if field == nil then return 0 end
-    if field.farmland ~= nil and field.farmland.areaInHa ~= nil then
-        return field.farmland.areaInHa
+
+    -- Prefer the actual field/cultivated area over the farmland/plot area.
+    -- Farmland plots can contain roads, yards, woodland or several field pieces, so
+    -- using farmland.areaInHa can wrongly block small fields on large plots.
+    local candidates = {
+        field.areaHa,
+        field.fieldAreaHa,
+        field.fieldArea,
+        field.area,
+        field.sizeHa,
+    }
+
+    for _, value in ipairs(candidates) do
+        local n = tonumber(value)
+        if n ~= nil and n > 0 then
+            return n
+        end
     end
-    return field.areaHa or 0
+
+    if field.fieldDimensions ~= nil and field.fieldDimensions.areaInHa ~= nil then
+        local n = tonumber(field.fieldDimensions.areaInHa)
+        if n ~= nil and n > 0 then return n end
+    end
+
+    -- Last resort only: this is plot/farmland area, not necessarily field area.
+    if field.farmland ~= nil and field.farmland.areaInHa ~= nil then
+        local n = tonumber(field.farmland.areaInHa)
+        if n ~= nil and n > 0 then return n end
+    end
+
+    return 0
 end
 
 local function isNpcField(field)
@@ -1236,10 +1263,17 @@ function CCO:buildGuiStatusText()
     table.insert(lines, ("Player fields:          %d"):format(tonumber(summary.playerTotal or 0)))
     table.insert(lines, "")
 
+    table.insert(lines, "ACTIONS")
+    table.insert(lines, "APPLY / FORCE APPLY writes staged crop changes to this save only.")
+    table.insert(lines, "SAVE DEFAULTS exports the current save rules to template config.xml.")
+    table.insert(lines, "LOAD DEFAULTS imports template config.xml into this save and overwrites the active per-save rules.")
+    table.insert(lines, "")
+    table.insert(lines, "VALIDATION CLEANUP")
+    table.insert(lines, "Use RESET SCOPE to choose ALL, CROP, or FIELD.")
+    table.insert(lines, "Use RESET BLOCKED DRY-RUN first, then CONFIRM RESET if the result looks correct.")
+    table.insert(lines, "")
     table.insert(lines, "NAVIGATION")
-    table.insert(lines, "Use the top tabs, or PREV TAB / NEXT TAB, to move between sections.")
-    table.insert(lines, "Use RELOAD to re-read the active config. Use BACK to close the screen.")
-    table.insert(lines, "Crop rules can be edited from the ALL RULES table. Select a crop, stage changes in the right panel, then use APPLY.")
+    table.insert(lines, "Use the top tabs, or PREV TAB / NEXT TAB, to move between sections. Use BACK to close.")
     return table.concat(lines, "\n")
 end
 
@@ -1405,10 +1439,12 @@ function CCO:buildGuiBlockedText()
     end
 
     table.insert(lines, "")
-    table.insert(lines, "RECOMMENDED CLEANUP")
-    table.insert(lines, "1. Review the blocked field rows above.")
-    table.insert(lines, "2. Run ccoResetBlocked dryrun before changing the save state.")
-    table.insert(lines, "3. Run ccoResetBlocked only after confirming the dry-run output.")
+    table.insert(lines, "GUI CLEANUP")
+    table.insert(lines, "1. Use RESET SCOPE to choose ALL, a crop, or an individual field.")
+    table.insert(lines, "2. Run RESET BLOCKED DRY-RUN before changing the save state.")
+    table.insert(lines, "3. Use CONFIRM RESET only after the dry-run result looks correct.")
+    table.insert(lines, "")
+    table.insert(lines, "Console alternatives remain available: ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked.")
     return table.concat(lines, "\n")
 end
 
@@ -1418,13 +1454,24 @@ function CCO:buildGuiHelpText()
         "",
         "NAVIGATION",
         "Use the tab headings or PREV TAB / NEXT TAB to switch sections.",
-        "Use RELOAD to re-read the active per-save XML.",
         "Use BACK or ESC to close the CCO screen.",
+        "",
+        "EDITING",
+        "Use ALL RULES to select a crop and stage changes in the right panel.",
+        "APPLY writes safe changes to the active per-save XML.",
+        "FORCE APPLY deliberately saves a rule that creates blocked NPC fields.",
+        "DISCARD resets staged values for the selected crop.",
+        "",
+        "CONFIG FILES",
+        "config.xml is the template/default rule file.",
+        "saves/savegameX.xml is the active rule file for the current save.",
+        "SAVE DEFAULTS exports the full active save rules to config.xml and creates a backup.",
+        "LOAD DEFAULTS imports config.xml into this save and overwrites the active per-save XML.",
         "",
         "TABLE COLUMNS",
         "Player Permitted: whether the crop is available under the crop policy.",
         "NPC Permitted: whether NPCs may plant the crop, or whether the map default is used.",
-        "Max Field (ha): maximum NPC field size for that crop. 0.00 means no CCO size limit.",
+        "Max Field (ha): maximum actual NPC field size for that crop. 0.00 means no CCO size limit.",
         "Loaded: whether the crop exists on the active map/save.",
         "",
         "POLICY TERMS",
@@ -1434,20 +1481,11 @@ function CCO:buildGuiHelpText()
         "Blocked NPC Fields: existing NPC fields that currently violate the active policy.",
         "Not Loaded: the rule is preserved, but the crop is not present on this map/save.",
         "",
-        "CONFIG FILES",
-        "config.xml: template/default rules used when creating or normalising saves.",
-        "saves/savegameX.xml: active per-save rules used by the current savegame.",
-        "APPLY / FORCE APPLY: writes one staged crop rule to the active per-save XML.",
-        "SAVE DEFAULTS: backs up config.xml, then writes the full active rule set to config.xml.",
-        "SAVE DEFAULTS does not overwrite existing per-save XML files.",
-        "",
-        "SAFE CLEANUP",
-        "Use ccoScanBlocked to review invalid NPC fields.",
-        "Use ccoResetBlocked dryrun before resetting fields.",
-        "Use ccoResetBlocked only after the dry-run output looks correct.",
-        "",
-        "EDITING",
-        "Crop rules can be edited from the ALL RULES table. Guarded APPLY prevents accidental blocked-field changes; FORCE APPLY allows deliberate policy changes.",
+        "VALIDATION CLEANUP",
+        "Use RESET SCOPE to cycle through ALL, CROP, and FIELD cleanup targets.",
+        "Run RESET BLOCKED DRY-RUN first. It does not change the save state.",
+        "Use CONFIRM RESET only after the dry-run result looks correct.",
+        "Console alternatives remain available: ccoScanBlocked and ccoResetBlocked dryrun.",
     }, "\n")
 end
 
@@ -1526,7 +1564,7 @@ function CCO:applyGuiStagedRule(staged, forceApply)
         resetNpcFields = resetNpcFields,
     })
 
-    local preflight = self:buildFieldSummaryWithRules(proposedRules, nil)
+    local preflight = self:buildFieldSummaryWithRules(proposedRules, nameU)
     local preflightOffending = tonumber(preflight.offending or 0) or 0
     if preflightOffending > 0 and forceApply ~= true then
         local msg = ("Apply blocked for %s: proposed rule would create %d blocked NPC field(s). Click FORCE APPLY to save anyway, then review VALIDATION before cleanup."):format(
@@ -1619,6 +1657,47 @@ function CCO:saveCurrentRulesToTemplateConfig()
     end
 
     print("CCO GUI SAVE DEFAULTS: " .. msg)
+    self._guiNotice = msg
+    return true, msg
+end
+
+
+
+function CCO:loadTemplateDefaultsIntoCurrentSave()
+    local sid = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo)
+    local per = sid ~= nil and perSavePathForId(sid) or nil
+    local tpl = templatePath()
+
+    local templateRules = readConfig(tpl)
+    if templateRules == nil or not next(templateRules) then
+        templateRules = buildDefaultRules()
+    end
+
+    templateRules = mergeMissingDiscoveredFruits(templateRules)
+
+    if per == nil then
+        self._rules = templateRules
+        self._configPath = tpl
+        self:applyRules(templateRules)
+        local msg = "Loaded template config.xml. No savegame context was available, so no per-save XML was written."
+        print("CCO GUI LOAD DEFAULTS: " .. msg)
+        self._guiNotice = msg
+        return true, msg
+    end
+
+    if not writeConfig(per, templateRules) then
+        local msg = "Failed to write template defaults into active per-save XML."
+        print("CCO GUI LOAD DEFAULTS: " .. msg)
+        self._guiNotice = msg
+        return false, msg
+    end
+
+    self._rules = templateRules
+    self._configPath = per
+    self:applyRules(templateRules)
+
+    local msg = "Loaded template config.xml into active save config: " .. tostring(per)
+    print("CCO GUI LOAD DEFAULTS: " .. msg)
     self._guiNotice = msg
     return true, msg
 end
@@ -2002,6 +2081,51 @@ local function findFieldByFarmlandId(idArg)
     return nil
 end
 
+
+function CCO:consoleFieldSizeProbe(fieldIdArg)
+    if fieldIdArg == nil or fieldIdArg == "" then
+        print("CCO: usage ccoFieldSizeProbe <FIELD_ID>")
+        return
+    end
+    if g_fieldManager == nil or g_fieldManager.getFields == nil then
+        print("CCO: field manager not ready")
+        return
+    end
+
+    local wanted = tostring(fieldIdArg)
+    local found = nil
+    local fallbackIndex = nil
+
+    for idx, field in pairs(g_fieldManager:getFields()) do
+        if tostring(getFieldId(field, idx)) == wanted then
+            found = field
+            fallbackIndex = idx
+            break
+        end
+    end
+
+    if found == nil then
+        print("CCO: field not found: " .. tostring(fieldIdArg))
+        return
+    end
+
+    local ft = getFieldFruit(found)
+    print(("CCO: field size probe field=%s fallbackIndex=%s"):format(tostring(getFieldId(found, fallbackIndex)), tostring(fallbackIndex)))
+    print(("  calculatedFieldSizeHa=%s"):format(tostring(getFieldSizeHa(found))))
+    print(("  fruit=%s"):format(ft ~= nil and tostring(ft.name) or "none"))
+    print(("  field.areaHa=%s"):format(tostring(found.areaHa)))
+    print(("  field.fieldAreaHa=%s"):format(tostring(found.fieldAreaHa)))
+    print(("  field.fieldArea=%s"):format(tostring(found.fieldArea)))
+    print(("  field.area=%s"):format(tostring(found.area)))
+    print(("  field.sizeHa=%s"):format(tostring(found.sizeHa)))
+    print(("  field.fieldDimensions.areaInHa=%s"):format(tostring(found.fieldDimensions ~= nil and found.fieldDimensions.areaInHa or nil)))
+    print(("  farmland.id=%s"):format(tostring(found.farmland ~= nil and found.farmland.id or nil)))
+    print(("  farmland.areaInHa=%s"):format(tostring(found.farmland ~= nil and found.farmland.areaInHa or nil)))
+    print(("  farmland.farmId=%s"):format(tostring(found.farmland ~= nil and found.farmland.farmId or nil)))
+end
+addConsoleCommand("ccoFieldSizeProbe", "Show actual field-size values used by CCO. Usage: ccoFieldSizeProbe <FIELD_ID>", "consoleFieldSizeProbe", CCO)
+
+
 function CCO:consoleListNpcCandidates(fieldIdArg)
     if fieldIdArg == nil or fieldIdArg == "" then
         print("CCO: usage ccoListNpcCandidates <FIELD_ID>")
@@ -2055,17 +2179,176 @@ local function parseResetArgs(first, second)
 end
 
 
-function CCO:resetBlockedFieldsDryRunFromGui()
-    local wouldQueue, skipped = self:resetNpcFields(nil, true)
-    local summary = self:buildFieldSummary(nil)
 
-    local msg = ("Dry-run complete. %d blocked NPC field(s) would be reset. skipped=%d. No save-state changes were made."):format(
+function CCO:getBlockedFieldRows()
+    local rows = {}
+
+    if g_fieldManager ~= nil and g_fieldManager.getFields ~= nil then
+        for i, field in pairs(g_fieldManager:getFields() or {}) do
+            local ft = getFieldFruit(field)
+            if ft ~= nil then
+                local cropName = upper(ft.name)
+                local blocked, reason = self:shouldResetNpcField(field, cropName)
+                if blocked then
+                    table.insert(rows, {
+                        field = field,
+                        fallbackIndex = i,
+                        fieldId = tostring(getFieldId(field, i)),
+                        cropName = cropName,
+                        sizeHa = getFieldSizeHa(field),
+                        reason = tostring(reason or "blocked"),
+                    })
+                end
+            end
+        end
+    end
+
+    table.sort(rows, function(a, b)
+        local an = tonumber(a.fieldId)
+        local bn = tonumber(b.fieldId)
+        if an ~= nil and bn ~= nil then return an < bn end
+        return tostring(a.fieldId) < tostring(b.fieldId)
+    end)
+
+    return rows
+end
+
+function CCO:getBlockedCropList()
+    local crops = {}
+    local seen = {}
+
+    for _, row in ipairs(self:getBlockedFieldRows()) do
+        if row.cropName ~= nil and not seen[row.cropName] then
+            seen[row.cropName] = true
+            table.insert(crops, row.cropName)
+        end
+    end
+
+    table.sort(crops)
+    return crops
+end
+
+function CCO:getBlockedResetScopeList()
+    local scopes = {
+        { mode = "all", label = "ALL" }
+    }
+
+    local crops = self:getBlockedCropList()
+    for _, crop in ipairs(crops) do
+        table.insert(scopes, {
+            mode = "crop",
+            crop = crop,
+            label = "CROP: " .. tostring(crop),
+        })
+    end
+
+    for _, row in ipairs(self:getBlockedFieldRows()) do
+        table.insert(scopes, {
+            mode = "field",
+            crop = row.cropName,
+            fieldId = row.fieldId,
+            label = ("FIELD: %s %s"):format(tostring(row.fieldId), tostring(row.cropName)),
+        })
+    end
+
+    return scopes
+end
+
+function CCO:resetBlockedFieldById(fieldId, dryRun)
+    local wanted = tostring(fieldId or "")
+    if wanted == "" then return 0, 0 end
+
+    if g_currentMission == nil or not g_currentMission:getIsServer() then
+        warn("field reset skipped: must run on server/host")
+        return 0, 0
+    end
+    if g_fieldManager == nil or g_fieldManager.getFields == nil then
+        warn("field manager not ready")
+        return 0, 0
+    end
+
+    for idx, field in pairs(g_fieldManager:getFields() or {}) do
+        if tostring(getFieldId(field, idx)) == wanted then
+            local ft = getFieldFruit(field)
+            if ft ~= nil then
+                local cropName = upper(ft.name)
+                local reset, reason = self:shouldResetNpcField(field, cropName)
+                if reset then
+                    if dryRun == true then
+                        print(("CCO: dry-run would reset field=%s crop=%s size=%.2fha reason=%s"):format(
+                            tostring(getFieldId(field, idx)), cropName, getFieldSizeHa(field), tostring(reason)))
+                        return 1, 0
+                    elseif self:setFieldCultivated(field) then
+                        info(("queued field %s (%s, %.2f ha) to cultivated state: %s"):format(
+                            tostring(getFieldId(field, idx)), cropName, getFieldSizeHa(field), tostring(reason)))
+                        if g_missionManager ~= nil then
+                            info("triggering mission generation after field reset")
+                            if g_missionManager.generationTimer ~= nil then g_missionManager.generationTimer = 0 end
+                            if g_missionManager.startMissionGeneration ~= nil then g_missionManager:startMissionGeneration() end
+                        end
+                        return 1, 0
+                    else
+                        return 0, 1
+                    end
+                end
+            end
+            return 0, 0
+        end
+    end
+
+    return 0, 1
+end
+
+function CCO:normaliseGuiResetScope(scope)
+    if type(scope) == "table" then
+        return scope
+    end
+
+    if scope ~= nil and tostring(scope) ~= "" then
+        return { mode = "crop", crop = upper(scope), label = upper(scope) }
+    end
+
+    return { mode = "all", label = "ALL" }
+end
+
+
+function CCO:getBlockedCountForGuiScope(scope)
+    local s = self:normaliseGuiResetScope(scope)
+    local count = 0
+
+    for _, row in ipairs(self:getBlockedFieldRows()) do
+        if s.mode == "all" then
+            count = count + 1
+        elseif s.mode == "crop" and row.cropName == upper(s.crop) then
+            count = count + 1
+        elseif s.mode == "field" and tostring(row.fieldId) == tostring(s.fieldId) then
+            count = count + 1
+        end
+    end
+
+    return count
+end
+
+function CCO:resetBlockedFieldsDryRunFromGui(scope)
+    local s = self:normaliseGuiResetScope(scope)
+    local wouldQueue, skipped = 0, 0
+
+    if s.mode == "field" then
+        wouldQueue, skipped = self:resetBlockedFieldById(s.fieldId, true)
+    else
+        local target = s.mode == "crop" and upper(s.crop) or nil
+        wouldQueue, skipped = self:resetNpcFields(target, true)
+    end
+
+    local scopeText = tostring(s.label or s.crop or s.fieldId or "ALL")
+    local msg = ("Dry-run complete for scope=%s. %d blocked NPC field(s) would be reset. skipped=%d. No save-state changes were made."):format(
+        scopeText,
         tonumber(wouldQueue or 0) or 0,
         tonumber(skipped or 0) or 0
     )
 
-    if tonumber(summary.offending or 0) == 0 then
-        msg = "Dry-run complete. No blocked NPC fields were detected. No save-state changes were made."
+    if tonumber(wouldQueue or 0) == 0 then
+        msg = ("Dry-run complete for scope=%s. No blocked NPC fields were detected. No save-state changes were made."):format(scopeText)
     end
 
     print("CCO GUI RESET DRY-RUN: " .. msg)
@@ -2073,25 +2356,29 @@ function CCO:resetBlockedFieldsDryRunFromGui()
     return msg, tonumber(wouldQueue or 0) or 0, tonumber(skipped or 0) or 0
 end
 
-function CCO:resetBlockedFieldsFromGui()
-    local before = self:buildFieldSummary(nil)
-    local beforeCount = tonumber(before.offending or 0) or 0
+function CCO:resetBlockedFieldsFromGui(scope)
+    local s = self:normaliseGuiResetScope(scope)
+    local queued, skipped = 0, 0
 
-    if beforeCount <= 0 then
-        local msg = "Reset skipped. No blocked NPC fields were detected."
-        print("CCO GUI RESET BLOCKED: " .. msg)
-        self._guiNotice = msg
-        return msg, 0, 0
+    if s.mode == "field" then
+        queued, skipped = self:resetBlockedFieldById(s.fieldId, false)
+    else
+        local target = s.mode == "crop" and upper(s.crop) or nil
+        queued, skipped = self:resetNpcFields(target, false)
     end
 
-    local queued, skipped = self:resetNpcFields(nil, false)
-    local after = self:buildFieldSummary(nil)
-    local remaining = tonumber(after.offending or 0) or 0
+    local scopeText = tostring(s.label or s.crop or s.fieldId or "ALL")
+    if tonumber(queued or 0) <= 0 and tonumber(skipped or 0) <= 0 then
+        local msg = ("Reset skipped for scope=%s. No blocked NPC fields were detected."):format(scopeText)
+        print("CCO GUI RESET BLOCKED: " .. msg)
+        self._guiNotice = msg
+        return msg, tonumber(queued or 0) or 0, tonumber(skipped or 0) or 0
+    end
 
-    local msg = ("Reset complete. queued=%d skipped=%d remainingBlockedNpcFields=%d."):format(
+    local msg = ("Reset complete for scope=%s. queued=%d skipped=%d. Reopen VALIDATION or run RESET BLOCKED DRY-RUN again after refresh."):format(
+        scopeText,
         tonumber(queued or 0) or 0,
-        tonumber(skipped or 0) or 0,
-        remaining
+        tonumber(skipped or 0) or 0
     )
 
     print("CCO GUI RESET BLOCKED: " .. msg)
@@ -2163,6 +2450,7 @@ function CCO:consoleHelp(topic)
         print("CCO:   ccoScanSummary [CROP]")
         print("CCO:   ccoValidateSave")
         print("CCO:   ccoListNpcCandidates <FIELD_ID>")
+        print("CCO:   ccoFieldSizeProbe <FIELD_ID>")
     end
     if t == "reset" or t == "cleanup" or t == "" then
         print("CCO: Cleanup:")
