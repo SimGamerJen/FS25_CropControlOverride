@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.0.0-alpha.97",
+    VERSION = "2.0.0-beta.1",
 
     _origFlags = {},
     _rules = {},
@@ -52,6 +52,14 @@ local function err(msg)  if log and log.error then log:error(msg) else print("CC
 
 local function upper(s)
     return s and string.upper(tostring(s)) or s
+end
+
+
+local HA_TO_ACRES = 2.47105
+
+local function formatHaAcCompact(ha)
+    local n = tonumber(ha or 0) or 0
+    return string.format("%.1fha/%.1fac", n, n * HA_TO_ACRES)
 end
 
 local function policyText(v)
@@ -1336,8 +1344,8 @@ function CCO:buildGuiRuleListText(mode, pageArg)
     local lines = {
         ("%s — Page %d/%d"):format(self:ruleModeTitle(mode), page, totalPages),
         "",
-        string.format("%-16s %-7s %-10s %-8s %-10s %-10s", "Crop", "Enabled", "NPC", "Max ha", "Loaded", "Status"),
-        string.rep("-", 72),
+        string.format("%-16s %-7s %-10s %-17s %-10s %-10s", "Crop", "Enabled", "NPC", "Max Field", "Loaded", "Status"),
+        string.rep("-", 82),
     }
 
     local shown = 0
@@ -1345,8 +1353,8 @@ function CCO:buildGuiRuleListText(mode, pageArg)
         local row = rows[i]
         if row ~= nil then
             shown = shown + 1
-            table.insert(lines, string.format("%-16s %-7s %-10s %8.2f %-10s %-10s",
-                row.crop, row.enabled, tostring(row.npc), row.maxHa, row.discovered, row.status))
+            table.insert(lines, string.format("%-16s %-7s %-10s %-17s %-10s %-10s",
+                row.crop, row.enabled, tostring(row.npc), formatHaAcCompact(row.maxHa), row.discovered, row.status))
         end
     end
 
@@ -1364,8 +1372,6 @@ function CCO:buildGuiRuleListText(mode, pageArg)
     else
         table.insert(lines, "Shown 0 of 0 matching rule(s).")
     end
-    table.insert(lines, "")
-    table.insert(lines, "Read-only view. Rule editing still uses XML or ccoSetCrop in this build.")
     return table.concat(lines, "\n")
 end
 
@@ -1471,7 +1477,7 @@ function CCO:buildGuiHelpText()
         "TABLE COLUMNS",
         "Player Permitted: whether the crop is available under the crop policy.",
         "NPC Permitted: whether NPCs may plant the crop, or whether the map default is used.",
-        "Max Field (ha): maximum actual NPC field size for that crop. 0.00 means no CCO size limit.",
+        "Max Field: maximum actual NPC field size. Values are stored in hectares; acres are shown for reference.",
         "Loaded: whether the crop exists on the active map/save.",
         "",
         "POLICY TERMS",

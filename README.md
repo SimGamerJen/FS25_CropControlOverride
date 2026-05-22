@@ -1,12 +1,12 @@
 # FS25 Crop Control Override
 
-**Version:** 2.0.0-alpha.97  
+**Version:** 2.0.0-beta.1
 **Game:** Farming Simulator 25  
 **Type:** Script mod / crop policy manager
 
 Crop Control Override manages crop availability and NPC crop behaviour on a per-save basis. It lets you control which crops are available, which crops NPC farmers may plant, and whether NPC crops should be limited by actual field size.
 
-This is an alpha test build. Use copied saves and keep backups of important savegames.
+This is a beta test build. Use copied saves and keep backups of important savegames.
 
 ---
 
@@ -16,7 +16,7 @@ This is an alpha test build. Use copied saves and keep backups of important save
 - Per-save crop policy XML files.
 - Player crop enable/disable rules.
 - NPC crop enable/disable rules.
-- NPC crop field-size limits using actual field area, not plot/farmland area.
+- NPC crop field-size limits using actual field area, with hectares and acres shown in the GUI.
 - Colour-coded crop rules table.
 - Guarded `APPLY` / `FORCE APPLY` workflow.
 - `DISCARD` for staged GUI edits.
@@ -67,7 +67,7 @@ The keybind can be changed from the in-game controls menu.
 ## GUI tabs
 
 ```text
-ALL RULES | DISABLED | NPC DISABLED | LIMITED | VALIDATION | SUMMARY | HELP
+ALL RULES | DISABLED | NPC DISABLED | SIZE LIMITED | VALIDATION | SUMMARY | HELP
 ```
 
 ### ALL RULES
@@ -82,7 +82,7 @@ Shows crops disabled globally by rule.
 
 Shows crops NPCs should not plant.
 
-### LIMITED
+### SIZE LIMITED
 
 Shows crops with an NPC maximum field-size limit.
 
@@ -106,7 +106,7 @@ Editable staged values:
 
 - **Player Permitted**
 - **NPC Permitted**
-- **Max Field (ha)**
+- **Max Field**
 - **Reset NPC Fields**
 
 Changes are staged first. They are not written until `APPLY` or `FORCE APPLY`.
@@ -214,7 +214,7 @@ After a reset, reopen `VALIDATION` or run another dry-run after refresh.
 
 ## Field-size limits
 
-`Max Field (ha)` uses actual field area where available.
+`Max Field` uses actual field area where available.
 
 Farmland or plot area is used only as a last-resort fallback because plots can include yards, roads, woodland, or multiple field pieces.
 
@@ -322,7 +322,7 @@ Attach the relevant `log.txt` section where possible.
 
 ## Changelog
 
-### 2.0.0-alpha.97
+### 2.0.0-beta.1
 
 - Cleaned up README for the current GUI workflow.
 - Updated in-game HELP, SUMMARY, and VALIDATION wording.
@@ -331,30 +331,30 @@ Attach the relevant `log.txt` section where possible.
 - Clarified actual field size versus farmland/plot size.
 - No code behaviour changes from alpha.96.
 
-### 2.0.0-alpha.96
+### 2.0.0-beta.1
 
 - Fixed RESET BLOCKED DRY-RUN remaining disabled for structured field-level reset scopes.
 - Added scope-aware blocked-field counting for GUI reset controls.
 
-### 2.0.0-alpha.95
+### 2.0.0-beta.1
 
 - Added field-level reset scope.
 - RESET SCOPE now supports ALL, CROP, and FIELD targets.
 
-### 2.0.0-alpha.94
+### 2.0.0-beta.1
 
 - Removed potentially stale remaining-blocked count from reset completion messages.
 
-### 2.0.0-alpha.93
+### 2.0.0-beta.1
 
 - Added crop-scoped reset.
 
-### 2.0.0-alpha.92
+### 2.0.0-beta.1
 
 - Fixed field-size checks to prefer actual field area over farmland/plot area.
 - Added `ccoFieldSizeProbe`.
 
-### 2.0.0-alpha.91
+### 2.0.0-beta.1
 
 - Swapped NPC DISABLED and LIMITED tab order.
 - Changed APPLY preflight validation to check only the edited crop.

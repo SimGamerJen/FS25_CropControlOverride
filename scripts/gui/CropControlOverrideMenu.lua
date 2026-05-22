@@ -146,7 +146,7 @@ local TAB_TEXTS = {
     "ALL RULES",
     "DISABLED",
     "NPC DISABLED",
-    "LIMITED",
+    "SIZE LIMITED",
     "VALIDATION",
     "SUMMARY",
     "HELP",
@@ -191,6 +191,20 @@ local function splitLines(text)
     return lines
 end
 
+
+local HA_TO_ACRES = 2.47105
+
+local function formatHaAcCompact(ha)
+    local n = tonumber(ha or 0) or 0
+    return string.format("%.1fha/%.1fac", n, n * HA_TO_ACRES)
+end
+
+local function numericFromHaAc(value)
+    local text = tostring(value or "")
+    local n = tonumber(text:match("^%s*([%d%.%-]+)"))
+    return n or tonumber(value or 0) or 0
+end
+
 local function parseRuleRows(text)
     local rows = {}
     for _, line in ipairs(splitLines(text)) do
@@ -199,18 +213,26 @@ local function parseRuleRows(text)
         -- Alpha.47 changed NPC policy display from "mapDefault" to "Map Default".
         -- The GUI table is still populated from the text report, so support this
         -- multi-word display value explicitly instead of dropping those rows.
-        crop, enabled, npc, maxHa, loaded, status = line:match("^(%S+)%s+(%S+)%s+(Map Default)%s+([%d%.%-]+)%s+(%S+)%s+(.+)$")
+        crop, enabled, npc, maxHa, loaded, status = line:match("^(%S+)%s+(%S+)%s+(Map Default)%s+(%S+)%s+(%S+)%s+(.+)$")
 
         if crop == nil then
-            crop, enabled, npc, maxHa, loaded, status = line:match("^(%S+)%s+(%S+)%s+(%S+)%s+([%d%.%-]+)%s+(%S+)%s+(.+)$")
+            crop, enabled, npc, maxHa, loaded, status = line:match("^(%S+)%s+(%S+)%s+(%S+)%s+(%S+)%s+(%S+)%s+(.+)$")
         end
 
         if crop ~= nil
             and crop ~= "Crop"
             and crop ~= "Crop Type"
+            and crop ~= "All"
+            and crop ~= "Disabled"
+            and crop ~= "Size-limited"
+            and crop ~= "NPC-disabled"
+            and crop ~= "Configured"
             and crop ~= "Page"
             and crop ~= "Shown"
+            and crop ~= "Read-only"
             and crop ~= "Read%-only"
+            and (enabled == "Yes" or enabled == "No")
+            and (loaded == "Yes" or loaded == "No")
             and not line:find("^%-+$") then
             table.insert(rows, {
                 crop = crop,
@@ -448,7 +470,7 @@ function CropControlOverrideMenu:createStagedRuleFromRow(row)
         crop = row.crop,
         enabled = ccoValueToBool(row.enabled),
         npc = ccoNpcToStage(row.npc),
-        maxHa = tonumber(row.maxHa or 0) or 0,
+        maxHa = numericFromHaAc(row.maxHa),
         resetNpcFields = true,
     }
     self.stagedDirty = false
@@ -687,7 +709,7 @@ function CropControlOverrideMenu:populateCellForItemInSection(list, section, ind
     end
 
     local function maxHaColor(value)
-        local n = tonumber(value or 0) or 0
+        local n = numericFromHaAc(value)
         if n > 0 then
             return COLOR_YELLOW
         end

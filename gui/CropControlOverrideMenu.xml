@@ -21,7 +21,7 @@
             <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[3]" text="NPC DISABLED" onClick="onClickBlockedRules">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[4]" text="LIMITED" onClick="onClickLimited">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[4]" text="SIZE LIMITED" onClick="onClickLimited">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
             <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[5]" text="VALIDATION" onClick="onClickValidate">
@@ -50,21 +50,21 @@
             <GuiElement id="ruleTableContainer" visible="false" position="0px 260px" size="1520px 520px">
                 <GuiElement id="ruleTableListArea" position="0px 0px" size="1030px 520px">
                     <GuiElement profile="fs25_statisticsHeaderBox" position="0px -18px" size="1015px 38px">
-                        <Text profile="ccoColumnHeader" position="20px -3px"   size="220px 34px" text="Crop Type"/>
-                        <Text profile="ccoColumnHeader" position="255px -3px"  size="155px 34px" text="Player"/>
-                        <Text profile="ccoColumnHeader" position="420px -3px"  size="155px 34px" text="NPC"/>
-                        <Text profile="ccoColumnHeader" position="590px -3px"  size="160px 34px" text="Max Field (ha)"/>
-                        <Text profile="ccoColumnHeader" position="770px -3px"  size="210px 34px" text="Status"/>
+                        <Text profile="ccoColumnHeader" position="20px -3px"   size="170px 34px" text="Crop Type"/>
+                        <Text profile="ccoColumnHeader" position="205px -3px"  size="140px 34px" text="Player"/>
+                        <Text profile="ccoColumnHeader" position="355px -3px"  size="140px 34px" text="NPC"/>
+                        <Text profile="ccoColumnHeader" position="505px -3px"  size="190px 34px" text="Max Field"/>
+                        <Text profile="ccoColumnHeader" position="720px -3px"  size="280px 34px" text="Status"/>
                     </GuiElement>
 
                     <SmoothList id="ruleList" profile="ccoRulesList" position="0px -70px" size="1015px 505px" listItemSpacing="-1px">
                         <ListItem profile="ccoRulesListItem">
                             <ThreePartBitmap profile="ccoListItemGradient" name="alternating"/>
-                            <Text profile="ccoRowCellLeft"   position="20px 0px"   size="220px 34px" name="cellCrop"/>
-                            <Text profile="ccoRowCellCenter" position="255px 0px"  size="155px 34px" name="cellEnabled"/>
-                            <Text profile="ccoRowCellCenter" position="420px 0px"  size="155px 34px" name="cellNpc"/>
-                            <Text profile="ccoRowCellCenter" position="590px 0px"  size="160px 34px" name="cellMaxHa"/>
-                            <Text profile="ccoRowCellCenter" position="770px 0px"  size="210px 34px" name="cellStatus"/>
+                            <Text profile="ccoRowCellLeft"   position="20px 0px"   size="170px 34px" name="cellCrop"/>
+                            <Text profile="ccoRowCellCenter" position="205px 0px"  size="140px 34px" name="cellEnabled"/>
+                            <Text profile="ccoRowCellCenter" position="355px 0px"  size="140px 34px" name="cellNpc"/>
+                            <Text profile="ccoRowCellCenter" position="505px 0px"  size="190px 34px" name="cellMaxHa"/>
+                            <Text profile="ccoRowCellCenter" position="720px 0px"  size="280px 34px" name="cellStatus"/>
                         </ListItem>
                     </SmoothList>
 
@@ -87,7 +87,7 @@
                     <Text profile="ccoDetailsLabel" position="20px -198px" size="170px 28px" text="NPC Permitted"/>
                     <Button profile="ccoEditButtonWide" id="editNpcButton" position="210px -198px" text="-" onClick="onClickToggleNpc"/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -238px" size="170px 28px" text="Max Field (ha)"/>
+                    <Text profile="ccoDetailsLabel" position="20px -238px" size="190px 28px" text="Max Field (ha) 1 ha = 2.47 ac"/>
                     <Button profile="ccoEditButton" id="editMaxDownButton" position="210px -238px" size="54px 28px" text="-1" onClick="onClickMaxDown"/>
                     <Text profile="ccoDetailsValue" id="editMaxHaText" position="276px -238px" size="70px 28px" text="-"/>
                     <Button profile="ccoEditButton" id="editMaxUpButton" position="350px -238px" size="54px 28px" text="+1" onClick="onClickMaxUp"/>
