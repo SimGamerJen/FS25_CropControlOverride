@@ -1,6 +1,6 @@
 # FS25 Crop Control Override
 
-**Version:** 2.0.0-beta.1
+**Version:** 2.0.0-alpha.102
 **Game:** Farming Simulator 25  
 **Type:** Script mod / crop policy manager
 
@@ -18,6 +18,7 @@ This is a beta test build. Use copied saves and keep backups of important savega
 - NPC crop enable/disable rules.
 - NPC crop field-size limits using actual field area, with hectares and acres shown in the GUI.
 - Colour-coded crop rules table.
+- GUI toggle to show or hide not-loaded crop rules.
 - Guarded `APPLY` / `FORCE APPLY` workflow.
 - `DISCARD` for staged GUI edits.
 - `SAVE DEFAULTS TO CONFIG.XML` with automatic backup.
@@ -322,7 +323,7 @@ Attach the relevant `log.txt` section where possible.
 
 ## Changelog
 
-### 2.0.0-beta.1
+### 2.0.0-alpha.102
 
 - Cleaned up README for the current GUI workflow.
 - Updated in-game HELP, SUMMARY, and VALIDATION wording.
@@ -331,30 +332,30 @@ Attach the relevant `log.txt` section where possible.
 - Clarified actual field size versus farmland/plot size.
 - No code behaviour changes from alpha.96.
 
-### 2.0.0-beta.1
+### 2.0.0-alpha.102
 
 - Fixed RESET BLOCKED DRY-RUN remaining disabled for structured field-level reset scopes.
 - Added scope-aware blocked-field counting for GUI reset controls.
 
-### 2.0.0-beta.1
+### 2.0.0-alpha.102
 
 - Added field-level reset scope.
 - RESET SCOPE now supports ALL, CROP, and FIELD targets.
 
-### 2.0.0-beta.1
+### 2.0.0-alpha.102
 
 - Removed potentially stale remaining-blocked count from reset completion messages.
 
-### 2.0.0-beta.1
+### 2.0.0-alpha.102
 
 - Added crop-scoped reset.
 
-### 2.0.0-beta.1
+### 2.0.0-alpha.102
 
 - Fixed field-size checks to prefer actual field area over farmland/plot area.
 - Added `ccoFieldSizeProbe`.
 
-### 2.0.0-beta.1
+### 2.0.0-alpha.102
 
 - Swapped NPC DISABLED and LIMITED tab order.
 - Changed APPLY preflight validation to check only the edited crop.

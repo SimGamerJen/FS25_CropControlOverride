@@ -71,6 +71,8 @@
                     <ThreePartBitmap profile="ccoSliderBox" position="1030px -70px" size="6px 505px" id="ruleListSliderBox">
                         <Slider profile="fs25_listSlider" dataElementId="ruleList"/>
                     </ThreePartBitmap>
+
+                    <Button profile="ccoEditButtonWide" id="notLoadedToggleButton" position="20px -590px" size="220px 30px" text="NOT LOADED: HIDDEN" onClick="onClickToggleNotLoaded" visible="false"/>
                 </GuiElement>
 
                 <GuiElement id="ruleDetailsPanel" position="1080px -50px" size="420px 565px">

@@ -24,6 +24,7 @@ function CropControlOverrideMenu.new(target, customMt)
     self.resetScopeIndex = 1
     self.resetScopes = {"ALL"}
     self.tableTopic = false
+    self.showNotLoaded = false
     self.menuBackEventId = nil
     self.suppressTabCallback = false
     return self
@@ -248,6 +249,21 @@ local function parseRuleRows(text)
 end
 
 
+local function filterRuleRows(rows, showNotLoaded)
+    if showNotLoaded == true then
+        return rows or {}
+    end
+
+    local filtered = {}
+    for _, row in ipairs(rows or {}) do
+        if tostring(row.loaded or "") ~= "No" then
+            table.insert(filtered, row)
+        end
+    end
+    return filtered
+end
+
+
 function CropControlOverrideMenu:getActiveTabIndex()
     local topic = self.currentTopic or "rules"
     return TAB_TOPIC_INDEX[topic] or 1
@@ -408,7 +424,8 @@ function CropControlOverrideMenu:setContent(title, body, topic)
     self.pendingTitle = title or "Crop Control Override"
     self.pendingBody = body or ""
     self.tableTopic = TABLE_TOPICS[topic or self.currentTopic or ""] == true
-    self.ruleRows = self.tableTopic and parseRuleRows(self.pendingBody) or {}
+    local parsedRows = self.tableTopic and parseRuleRows(self.pendingBody) or {}
+    self.ruleRows = self.tableTopic and filterRuleRows(parsedRows, self.showNotLoaded) or {}
     self.selectedRowIndex = nil
     self.selectedRow = nil
     self.stagedRule = nil
@@ -569,6 +586,12 @@ function CropControlOverrideMenu:updateContent()
 
     if self.ruleTableContainer ~= nil then
         self.ruleTableContainer:setVisible(self.tableTopic)
+    end
+    if self.notLoadedToggleButton ~= nil then
+        self.notLoadedToggleButton:setVisible(self.tableTopic)
+        if self.notLoadedToggleButton.setText ~= nil then
+            self.notLoadedToggleButton:setText(self.showNotLoaded and "NOT LOADED: SHOWN" or "NOT LOADED: HIDDEN")
+        end
     end
     if self.bodyTextElement ~= nil then
         self.bodyTextElement:setVisible(not self.tableTopic)
@@ -762,6 +785,15 @@ function CropControlOverrideMenu:onPagePrevious()
     self:updateSubCategoryPages(idx)
 end
 
+
+
+function CropControlOverrideMenu:onClickToggleNotLoaded()
+    self.showNotLoaded = not self.showNotLoaded
+    local title, body, normalizedTopic, normalizedPage = buildTopicContent(self.currentTopic or "rules", self.currentPage or 1)
+    self.currentTopic = normalizedTopic or self.currentTopic or "rules"
+    self.currentPage = tonumber(normalizedPage or self.currentPage or 1) or 1
+    self:setContent(title, body, self.currentTopic)
+end
 
 function CropControlOverrideMenu:onClickToggleEnabled()
     if self.stagedRule ~= nil then
