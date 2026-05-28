@@ -118,9 +118,7 @@ You can also open the GUI from the console:
 ccoGui
 ```
 
-<!-- SCREENSHOT: Main GUI opened on ALL RULES tab -->
-<!-- Suggested file: docs/screenshots/cco_all_rules.png -->
-![Screenshot placeholder - ALL RULES tab](docs/screenshots/cco_all_rules.png)
+<img width="3840" height="2160" alt="CCO_beta 2_all_rules" src="https://github.com/user-attachments/assets/b00e0e57-61a6-47db-ab90-568538857f5f" />
 
 ---
 
@@ -165,9 +163,7 @@ Shows all configured crop rules.
 
 Use this tab to select a crop and edit its policy in the details pane.
 
-<!-- SCREENSHOT: ALL RULES with a crop selected and details pane visible -->
-<!-- Suggested file: docs/screenshots/cco_all_rules_selected.png -->
-![Screenshot placeholder - selected crop details](docs/screenshots/cco_all_rules_selected.png)
+<img width="3840" height="2160" alt="CCO_beta 2_selected_crop" src="https://github.com/user-attachments/assets/042f22eb-5eeb-4652-8b4f-b6dd47718b6e" />
 
 ### DISABLED
 
@@ -187,9 +183,7 @@ Shows NPC fields that violate the active crop policy.
 
 This is the most important tab when changing NPC rules or field-size limits.
 
-<!-- SCREENSHOT: VALIDATION tab showing blocked fields -->
-<!-- Suggested file: docs/screenshots/cco_validation_blocked.png -->
-![Screenshot placeholder - validation blocked fields](docs/screenshots/cco_validation_blocked.png)
+<img width="3840" height="2160" alt="CCO_beta 2_validation_blocked_fields" src="https://github.com/user-attachments/assets/285f6ed4-956b-4031-8146-e94d11d6c6fa" />
 
 ### SUMMARY
 
@@ -282,9 +276,7 @@ CROP: <crop>
 FIELD: <field id> <crop>
 ```
 
-<!-- SCREENSHOT: RESET SCOPE cycling through ALL / CROP / FIELD -->
-<!-- Suggested file: docs/screenshots/cco_reset_scope.png -->
-![Screenshot placeholder - reset scope](docs/screenshots/cco_reset_scope.png)
+<img width="3840" height="2160" alt="CCO_beta 2_reset_scope" src="https://github.com/user-attachments/assets/0fb38e86-5dfc-410c-bbda-8783ce0d3eef" />
 
 ---
 
@@ -335,9 +327,7 @@ If the weighted reseed variety chooses to leave a field cultivated, dry-run repo
 action=CULTIVATED_VARIETY
 ```
 
-<!-- SCREENSHOT: RESET MODE button showing CULTIVATED and RESEED SEASONAL -->
-<!-- Suggested file: docs/screenshots/cco_reset_mode.png -->
-![Screenshot placeholder - reset mode](docs/screenshots/cco_reset_mode.png)
+<img width="3840" height="2160" alt="CCO_beta 2_reset_mode" src="https://github.com/user-attachments/assets/f4bcc844-cb06-49d5-9827-b611c77d5ece" />
 
 ---
 
