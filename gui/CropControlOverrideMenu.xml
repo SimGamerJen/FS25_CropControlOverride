@@ -41,9 +41,10 @@
             <Bitmap position="-20px 150px" size="1525px 615px" imageColor="0.015 0.017 0.015 0.28"/>
             <Text text="Crop policy editor | Apply writes per-save XML | Load Defaults imports config.xml" position="0px 12px" size="1480px 25px" textSize="15px" textColor="0.55 0.63 0.50 1" textVerticalAlignment="middle" textAlignment="left"/>
             <Button profile="ccoValidationActionButton" id="resetScopeButton" position="1180px -8px" size="320px 34px" text="RESET SCOPE: ALL" onClick="onClickResetScope" visible="false"/>
+            <Button profile="ccoValidationActionButton" id="resetModeButton" position="1180px -50px" size="320px 34px" text="RESET MODE: CULTIVATED" onClick="onClickResetMode" visible="false"/>
 
-            <Button profile="ccoValidationActionButton" id="resetBlockedDryRunButton" position="1180px -50px" size="320px 34px" text="RESET BLOCKED DRY-RUN" onClick="onClickResetBlockedDryRun" visible="false"/>
-            <Button profile="ccoValidationDangerButton" id="confirmBlockedResetButton" position="1180px -92px" size="320px 34px" text="CONFIRM RESET" onClick="onClickConfirmBlockedReset" visible="false"/>
+            <Button profile="ccoValidationActionButton" id="resetBlockedDryRunButton" position="1180px -92px" size="320px 34px" text="RESET BLOCKED DRY-RUN" onClick="onClickResetBlockedDryRun" visible="false"/>
+            <Button profile="ccoValidationDangerButton" id="confirmBlockedResetButton" position="1180px -134px" size="320px 34px" text="CONFIRM RESET" onClick="onClickConfirmBlockedReset" visible="false"/>
 
             <Text id="bodyTextElement" text="" position="40px 150px" size="1480px 585px" textSize="16px" textColor="0.88 0.90 0.86 1" textVerticalAlignment="top" textAlignment="left" textMaxNumLines="36"/>
 
@@ -84,10 +85,10 @@
                     <Text profile="ccoDetailsHeader" position="20px -124px" size="380px 28px" text="STAGED RULE VALUES"/>
 
                     <Text profile="ccoDetailsLabel" position="20px -158px" size="170px 28px" text="Player Permitted"/>
-                    <Button profile="ccoEditButtonWide" id="editEnabledButton" position="210px -158px" text="-" onClick="onClickToggleEnabled"/>
+                    <MultiTextOption profile="ccoSelectorOption" id="editEnabledOption" position="210px -158px" texts="-" onClick="onClickEnabledOption" wrap="false"/>
 
                     <Text profile="ccoDetailsLabel" position="20px -198px" size="170px 28px" text="NPC Permitted"/>
-                    <Button profile="ccoEditButtonWide" id="editNpcButton" position="210px -198px" text="-" onClick="onClickToggleNpc"/>
+                    <MultiTextOption profile="ccoSelectorOption" id="editNpcOption" position="210px -198px" texts="-" onClick="onClickNpcOption" wrap="false"/>
 
                     <Text profile="ccoDetailsLabel" position="20px -238px" size="190px 28px" text="Max Field (ha) 1 ha = 2.47 ac"/>
                     <Button profile="ccoEditButton" id="editMaxDownButton" position="210px -238px" size="54px 28px" text="-1" onClick="onClickMaxDown"/>
@@ -95,7 +96,7 @@
                     <Button profile="ccoEditButton" id="editMaxUpButton" position="350px -238px" size="54px 28px" text="+1" onClick="onClickMaxUp"/>
 
                     <Text profile="ccoDetailsLabel" position="20px -278px" size="170px 28px" text="Reset NPC Fields"/>
-                    <Button profile="ccoEditButtonWide" id="editResetButton" position="210px -278px" text="-" onClick="onClickToggleReset"/>
+                    <MultiTextOption profile="ccoSelectorOption" id="editResetOption" position="210px -278px" texts="-" onClick="onClickResetOption" wrap="false"/>
 
                     <ThreePartBitmap profile="fs25_contractsContentSeparator" position="20px -320px" size="380px 2px"/>
 
@@ -112,7 +113,7 @@
 
                     <Button profile="ccoSaveDefaultsPanelButton" id="saveDefaultsButton" position="20px -486px" size="370px 38px" text="SAVE DEFAULTS TO CONFIG.XML" onClick="onClickSaveDefaults"/>
 
-                    <Text profile="ccoDetailsInfo" id="selectedInfoText" position="20px -532px" size="380px 42px" text="Apply writes the selected crop rule to the active CCO XML."/>
+                    <Text profile="ccoDetailsInfo" id="selectedInfoText" position="20px -532px" size="380px 42px" text="Use the selector/value controls to stage changes, then APPLY."/>
                 </GuiElement>
                 <Text id="emptyStateText" profile="ccoEmptyStateText" position="220px -220px" text="No matching crop rules." visible="false"/>
             </GuiElement>

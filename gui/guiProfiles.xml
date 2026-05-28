@@ -323,4 +323,12 @@
         <sendActionOnRelease value="true"/>
     </Profile>
 
+
+    <Profile name="ccoSelectorOption" extends="fs25_multiTextOption" with="anchorTopLeft">
+        <size value="180px 28px"/>
+        <focusOnHighlight value="true"/>
+        <wrap value="false"/>
+        <hideButtonOnLimitReached value="true"/>
+    </Profile>
+
 </GUIProfiles>

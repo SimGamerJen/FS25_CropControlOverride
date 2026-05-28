@@ -1,228 +1,551 @@
 # FS25 Crop Control Override
 
-**Version:** 2.0.0-alpha.102
+**Version:** 2.0.0-beta.2  
 **Game:** Farming Simulator 25  
-**Type:** Script mod / crop policy manager
+**Status:** Beta release  
+**Author:** SimGamerJen, Hyper138
 
-Crop Control Override manages crop availability and NPC crop behaviour on a per-save basis. It lets you control which crops are available, which crops NPC farmers may plant, and whether NPC crops should be limited by actual field size.
+Crop Control Override is a per-save crop policy manager for Farming Simulator 25. It allows players to control which crops are permitted for the player, which crops NPC farmers may use, and whether NPC crop planting should be limited by field size.
 
-This is a beta test build. Use copied saves and keep backups of important savegames.
-
----
-
-## Key features
-
-- Editable FS25-style GUI opened with `ALT+C`.
-- Per-save crop policy XML files.
-- Player crop enable/disable rules.
-- NPC crop enable/disable rules.
-- NPC crop field-size limits using actual field area, with hectares and acres shown in the GUI.
-- Colour-coded crop rules table.
-- GUI toggle to show or hide not-loaded crop rules.
-- Guarded `APPLY` / `FORCE APPLY` workflow.
-- `DISCARD` for staged GUI edits.
-- `SAVE DEFAULTS TO CONFIG.XML` with automatic backup.
-- `LOAD DEFAULTS` to import template `config.xml` into the active save.
-- `VALIDATION` tab with blocked NPC field details.
-- GUI blocked-field cleanup by `ALL`, `CROP`, or individual `FIELD`.
-- Console diagnostics and cleanup commands remain available.
+The mod is designed for players who want tighter control over crop realism, map-specific crop suitability, roleplay save rules, NPC field behaviour, and cleanup of NPC fields that no longer match the active crop policy.
 
 ---
 
-## Configuration hierarchy
+## Contents
 
-Crop Control Override uses two levels of configuration.
+- [What this mod does](#what-this-mod-does)
+- [Current beta highlights](#current-beta-highlights)
+- [Installation](#installation)
+- [Opening the GUI](#opening-the-gui)
+- [Important concepts](#important-concepts)
+- [GUI overview](#gui-overview)
+- [Crop rule settings](#crop-rule-settings)
+- [Validation and blocked NPC fields](#validation-and-blocked-npc-fields)
+- [Reset modes](#reset-modes)
+- [RESEED SEASONAL and candidate selection](#reseed-seasonal-and-candidate-selection)
+- [Reseed weighting XML](#reseed-weighting-xml)
+- [Configuration files](#configuration-files)
+- [Recommended workflows](#recommended-workflows)
+- [Console commands](#console-commands)
+- [Troubleshooting](#troubleshooting)
+- [Known limitations](#known-limitations)
+- [Screenshot checklist](#screenshot-checklist)
+- [Changelog](#changelog)
 
-### Template config
+---
+
+## What this mod does
+
+Crop Control Override gives each savegame its own crop policy file. For every crop known to the mod, you can control:
+
+| Setting | Purpose |
+|---|---|
+| Player Permitted | Whether the crop is available to the player. |
+| NPC Permitted | Whether NPC farmers may use the crop. |
+| Max Field Size | Optional maximum field size for NPC use of that crop. |
+| Reset NPC Fields | Whether blocked NPC fields of that crop may be reset by the cleanup tools. |
+
+This allows you to create map-specific or region-specific crop rules without editing the map directly.
+
+Examples:
+
+- Disable rice, cotton, sugarcane, or other crops unsuitable for a region.
+- Allow the player to use a crop but stop NPC farmers from planting it.
+- Allow NPC farmers to use a crop only on smaller fields.
+- Validate existing NPC fields after changing policy.
+- Reset or reseed NPC fields that no longer comply with the active rules.
+
+---
+
+## Current beta highlights
+
+Version `2.0.0-beta.2` includes a major validation and cleanup workflow update.
+
+Key features:
+
+- FS25-style custom GUI.
+- Per-save XML configuration.
+- Native selector controls for editable rule values.
+- Crop table terminology aligned to the details pane:
+  - `Player`: `ON / OFF`
+  - `NPC`: `Map Default / ON / OFF`
+  - `Loaded`: `Yes / No`
+- `NOT LOADED` crop visibility toggle.
+- Field-level blocked reset scope.
+- `RESET MODE` support:
+  - `CULTIVATED`
+  - `RESEED SEASONAL`
+- Seasonal reseed candidate detection using FS25 growth data.
+- GRASS lifecycle reseed support.
+- XML-configurable reseed candidate weights.
+- Weighted deterministic reseed variety.
+- Dry-run before confirm workflow.
+- Diagnostic console commands.
+
+---
+
+## Installation
+
+1. Download the mod ZIP.
+2. Place the ZIP in your Farming Simulator 25 mods folder.
+3. Enable the mod in your savegame.
+4. Load the save.
+5. Open the Crop Control Override GUI with `ALT+C`.
+
+Typical Windows mod folder:
 
 ```text
-modSettings/FS25_CropControlOverride/config.xml
+Documents/My Games/FarmingSimulator2025/mods
 ```
 
-This is the default/template rule file. It is used as the source for new or reset save-level rule sets.
-
-### Per-save config
-
-```text
-modSettings/FS25_CropControlOverride/saves/savegameX.xml
-```
-
-This is the active rule file for a specific savegame.
-
-Normal GUI editing writes to the active per-save XML.
+Do not unzip the mod for normal gameplay use.
 
 ---
 
 ## Opening the GUI
 
-Default input action:
+Default keybind:
 
 ```text
 ALT+C
 ```
 
-The keybind can be changed from the in-game controls menu.
+The keybind can be changed in the Farming Simulator controls menu.
+
+You can also open the GUI from the console:
+
+```text
+ccoGui
+```
+
+<!-- SCREENSHOT: Main GUI opened on ALL RULES tab -->
+<!-- Suggested file: docs/screenshots/cco_all_rules.png -->
+![Screenshot placeholder - ALL RULES tab](docs/screenshots/cco_all_rules.png)
 
 ---
 
-## GUI tabs
+## Important concepts
 
-```text
-ALL RULES | DISABLED | NPC DISABLED | SIZE LIMITED | VALIDATION | SUMMARY | HELP
-```
+### Loaded crops
+
+A crop can exist in the CCO rule list but not be loaded by the current map or mod stack.
+
+The table shows this using the `Loaded` column:
+
+| Loaded | Meaning |
+|---|---|
+| Yes | The crop is currently loaded by the game/map/mod stack. |
+| No | The crop is in the CCO config but is not currently loaded. |
+
+The `NOT LOADED` visibility toggle lets you show or hide crops that are present in the XML but not currently active in the save.
+
+### Player policy vs NPC policy
+
+Player and NPC permissions are separate.
+
+Example:
+
+| Player | NPC | Meaning |
+|---|---|---|
+| ON | Map Default | Player can use the crop. NPC behaviour follows map/default behaviour. |
+| ON | OFF | Player can use the crop. NPCs should not plant it. |
+| OFF | OFF | Crop is disabled from player and NPC use. |
+
+### Map Default
+
+`Map Default` means CCO does not force a specific NPC permission for that crop. The crop follows the map/game/default behaviour unless another CCO rule, field-size rule, or reset workflow applies.
+
+---
+
+## GUI overview
 
 ### ALL RULES
 
-Main editing view. Select a crop row, stage changes in the right-side panel, then use `APPLY`.
+Shows all configured crop rules.
+
+Use this tab to select a crop and edit its policy in the details pane.
+
+<!-- SCREENSHOT: ALL RULES with a crop selected and details pane visible -->
+<!-- Suggested file: docs/screenshots/cco_all_rules_selected.png -->
+![Screenshot placeholder - selected crop details](docs/screenshots/cco_all_rules_selected.png)
 
 ### DISABLED
 
-Shows crops disabled globally by rule.
-
-### NPC DISABLED
-
-Shows crops NPCs should not plant.
+Shows crops where Player Permitted is `OFF`.
 
 ### SIZE LIMITED
 
-Shows crops with an NPC maximum field-size limit.
+Shows crops with an NPC Max Field Size greater than zero.
+
+### NPC DISABLED
+
+Shows crops where NPC Permitted is `OFF`.
 
 ### VALIDATION
 
-Shows existing NPC fields that violate the active policy and provides guarded cleanup controls.
+Shows NPC fields that violate the active crop policy.
+
+This is the most important tab when changing NPC rules or field-size limits.
+
+<!-- SCREENSHOT: VALIDATION tab showing blocked fields -->
+<!-- Suggested file: docs/screenshots/cco_validation_blocked.png -->
+![Screenshot placeholder - validation blocked fields](docs/screenshots/cco_validation_blocked.png)
 
 ### SUMMARY
 
-Shows active config path, rule counts, policy summary, validation status, and workflow notes.
+Shows the active configuration path, rule counts, and validation summary.
 
 ### HELP
 
-Shows in-game guidance for navigation, editing, config files, policy terms, and cleanup.
+Shows in-game guidance.
 
 ---
 
-## Editing crop rules
+## Crop rule settings
 
-Editable staged values:
+When you select a crop, the right-hand details pane exposes editable settings.
 
-- **Player Permitted**
-- **NPC Permitted**
-- **Max Field**
-- **Reset NPC Fields**
+### Player Permitted
 
-Changes are staged first. They are not written until `APPLY` or `FORCE APPLY`.
-
-### APPLY
-
-Writes the selected staged crop rule to the active per-save XML if the edited crop passes preflight validation.
-
-Preflight validation is crop-specific. Editing one crop is not blocked by unrelated crops that are already invalid.
-
-### FORCE APPLY
-
-If the edited crop would create blocked NPC fields, the first `APPLY` is blocked and the button changes to `FORCE APPLY`.
-
-Use `FORCE APPLY` only when you deliberately want to save the policy and then review cleanup under `VALIDATION`.
-
-### DISCARD
-
-Resets staged values back to the selected row’s current saved values.
-
----
-
-## Save Defaults and Load Defaults
-
-### SAVE DEFAULTS TO CONFIG.XML
-
-Exports the current full active rule set to:
+Values:
 
 ```text
-modSettings/FS25_CropControlOverride/config.xml
+OFF / ON
 ```
 
-Before overwriting the template config, CCO creates a backup in:
+Controls whether the crop is permitted for player use.
+
+### NPC Permitted
+
+Values:
 
 ```text
-modSettings/FS25_CropControlOverride/backups/
+Map Default / ON / OFF
 ```
 
-Existing per-save XML files are not overwritten.
+Controls whether NPC farmers may use the crop.
 
-### LOAD DEFAULTS
+### Max Field (ha)
 
-Imports template `config.xml` into the active save and overwrites the active per-save XML.
+Sets a maximum NPC field size for the crop.
 
-Use this when you want the current save to return to the template/default crop policy.
+- `0` means no CCO size limit.
+- Any value above `0` limits NPC use to fields at or below that size.
+- The table displays both hectares and acres for readability.
+
+Example:
+
+```text
+5.0ha / 12.4ac
+```
+
+### Reset NPC Fields
+
+Values:
+
+```text
+OFF / ON
+```
+
+Controls whether CCO cleanup tools may reset blocked NPC fields of this crop.
+
+If this is `OFF`, blocked fields of that crop are not reset by the reset workflow.
 
 ---
 
 ## Validation and blocked NPC fields
 
-The **VALIDATION** tab lists blocked NPC fields, including:
+A blocked NPC field is an NPC-owned field that no longer complies with the active CCO rules.
 
-- field ID
-- crop
-- actual field size
-- blocking reason
+Common causes:
 
-Two concepts are intentionally separate:
+- The crop has been disabled.
+- NPC use has been disabled for the crop.
+- The crop has a Max Field limit and the field is too large.
+- The crop remains in the field after changing rules.
 
-### NPC-disabled crops
+Validation checks existing NPC fields and reports fields that need attention.
 
-Crops the rules say NPCs should not plant.
-
-### Blocked NPC fields
-
-Existing NPC fields in the current save that already violate the active policy.
-
----
-
-## GUI cleanup workflow
-
-Blocked NPC field cleanup is available from the **VALIDATION** tab.
-
-Recommended order:
+Example validation reason:
 
 ```text
-RESET SCOPE
-RESET BLOCKED DRY-RUN
-CONFIRM RESET
+field 6.81 ha > max 5.00 ha
 ```
 
-### RESET SCOPE
+The validation screen supports scoped cleanup, so you do not have to reset every blocked field at once.
 
-Cycles through available cleanup targets:
+Reset scopes include:
 
 ```text
 ALL
 CROP: <crop>
-FIELD: <fieldId> <crop>
+FIELD: <field id> <crop>
 ```
 
-### RESET BLOCKED DRY-RUN
-
-Shows what would be reset for the selected scope.
-
-This does not modify the save state.
-
-### CONFIRM RESET
-
-Only appears after a dry-run finds blocked fields. It performs the reset for the selected scope.
-
-After a reset, reopen `VALIDATION` or run another dry-run after refresh.
+<!-- SCREENSHOT: RESET SCOPE cycling through ALL / CROP / FIELD -->
+<!-- Suggested file: docs/screenshots/cco_reset_scope.png -->
+![Screenshot placeholder - reset scope](docs/screenshots/cco_reset_scope.png)
 
 ---
 
-## Field-size limits
+## Reset modes
 
-`Max Field` uses actual field area where available.
+The Validation screen includes `RESET MODE`.
 
-Farmland or plot area is used only as a last-resort fallback because plots can include yards, roads, woodland, or multiple field pieces.
-
-Diagnostic command:
+Available modes:
 
 ```text
-ccoFieldSizeProbe <FIELD_ID>
+CULTIVATED
+RESEED SEASONAL
+```
+
+### CULTIVATED
+
+Blocked NPC fields are cleared and reset to cultivated state.
+
+This is the safest cleanup behaviour and matches the earlier reset workflow.
+
+Dry-run example:
+
+```text
+resetMode=CULTIVATED action=CULTIVATED reseedCandidate=NONE
+```
+
+### RESEED SEASONAL
+
+Blocked NPC fields are reset and then reseeded using a replacement crop selected by the seasonal candidate engine.
+
+Dry-run example:
+
+```text
+resetMode=RESEED SEASONAL action=RESEED_SEASONAL reseedCandidate=GRASS
+```
+
+If no suitable seasonal candidate is available, CCO falls back to cultivated reset.
+
+Fallback example:
+
+```text
+action=CULTIVATED_FALLBACK
+```
+
+If the weighted reseed variety chooses to leave a field cultivated, dry-run reports:
+
+```text
+action=CULTIVATED_VARIETY
+```
+
+<!-- SCREENSHOT: RESET MODE button showing CULTIVATED and RESEED SEASONAL -->
+<!-- Suggested file: docs/screenshots/cco_reset_mode.png -->
+![Screenshot placeholder - reset mode](docs/screenshots/cco_reset_mode.png)
+
+---
+
+## RESEED SEASONAL and candidate selection
+
+`RESEED SEASONAL` uses the current game period and crop growth data to find suitable replacement crops.
+
+The seasonal check uses:
+
+```text
+growthDataSeasonal.periods[currentPeriod].plantingAllowed
+```
+
+A crop must generally pass:
+
+- Crop is loaded.
+- Crop is seedable.
+- Crop is allowed by CCO player/NPC policy.
+- Crop passes Max Field limits.
+- Crop is seasonally plantable in the current period.
+- Crop is not in the special exclusion list.
+
+### Candidate categories
+
+Candidate diagnostics classify crops as:
+
+| Category | Meaning |
+|---|---|
+| mission | Standard seasonal field/mission crop. |
+| lifecycle | Lifecycle crop allowed for reseed, currently GRASS. |
+| blocked | Not eligible as an automatic reseed candidate. |
+
+Example candidate output:
+
+```text
+CANOLA OK category=mission reason=allowed seasonal=OK
+GRASS  OK category=lifecycle reason=allowed seasonal=OK
+```
+
+### Special exclusions
+
+The following crop types are deliberately excluded from automatic reseed candidates for now:
+
+```text
+GRAPE
+OLIVE
+POPLAR
+MEADOW
+OILSEEDRADISH
+RICE
+RICELONGGRAIN
+```
+
+These may require special handling and should not be injected into ordinary NPC field cleanup automatically.
+
+---
+
+## Reseed weighting XML
+
+CCO supports XML-configurable reseed weighting.
+
+The default bundled config includes:
+
+```xml
+<settings>
+    <reseedCandidateWeights seasonalMission="5" seasonalLifecycle="5" leaveCultivated="1"/>
+</settings>
+```
+
+Meaning:
+
+| Attribute | Purpose |
+|---|---|
+| seasonalMission | Weight for normal seasonal mission crops, such as CANOLA. |
+| seasonalLifecycle | Weight for lifecycle crops, currently GRASS. |
+| leaveCultivated | Weight for leaving a reset field cultivated instead of reseeding it. |
+
+Values are clamped from `0` to `20`.
+
+Weighted selection is deterministic by field ID. This means the dry-run result should match the confirmed reset result.
+
+### Default weighting
+
+```xml
+<reseedCandidateWeights seasonalMission="5" seasonalLifecycle="5" leaveCultivated="1"/>
+```
+
+With CANOLA and GRASS both valid, the weighted pool is effectively:
+
+```text
+CANOLA x5
+GRASS x5
+LEAVE_CULTIVATED x1
+```
+
+This creates a mostly reseeded map while occasionally leaving a field cultivated.
+
+### Clean map preset
+
+Always reseed where possible:
+
+```xml
+<reseedCandidateWeights seasonalMission="5" seasonalLifecycle="5" leaveCultivated="0"/>
+```
+
+### Rougher map preset
+
+Leave more fields cultivated after reset:
+
+```xml
+<reseedCandidateWeights seasonalMission="4" seasonalLifecycle="4" leaveCultivated="2"/>
+```
+
+### Prefer arable crops over grass
+
+```xml
+<reseedCandidateWeights seasonalMission="6" seasonalLifecycle="2" leaveCultivated="1"/>
+```
+
+### Prefer grass/lifecycle recovery
+
+```xml
+<reseedCandidateWeights seasonalMission="3" seasonalLifecycle="6" leaveCultivated="1"/>
+```
+
+---
+
+## Configuration files
+
+CCO uses a template/default config and per-save configs.
+
+The active per-save config is stored under:
+
+```text
+modSettings/FS25_CropControlOverride/saves/savegameXX.xml
+```
+
+The template/default config is stored under:
+
+```text
+modSettings/FS25_CropControlOverride/config.xml
+```
+
+### Per-save behaviour
+
+When a savegame is loaded, CCO uses the per-save XML if it exists. If it does not exist, CCO creates one from the template config.
+
+This prevents rules for one savegame from unexpectedly changing another savegame.
+
+### Save Defaults to config.xml
+
+The GUI option `SAVE DEFAULTS TO CONFIG.XML` writes the current active rule set to the template config.
+
+Existing per-save XML files are not overwritten.
+
+### Load Defaults
+
+The GUI option `LOAD DEFAULTS` loads the template config into the active save config.
+
+Use this carefully because it updates the active save’s CCO XML.
+
+---
+
+## Recommended workflows
+
+### Change a crop rule safely
+
+1. Open the GUI with `ALT+C`.
+2. Go to `ALL RULES`.
+3. Select the crop.
+4. Change the desired settings in the details pane.
+5. Click `APPLY`.
+6. If validation blocks the change, review the warning.
+7. Use `FORCE APPLY` only if you intend to allow blocked fields temporarily.
+8. Go to `VALIDATION` to review affected NPC fields.
+
+### Reset blocked fields to cultivated
+
+1. Go to `VALIDATION`.
+2. Choose `RESET SCOPE`.
+3. Set `RESET MODE` to `CULTIVATED`.
+4. Run `RESET BLOCKED DRY-RUN`.
+5. Review the output.
+6. Click `CONFIRM RESET`.
+
+### Reseed blocked fields seasonally
+
+1. Go to `VALIDATION`.
+2. Choose `RESET SCOPE`.
+3. Set `RESET MODE` to `RESEED SEASONAL`.
+4. Run `RESET BLOCKED DRY-RUN`.
+5. Confirm the candidates look sensible.
+6. Click `CONFIRM RESET`.
+
+Expected dry-run example:
+
+```text
+field=24 action=RESEED_SEASONAL reseedCandidate=CANOLA
+field=65 action=RESEED_SEASONAL reseedCandidate=GRASS
+field=77 action=CULTIVATED_VARIETY reseedCandidate=NONE
+```
+
+Expected confirm example:
+
+```text
+queued field 24 to reseeded crop CANOLA
+queued field 65 to reseeded crop GRASS
+queued field 77 to cultivated state
 ```
 
 ---
@@ -233,50 +556,33 @@ ccoFieldSizeProbe <FIELD_ID>
 
 ```text
 ccoGui
-ccoGui rules
-ccoGui disabled
-ccoGui limited
-ccoGui blockedrules
-ccoGui blocked
-ccoGui help
 ccoStatus
 ccoWhichConfig
 ccoReload
+ccoHelp
 ```
 
-### Rule inspection
+### Rule listing
 
 ```text
-ccoExplain <CROP>
 ccoListRules [CROP]
 ccoListConfigured [CROP]
 ccoListDisabled
 ccoListBlockedRules
 ccoListLimited
 ccoListUndiscovered
-ccoNormalizeConfig [dryrun]
 ```
 
-### Rule editing
+### Validation and scanning
 
 ```text
-ccoSetCrop <CROP> <enabled:true|false> [npcAllowed:true|false|mapDefault] [npcMaxHa]
-```
-
-The GUI is the preferred editing method for normal use.
-
-### Field scanning and validation
-
-```text
+ccoValidateSave
 ccoScanFields [CROP]
 ccoScanBlocked [CROP]
-ccoScanSummary [CROP]
-ccoValidateSave
-ccoListNpcCandidates <FIELD_ID>
-ccoFieldSizeProbe <FIELD_ID>
+ccoScanSummary
 ```
 
-### Cleanup
+### Reset commands
 
 ```text
 ccoResetBlocked dryrun
@@ -284,85 +590,206 @@ ccoResetBlocked
 ccoResetNpcFields [CROP|all] [dryrun]
 ```
 
-The GUI cleanup workflow is recommended for normal use.
+The GUI reset workflow is preferred for scoped reset and reseed mode control.
 
-### Debug/logging
+### Candidate diagnostics
 
 ```text
-ccoDebug on|off|toggle
-ccoLogLevel DEBUG|INFO|WARN|ERROR
+ccoListNpcCandidates <FIELD_ID>
+ccoSeasonProbe [CROP]
+ccoGrowthProbe [CROP]
+```
+
+Example:
+
+```text
+ccoListNpcCandidates 87
+```
+
+Output may include:
+
+```text
+CANOLA OK category=mission reason=allowed seasonal=OK
+GRASS  OK category=lifecycle reason=allowed seasonal=OK
+```
+
+### Crop flags and diagnostics
+
+```text
+ccoListFlags [CROP]
+ccoFindFruit <namePart>
+ccoExplain <CROP>
 ```
 
 ---
 
-## Testing notes
+## Troubleshooting
 
-Please report:
+### ALT+C does not open the GUI
 
-- GUI layout/rendering issues
-- crops appearing in the wrong filtered tab
-- validation mismatches
-- blocked NPC fields not appearing as expected
-- Save Defaults or Load Defaults issues
-- any case where APPLY does not target `saves/savegameX.xml`
-- reset scope issues with `ALL`, `CROP`, or `FIELD`
-- log warnings or script errors
+Check the game log for Lua errors.
 
-Attach the relevant `log.txt` section where possible.
+If the mod fails to compile or load, the GUI cannot register.
+
+Look for lines like:
+
+```text
+Lua compiler error
+CCO GUI: custom screen failed
+CropControlOverrideMenu class is not available
+```
+
+### The GUI opens but shows fallback console output
+
+This usually means the XML GUI or GUI class failed to load.
+
+Check:
+
+- The mod ZIP structure.
+- `gui/CropControlOverrideMenu.xml`.
+- `scripts/gui/CropControlOverrideMenu.lua`.
+- The game log for stack traces.
+
+### Changes apply to config.xml but not the save XML
+
+The active target should normally be:
+
+```text
+modSettings/FS25_CropControlOverride/saves/savegameXX.xml
+```
+
+Use:
+
+```text
+ccoWhichConfig
+```
+
+to confirm which file is active.
+
+### A crop is not offered as a reseed candidate
+
+Run:
+
+```text
+ccoListNpcCandidates <FIELD_ID>
+```
+
+Reasons may include:
+
+- Crop is not loaded.
+- Crop is not seedable.
+- Crop is blocked by CCO policy.
+- Crop exceeds Max Field limit.
+- Crop is not seasonally plantable.
+- Crop is specially excluded.
+- Crop is valid but loses deterministic weighted selection.
+
+### GRASS is valid but not always selected
+
+This is expected.
+
+GRASS is a lifecycle candidate. It participates in weighted deterministic selection alongside seasonal mission crops.
+
+Check the XML weights:
+
+```xml
+<reseedCandidateWeights seasonalMission="5" seasonalLifecycle="5" leaveCultivated="1"/>
+```
+
+Increase `seasonalLifecycle` if you want GRASS selected more often.
+
+### Dry-run and confirm do not match
+
+This should not happen under normal conditions.
+
+Possible causes:
+
+- The field state changed between dry-run and confirm.
+- Another mod changed the field.
+- The save was reloaded with different XML weights.
+- The crop candidate set changed.
+
+Run dry-run again immediately before confirm.
 
 ---
 
-## Known future work
+## Known limitations
 
-- Convert the standalone GUI into a proper in-game menu frame.
-- Consider converting Validation output into a selectable table.
-- Continue localisation and ModHub readiness polish.
-- Wider map/mod crop testing.
+- `RESEED SEASONAL` only targets blocked NPC fields in the selected reset scope.
+- Player-owned fields are not reset by NPC cleanup.
+- Some crop types are excluded from automatic reseed because they may require special handling.
+- The GUI does not yet expose reseed weights directly; edit XML manually.
+- Console reset commands do not expose the full GUI reset-mode workflow.
+- Candidate weighting is category-based, not per-crop.
+- Seasonal logic depends on FS25 crop growth data being available for the loaded crop.
+- Modded crops may behave differently depending on how their fruit type data is defined.
+
+---
+
+## Screenshot checklist
+
+Use these markers to add screenshots later.
+
+### Suggested screenshots
+
+1. `docs/screenshots/cco_all_rules.png`
+   - Main crop table on ALL RULES.
+
+2. `docs/screenshots/cco_all_rules_selected.png`
+   - Crop selected, details pane visible.
+
+3. `docs/screenshots/cco_not_loaded_toggle.png`
+   - NOT LOADED crops shown/hidden.
+
+4. `docs/screenshots/cco_validation_blocked.png`
+   - VALIDATION tab with blocked fields.
+
+5. `docs/screenshots/cco_reset_scope.png`
+   - RESET SCOPE button showing ALL / CROP / FIELD.
+
+6. `docs/screenshots/cco_reset_mode.png`
+   - RESET MODE showing CULTIVATED / RESEED SEASONAL.
+
+7. `docs/screenshots/cco_dry_run_reseed.png`
+   - Dry-run output with CANOLA / GRASS / CULTIVATED_VARIETY.
+
+8. `docs/screenshots/cco_summary.png`
+   - SUMMARY tab.
+
+9. `docs/screenshots/cco_help.png`
+   - HELP tab.
+
+### Markdown screenshot marker format
+
+Use this pattern:
+
+```markdown
+<!-- SCREENSHOT: short description -->
+<!-- Suggested file: docs/screenshots/example.png -->
+![Screenshot placeholder - description](docs/screenshots/example.png)
+```
 
 ---
 
 ## Changelog
 
-### 2.0.0-alpha.102
+### 2.0.0-beta.2
 
-- Cleaned up README for the current GUI workflow.
-- Updated in-game HELP, SUMMARY, and VALIDATION wording.
-- Replaced legacy console-led cleanup guidance with current GUI reset workflow.
-- Clarified Save Defaults vs Load Defaults.
-- Clarified actual field size versus farmland/plot size.
-- No code behaviour changes from alpha.96.
-
-### 2.0.0-alpha.102
-
-- Fixed RESET BLOCKED DRY-RUN remaining disabled for structured field-level reset scopes.
-- Added scope-aware blocked-field counting for GUI reset controls.
-
-### 2.0.0-alpha.102
-
+- Added native selector controls.
+- Added NOT LOADED crop visibility toggle.
 - Added field-level reset scope.
-- RESET SCOPE now supports ALL, CROP, and FIELD targets.
-
-### 2.0.0-alpha.102
-
-- Removed potentially stale remaining-blocked count from reset completion messages.
-
-### 2.0.0-alpha.102
-
-- Added crop-scoped reset.
-
-### 2.0.0-alpha.102
-
-- Fixed field-size checks to prefer actual field area over farmland/plot area.
-- Added `ccoFieldSizeProbe`.
-
-### 2.0.0-alpha.102
-
-- Swapped NPC DISABLED and LIMITED tab order.
-- Changed APPLY preflight validation to check only the edited crop.
-- Replaced GUI RELOAD with LOAD DEFAULTS.
+- Added RESET MODE.
+- Added RESEED SEASONAL.
+- Added seasonal reseed candidate detection.
+- Added GRASS lifecycle reseed candidate support.
+- Added XML-configurable reseed candidate weights.
+- Added CULTIVATED_VARIETY weighted pseudo-candidate.
+- Added deterministic weighted reseed selection.
+- Updated validation, dry-run, confirm, and diagnostic output.
 
 ---
 
-## Credits
+## Disclaimer
 
-Developed by SimGamerJen and Hyper138.
+This is a beta release. Use a backup save when testing crop rule changes, blocked field resets, and reseed workflows.
+

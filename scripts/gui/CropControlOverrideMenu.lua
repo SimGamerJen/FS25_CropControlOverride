@@ -21,12 +21,16 @@ function CropControlOverrideMenu.new(target, customMt)
     self.stagedDirty = false
     self.forceApplyArmed = false
     self.resetConfirmArmed = false
+    self.resetMode = "cultivated"
     self.resetScopeIndex = 1
     self.resetScopes = {"ALL"}
     self.tableTopic = false
     self.showNotLoaded = false
     self.menuBackEventId = nil
     self.suppressTabCallback = false
+    self.suppressSelectorCallbacks = false
+    self.editControlsInitialised = false
+    self.defaultResetNpcFields = true
     return self
 end
 
@@ -154,7 +158,16 @@ local TAB_TEXTS = {
 }
 
 
-local function buildTopicContent(topic, page)
+local function guiModeFromTopic(topic)
+    topic = topic ~= nil and tostring(topic):lower() or "rules"
+    if topic == "disabled" then return "disabled" end
+    if topic == "limited" then return "limited" end
+    if topic == "blockedrules" or topic == "blocked-rules" then return "blockedrules" end
+    if topic == "undiscovered" then return "undiscovered" end
+    return "rules"
+end
+
+function buildTopicContent(topic, page)
     topic = topic ~= nil and tostring(topic):lower() or "rules"
     if CropControlOverride == nil then
         return "Crop Control Override", "CropControlOverride backend is not available.", "status", 1
@@ -232,7 +245,7 @@ local function parseRuleRows(text)
             and crop ~= "Shown"
             and crop ~= "Read-only"
             and crop ~= "Read%-only"
-            and (enabled == "Yes" or enabled == "No")
+            and (enabled == "Yes" or enabled == "No" or enabled == "ON" or enabled == "OFF")
             and (loaded == "Yes" or loaded == "No")
             and not line:find("^%-+$") then
             table.insert(rows, {
@@ -363,10 +376,155 @@ function CropControlOverrideMenu:onGuiSetupFinished()
     self:updateContent()
 end
 
+
+function CropControlOverrideMenu:initialiseEditControls()
+    if self.editControlsInitialised == true then
+        return
+    end
+
+    self.suppressSelectorCallbacks = true
+
+    if self.editEnabledOption ~= nil then
+        if self.editEnabledOption.setTexts ~= nil then
+            self.editEnabledOption:setTexts({"OFF", "ON"})
+        end
+        if self.editEnabledOption.setState ~= nil then
+            self.editEnabledOption:setState(1, true)
+        end
+        if self.editEnabledOption.setDisabled ~= nil then
+            self.editEnabledOption:setDisabled(true)
+        end
+    end
+
+    if self.editResetOption ~= nil then
+        if self.editResetOption.setTexts ~= nil then
+            self.editResetOption:setTexts({"OFF", "ON"})
+        end
+        if self.editResetOption.setState ~= nil then
+            self.editResetOption:setState(1, true)
+        end
+        if self.editResetOption.setDisabled ~= nil then
+            self.editResetOption:setDisabled(true)
+        end
+    end
+
+    if self.editNpcOption ~= nil then
+        if self.editNpcOption.setTexts ~= nil then
+            self.editNpcOption:setTexts({"Map Default", "ON", "OFF"})
+        end
+        if self.editNpcOption.setState ~= nil then
+            self.editNpcOption:setState(1, true)
+        end
+        if self.editNpcOption.setDisabled ~= nil then
+            self.editNpcOption:setDisabled(true)
+        end
+    end
+
+    self.suppressSelectorCallbacks = false
+    self.editControlsInitialised = true
+end
+
+function CropControlOverrideMenu:setEnabledSelectorState(enabled, disabled)
+    local option = self.editEnabledOption
+    if option == nil then
+        return
+    end
+
+    self.suppressSelectorCallbacks = true
+
+    local state = enabled == true and 2 or 1
+    local currentState = nil
+    if option.getState ~= nil then
+        local ok, result = pcall(function()
+            return option:getState()
+        end)
+        if ok then
+            currentState = tonumber(result)
+        end
+    end
+
+    if option.setState ~= nil and currentState ~= state then
+        option:setState(state, true)
+    end
+
+    if option.setDisabled ~= nil then
+        option:setDisabled(disabled == true)
+    end
+
+    self.suppressSelectorCallbacks = false
+end
+
+function CropControlOverrideMenu:setResetSelectorState(enabled, disabled)
+    local option = self.editResetOption
+    if option == nil then
+        return
+    end
+
+    self.suppressSelectorCallbacks = true
+
+    local state = enabled == true and 2 or 1
+    local currentState = nil
+    if option.getState ~= nil then
+        local ok, result = pcall(function()
+            return option:getState()
+        end)
+        if ok then
+            currentState = tonumber(result)
+        end
+    end
+
+    if option.setState ~= nil and currentState ~= state then
+        option:setState(state, true)
+    end
+
+    if option.setDisabled ~= nil then
+        option:setDisabled(disabled == true)
+    end
+
+    self.suppressSelectorCallbacks = false
+end
+
+function CropControlOverrideMenu:setNpcSelectorState(npcValue, disabled)
+    local option = self.editNpcOption
+    if option == nil then
+        return
+    end
+
+    self.suppressSelectorCallbacks = true
+
+    local state = 1
+    if npcValue == "yes" then
+        state = 2
+    elseif npcValue == "no" then
+        state = 3
+    end
+
+    local currentState = nil
+    if option.getState ~= nil then
+        local ok, result = pcall(function()
+            return option:getState()
+        end)
+        if ok then
+            currentState = tonumber(result)
+        end
+    end
+
+    if option.setState ~= nil and currentState ~= state then
+        option:setState(state, true)
+    end
+
+    if option.setDisabled ~= nil then
+        option:setDisabled(disabled == true)
+    end
+
+    self.suppressSelectorCallbacks = false
+end
+
 function CropControlOverrideMenu:onOpen()
     CropControlOverrideMenu:superClass().onOpen(self)
     self:registerBackAction()
     self:setupTabs()
+    self:initialiseEditControls()
     self:updateContent()
 end
 
@@ -424,7 +582,14 @@ function CropControlOverrideMenu:setContent(title, body, topic)
     self.pendingTitle = title or "Crop Control Override"
     self.pendingBody = body or ""
     self.tableTopic = TABLE_TOPICS[topic or self.currentTopic or ""] == true
-    local parsedRows = self.tableTopic and parseRuleRows(self.pendingBody) or {}
+    local parsedRows = {}
+    if self.tableTopic then
+        if CropControlOverride ~= nil and CropControlOverride.getGuiRuleRows ~= nil then
+            parsedRows = CropControlOverride:getGuiRuleRows(guiModeFromTopic(topic or self.currentTopic or "rules"))
+        else
+            parsedRows = parseRuleRows(self.pendingBody)
+        end
+    end
     self.ruleRows = self.tableTopic and filterRuleRows(parsedRows, self.showNotLoaded) or {}
     self.selectedRowIndex = nil
     self.selectedRow = nil
@@ -453,27 +618,29 @@ end
 
 local function ccoValueToBool(value)
     local s = tostring(value or ""):lower()
-    return s == "yes" or s == "true" or s == "1"
+    return s == "yes" or s == "true" or s == "1" or s == "on"
 end
 
 local function ccoBoolText(value)
-    return value and "Yes" or "No"
+    return value and "ON" or "OFF"
 end
 
 local function ccoNpcToStage(value)
     local s = tostring(value or ""):lower()
     if s == "map default" or s == "mapdefault" then
         return "mapDefault"
-    elseif s == "yes" or s == "true" or s == "1" then
+    elseif s == "yes" or s == "true" or s == "1" or s == "on" then
         return "yes"
+    elseif s == "no" or s == "false" or s == "0" or s == "off" then
+        return "no"
     end
     return "no"
 end
 
 local function ccoNpcStageText(value)
     if value == "mapDefault" then return "Map Default" end
-    if value == "yes" then return "Yes" end
-    return "No"
+    if value == "yes" then return "ON" end
+    return "OFF"
 end
 
 function CropControlOverrideMenu:createStagedRuleFromRow(row)
@@ -485,10 +652,10 @@ function CropControlOverrideMenu:createStagedRuleFromRow(row)
 
     self.stagedRule = {
         crop = row.crop,
-        enabled = ccoValueToBool(row.enabled),
-        npc = ccoNpcToStage(row.npc),
-        maxHa = numericFromHaAc(row.maxHa),
-        resetNpcFields = true,
+        enabled = row.enabledBool ~= nil and row.enabledBool == true or ccoValueToBool(row.enabled),
+        npc = row.npcValue ~= nil and row.npcValue or ccoNpcToStage(row.npc),
+        maxHa = tonumber(row.maxHa or 0) or numericFromHaAc(row.maxHaDisplay),
+        resetNpcFields = self.defaultResetNpcFields ~= false,
     }
     self.stagedDirty = false
     self.forceApplyArmed = false
@@ -515,11 +682,11 @@ function CropControlOverrideMenu:updateStagedButtons()
     end
 
     if staged == nil then
-        setButton(self.editEnabledButton, "-", true)
-        setButton(self.editNpcButton, "-", true)
+        self:setEnabledSelectorState(false, true)
+        self:setNpcSelectorState("mapDefault", true)
         setButton(self.editMaxDownButton, "-1", true)
         setButton(self.editMaxUpButton, "+1", true)
-        setButton(self.editResetButton, "-", true)
+        self:setResetSelectorState(false, true)
         setButton(self.editApplyButton, "APPLY", true)
         setButton(self.editDiscardButton, "DISCARD", true)
         setText(self.editMaxHaText, "-")
@@ -527,11 +694,11 @@ function CropControlOverrideMenu:updateStagedButtons()
         return
     end
 
-    setButton(self.editEnabledButton, ccoBoolText(staged.enabled), false)
-    setButton(self.editNpcButton, ccoNpcStageText(staged.npc), false)
+    self:setEnabledSelectorState(staged.enabled == true, false)
+    self:setNpcSelectorState(staged.npc, false)
     setButton(self.editMaxDownButton, "-1", false)
     setButton(self.editMaxUpButton, "+1", false)
-    setButton(self.editResetButton, ccoBoolText(staged.resetNpcFields), false)
+    self:setResetSelectorState(staged.resetNpcFields == true, false)
     setButton(self.editApplyButton, self.forceApplyArmed and "FORCE APPLY" or "APPLY", not self.stagedDirty)
     setButton(self.editDiscardButton, "DISCARD", not self.stagedDirty)
     setText(self.editMaxHaText, string.format("%.2f", tonumber(staged.maxHa or 0) or 0))
@@ -560,7 +727,7 @@ function CropControlOverrideMenu:updateSelectedDetails()
         set(self.selectedCropText, "No crop selected")
         set(self.selectedLoadedText, "-")
         set(self.selectedStatusText, "-")
-        set(self.selectedInfoText, "Select a crop row to stage rule edits. Apply/save will be added in a later alpha build.")
+        set(self.selectedInfoText, "Select a crop row, then use the selector/value controls to stage changes.")
         self:createStagedRuleFromRow(nil)
         self:updateStagedButtons()
         return
@@ -573,7 +740,7 @@ function CropControlOverrideMenu:updateSelectedDetails()
     set(self.selectedCropText, row.crop)
     set(self.selectedLoadedText, row.loaded)
     set(self.selectedStatusText, row.status)
-    set(self.selectedInfoText, "Apply writes the selected crop rule to the active CCO XML.")
+    set(self.selectedInfoText, "Use the selector/value controls to stage changes, then APPLY.")
     self:updateStagedButtons()
 end
 
@@ -609,6 +776,11 @@ function CropControlOverrideMenu:updateContent()
     if self.resetScopeButton ~= nil then
         self.resetScopeButton:setVisible(showResetControls)
         self:updateResetScopeButton()
+    end
+
+    if self.resetModeButton ~= nil then
+        self.resetModeButton:setVisible(showResetControls)
+        self:updateResetModeButton()
     end
 
     if self.resetBlockedDryRunButton ~= nil then
@@ -716,11 +888,11 @@ function CropControlOverrideMenu:populateCellForItemInSection(list, section, ind
     local function valueColor(value)
         local text = tostring(value or ""):upper()
 
-        if text == "YES" or text == "ALLOWED" or text == "MAP DEFAULT" or text == "PASS" then
+        if text == "YES" or text == "ON" or text == "ALLOWED" or text == "MAP DEFAULT" or text == "PASS" then
             return COLOR_GREEN
         end
 
-        if text == "NO" or text == "DISABLED" or text == "NPC DISABLED" or text == "FAILED" then
+        if text == "NO" or text == "OFF" or text == "DISABLED" or text == "NPC DISABLED" or text == "FAILED" then
             return COLOR_RED
         end
 
@@ -742,7 +914,7 @@ function CropControlOverrideMenu:populateCellForItemInSection(list, section, ind
     set("cellCrop", row.crop, COLOR_DEFAULT)
     set("cellEnabled", row.enabled, valueColor(row.enabled))
     set("cellNpc", row.npc, valueColor(row.npc))
-    set("cellMaxHa", row.maxHa, maxHaColor(row.maxHa))
+    set("cellMaxHa", row.maxHaDisplay or formatHaAcCompact(row.maxHa), maxHaColor(row.maxHa))
     set("cellLoaded", row.loaded, valueColor(row.loaded))
     set("cellStatus", row.status, valueColor(row.status))
 end
@@ -795,12 +967,57 @@ function CropControlOverrideMenu:onClickToggleNotLoaded()
     self:setContent(title, body, self.currentTopic)
 end
 
+
+function CropControlOverrideMenu:onClickEnabledOption(state, optionElement)
+    if self.suppressSelectorCallbacks == true then
+        return
+    end
+
+    if self.stagedRule ~= nil then
+        local s = tonumber(state)
+        if s ~= nil then
+            local newValue = s == 2
+            if self.stagedRule.enabled ~= newValue then
+                self.stagedRule.enabled = newValue
+                self.stagedDirty = true
+                self.forceApplyArmed = false
+                self:updateStagedButtons()
+            end
+        end
+    end
+end
+
 function CropControlOverrideMenu:onClickToggleEnabled()
     if self.stagedRule ~= nil then
         self.stagedRule.enabled = not self.stagedRule.enabled
         self.stagedDirty = true
         self.forceApplyArmed = false
         self:updateStagedButtons()
+    end
+end
+
+function CropControlOverrideMenu:onClickNpcOption(state, optionElement)
+    if self.suppressSelectorCallbacks == true then
+        return
+    end
+
+    if self.stagedRule ~= nil then
+        local s = tonumber(state)
+        if s ~= nil then
+            local newValue = "mapDefault"
+            if s == 2 then
+                newValue = "yes"
+            elseif s == 3 then
+                newValue = "no"
+            end
+
+            if self.stagedRule.npc ~= newValue then
+                self.stagedRule.npc = newValue
+                self.stagedDirty = true
+                self.forceApplyArmed = false
+                self:updateStagedButtons()
+            end
+        end
     end
 end
 
@@ -841,9 +1058,30 @@ function CropControlOverrideMenu:onClickMaxUp()
     end
 end
 
+function CropControlOverrideMenu:onClickResetOption(state, optionElement)
+    if self.suppressSelectorCallbacks == true then
+        return
+    end
+
+    if self.stagedRule ~= nil then
+        local s = tonumber(state)
+        if s ~= nil then
+            local newValue = s == 2
+            if self.stagedRule.resetNpcFields ~= newValue then
+                self.stagedRule.resetNpcFields = newValue
+                self.defaultResetNpcFields = newValue
+                self.stagedDirty = true
+                self.forceApplyArmed = false
+                self:updateStagedButtons()
+            end
+        end
+    end
+end
+
 function CropControlOverrideMenu:onClickToggleReset()
     if self.stagedRule ~= nil then
         self.stagedRule.resetNpcFields = not self.stagedRule.resetNpcFields
+        self.defaultResetNpcFields = self.stagedRule.resetNpcFields
         self.stagedDirty = true
         self.forceApplyArmed = false
         self:updateStagedButtons()
@@ -1126,6 +1364,35 @@ function CropControlOverrideMenu:updateResetScopeButton()
     end
 end
 
+function CropControlOverrideMenu:getResetModeLabel()
+    if self.resetMode == "reseedSeasonal" then
+        return "RESEED SEASONAL"
+    end
+    return "CULTIVATED"
+end
+
+function CropControlOverrideMenu:updateResetModeButton()
+    if self.resetModeButton ~= nil then
+        if self.resetModeButton.setText ~= nil then
+            self.resetModeButton:setText("RESET MODE: " .. self:getResetModeLabel())
+        end
+        if self.resetModeButton.setDisabled ~= nil then
+            self.resetModeButton:setDisabled(false)
+        end
+    end
+end
+
+function CropControlOverrideMenu:onClickResetMode()
+    if self.resetMode == "reseedSeasonal" then
+        self.resetMode = "cultivated"
+    else
+        self.resetMode = "reseedSeasonal"
+    end
+    self.resetConfirmArmed = false
+    self:updateResetModeButton()
+    self:updateContent()
+end
+
 function CropControlOverrideMenu:onClickResetScope()
     self:refreshResetScopes()
     if #(self.resetScopes or {}) > 1 then
@@ -1147,7 +1414,7 @@ function CropControlOverrideMenu:onClickResetBlockedDryRun()
     local scopeCrop, scopeText = self:getCurrentResetScope()
 
     local ok, result, wouldQueue = pcall(function()
-        return CropControlOverride:resetBlockedFieldsDryRunFromGui(scopeCrop)
+        return CropControlOverride:resetBlockedFieldsDryRunFromGui(scopeCrop, self.resetMode)
     end)
 
     local msg = ok and tostring(result or "Dry-run complete.") or ("Dry-run failed: " .. tostring(result))
@@ -1160,7 +1427,7 @@ function CropControlOverrideMenu:onClickResetBlockedDryRun()
 
     local confirmHint = ""
     if self.resetConfirmArmed then
-        confirmHint = "\n\nCONFIRM RESET is now available for scope=" .. tostring(scopeText or "ALL") .. ". Use it only if the dry-run output looks correct."
+        confirmHint = "\n\nCONFIRM RESET is now available for scope=" .. tostring(scopeText or "ALL") .. " resetMode=" .. self:getResetModeLabel() .. ". It will apply the selected reset mode."
     end
 
     self.pendingTitle = "Crop Control Override - Validation"
@@ -1181,7 +1448,7 @@ function CropControlOverrideMenu:onClickConfirmBlockedReset()
     local scopeCrop = self:getCurrentResetScope()
 
     local ok, result = pcall(function()
-        return CropControlOverride:resetBlockedFieldsFromGui(scopeCrop)
+        return CropControlOverride:resetBlockedFieldsFromGui(scopeCrop, self.resetMode)
     end)
 
     local msg = ok and tostring(result or "Reset complete.") or ("Reset failed: " .. tostring(result))
