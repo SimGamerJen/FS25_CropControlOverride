@@ -7,7 +7,7 @@ A lightweight Farming Simulator 25 script mod that **disables selected crops for
 
 ## Current test release
 
-The current recommended alpha test build is:
+The current recommended test build is:
 
 **v2.0.0-beta.2**
 
