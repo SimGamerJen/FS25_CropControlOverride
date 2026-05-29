@@ -9,11 +9,7 @@ A lightweight Farming Simulator 25 script mod that **disables selected crops for
 
 The current recommended test build is:
 
-**v2.0.0-beta.2**
-
-Download it from the GitHub Releases page and use the asset named:
-
-`FS25_CropControlOverride_2.0.0-alpha.80-release-config.zip`
+**v2.0.0-beta.2** found in the 2.0.0-beta branch
 
 Older alpha releases are retained for history only.
 
