@@ -1,28 +1,28 @@
 # FS25 Crop Control Override
 
-**Version:** 2.0.0-beta.2  
+**Version:** 2.0.0  
 **Game:** Farming Simulator 25  
-**Status:** Beta release  
+**Status:** Stable release  
 **Author:** SimGamerJen, Hyper138
 
 Crop Control Override is a per-save crop policy manager for Farming Simulator 25. It allows players to control which crops are permitted for the player, which crops NPC farmers may use, and whether NPC crop planting should be limited by field size.
 
 The mod is designed for players who want tighter control over crop realism, map-specific crop suitability, roleplay save rules, NPC field behaviour, and cleanup of NPC fields that no longer match the active crop policy.
 
-## Current test release
+## Current stable release
 
-The current recommended test build is:
+The current recommended release is:
 
-**v2.0.0-beta.2** found in the 2.0.0-beta branch
+**v2.0.0** from the main branch.
 
-Older alpha releases are retained for history only.
+Older alpha and beta releases are retained for history only.
 
 ---
 
 ## Contents
 
 - [What this mod does](#what-this-mod-does)
-- [Current beta highlights](#current-beta-highlights)
+- [Release highlights](#release-highlights)
 - [Installation](#installation)
 - [Opening the GUI](#opening-the-gui)
 - [Important concepts](#important-concepts)
@@ -65,9 +65,9 @@ Examples:
 
 ---
 
-## Current beta highlights
+## Release highlights
 
-Version `2.0.0-beta.2` includes a major validation and cleanup workflow update.
+Version `2.0.0` promotes the beta workflow to the stable release and includes the major validation and cleanup workflow update introduced during beta testing.
 
 Key features:
 
@@ -126,7 +126,7 @@ You can also open the GUI from the console:
 ccoGui
 ```
 
-<img width="3840" height="2160" alt="CCO_beta 2_all_rules" src="https://github.com/user-attachments/assets/b00e0e57-61a6-47db-ab90-568538857f5f" />
+<img width="3840" height="2160" alt="CCO v2.0.0 all rules" src="https://github.com/user-attachments/assets/b00e0e57-61a6-47db-ab90-568538857f5f" />
 
 ---
 
@@ -171,7 +171,7 @@ Shows all configured crop rules.
 
 Use this tab to select a crop and edit its policy in the details pane.
 
-<img width="3840" height="2160" alt="CCO_beta 2_selected_crop" src="https://github.com/user-attachments/assets/042f22eb-5eeb-4652-8b4f-b6dd47718b6e" />
+<img width="3840" height="2160" alt="CCO v2.0.0 selected crop" src="https://github.com/user-attachments/assets/042f22eb-5eeb-4652-8b4f-b6dd47718b6e" />
 
 ### DISABLED
 
@@ -191,7 +191,7 @@ Shows NPC fields that violate the active crop policy.
 
 This is the most important tab when changing NPC rules or field-size limits.
 
-<img width="3840" height="2160" alt="CCO_beta 2_validation_blocked_fields" src="https://github.com/user-attachments/assets/285f6ed4-956b-4031-8146-e94d11d6c6fa" />
+<img width="3840" height="2160" alt="CCO v2.0.0 validation blocked fields" src="https://github.com/user-attachments/assets/285f6ed4-956b-4031-8146-e94d11d6c6fa" />
 
 ### SUMMARY
 
@@ -284,7 +284,7 @@ CROP: <crop>
 FIELD: <field id> <crop>
 ```
 
-<img width="3840" height="2160" alt="CCO_beta 2_reset_scope" src="https://github.com/user-attachments/assets/0fb38e86-5dfc-410c-bbda-8783ce0d3eef" />
+<img width="3840" height="2160" alt="CCO v2.0.0 reset scope" src="https://github.com/user-attachments/assets/0fb38e86-5dfc-410c-bbda-8783ce0d3eef" />
 
 ---
 
@@ -335,7 +335,7 @@ If the weighted reseed variety chooses to leave a field cultivated, dry-run repo
 action=CULTIVATED_VARIETY
 ```
 
-<img width="3840" height="2160" alt="CCO_beta 2_reset_mode" src="https://github.com/user-attachments/assets/f4bcc844-cb06-49d5-9827-b611c77d5ece" />
+<img width="3840" height="2160" alt="CCO v2.0.0 reset mode" src="https://github.com/user-attachments/assets/f4bcc844-cb06-49d5-9827-b611c77d5ece" />
 
 ---
 
@@ -771,8 +771,9 @@ Use this pattern:
 
 ## Changelog
 
-### 2.0.0-beta.2
+### 2.0.0
 
+- Promoted the beta branch to the main stable release.
 - Added native selector controls.
 - Added NOT LOADED crop visibility toggle.
 - Added field-level reset scope.
@@ -789,5 +790,5 @@ Use this pattern:
 
 ## Disclaimer
 
-This is a beta release. Use a backup save when testing crop rule changes, blocked field resets, and reseed workflows.
+Use a backup save when making significant crop policy changes, resetting blocked NPC fields, or using reseed workflows. CCO changes active save configuration and can alter NPC field states when reset tools are confirmed.
 
