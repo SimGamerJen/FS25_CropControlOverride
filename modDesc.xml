@@ -1,23 +1,132 @@
 <?xml version="1.0" encoding="utf-8"?>
-<modDesc descVersion="100">
-    <author>SimGamerJen</author>
-    <version>1.0.0.5</version>
+<modDesc descVersion="108">
+    <author>SimGamerJen, Hyper138</author>
+    <version>2.0.0-beta.2</version>
     <title>
-		<en>Crop Control Override</en>
-	</title>
+        <en>Crop Control Override</en>
+        <fr>Remplacement Du Contrôle Des Cultures</fr>
+    </title>
     <description>
-		<en><![CDATA[Overrides crop display order and disables certain crops globally in FS25.
-		v1.0.0.5 Updated to support the new ONION fruitType added by the Highlands Fishing Expansion DLC
-        v1.0.0.4 Fixed config.xml not applying immediately on starting a new save if the savegameX.xml doesn't exist
-		v1.0.0.3 Introduce crop control management XML per savegame outside the mod ZIP
-		v1.0.0.2 Updated modDesc.XML to allow MP
-		v1.0.0.1 mod icon,
-		]]></en>
-	</description>
-	<iconFilename>CropControlOverride.png</iconFilename>
+        <en><![CDATA[
+Description:
+Crop Control Override is a per-save crop policy manager for Farming Simulator 25. It lets players control which crops are permitted for the player, which crops NPC farmers may plant, and whether NPC crop planting should be limited by field size.
+
+The mod includes an editable FS25-style GUI, per-save XML rule files, NPC field validation, blocked NPC field reporting, and a guarded Apply / Force Apply workflow to prevent accidental invalid save states.
+
+Main GUI features:
+- ALL RULES: view and edit crop policy rules.
+- DISABLED: view globally disabled crops.
+- SIZE LIMITED: view crops with NPC field-size limits.
+- NPC DISABLED: view crops NPCs should not plant.
+- VALIDATION: view existing NPC fields that violate the active policy and use the guarded dry-run / confirm reset workflow.
+- SUMMARY: view active config, rule counts, and validation state.
+- HELP: view in-game guidance.
+
+Configuration:
+- APPLY / FORCE APPLY writes staged crop-rule changes to the active per-save XML.
+- DISCARD resets staged values.
+- SAVE DEFAULTS TO CONFIG.XML backs up the existing template config and writes the current full active rule set to config.xml.
+- Existing per-save XML files are not overwritten by Save Defaults.
+- RESET BLOCKED DRY-RUN does not change the save state. CONFIRM RESET performs the actual blocked-field reset after review.
+- VALIDATION includes RESET MODE: CULTIVATED or RESEED SEASONAL.
+- RESEED SEASONAL uses the current seasonal planting window and CCO policy rules to choose a replacement crop for blocked NPC fields.
+- GRASS may be used as a lifecycle reseed candidate when seasonal and policy checks allow it.
+- Reseed candidate weighting can be tuned in XML with reseedCandidateWeights using seasonalMission, seasonalLifecycle, and leaveCultivated weights.
+- Weighted reseed can produce CULTIVATED_VARIETY, leaving some reset fields cultivated instead of reseeding them.
+
+Hotkeys:
+ALT+C opens the Crop Control Override GUI. This keybind can be changed in the in-game controls menu.
+Mouse: use the GUI tabs, table rows, and buttons.
+Keyboard: use the displayed FS25 footer actions for tab navigation, Load Defaults, and back.
+
+Useful console commands:
+ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoHelp
+
+GitHub link:
+https://github.com/SimGamerJen/FS25_CropControlOverride
+]]></en>
+        <de><![CDATA[
+Beschreibung:
+Crop Control Override ist ein speicherstandbasiertes Fruchtarten-Regelwerk für Farming Simulator 25. Mit dem Mod kann festgelegt werden, welche Fruchtarten für Spieler erlaubt sind, welche Fruchtarten NPC-Landwirte anbauen dürfen und ob der NPC-Anbau durch eine maximale Feldgröße begrenzt werden soll.
+
+Der Mod enthält eine bearbeitbare GUI im FS25-Stil, XML-Regeldateien pro Spielstand, Validierung von NPC-Feldern, Anzeige blockierter NPC-Felder sowie einen geschützten Anwenden-/Erzwingen-Ablauf, um unbeabsichtigte ungültige Spielstände zu vermeiden.
+
+Wichtige GUI-Funktionen:
+- ALLE REGELN: Fruchtarten-Regeln anzeigen und bearbeiten.
+- DEAKTIVIERT: global deaktivierte Fruchtarten anzeigen.
+- BEGRENZT: Fruchtarten mit NPC-Feldgrößenbegrenzung anzeigen.
+- NPC DEAKTIVIERT: Fruchtarten anzeigen, die NPCs nicht anbauen sollen.
+- VALIDIERUNG: bestehende NPC-Felder anzeigen, die gegen die aktive Regel verstoßen, und den geschützten Testlauf-/Bestätigungsablauf zum Zurücksetzen verwenden.
+- ZUSAMMENFASSUNG: aktive Konfiguration, Regelanzahl und Validierungsstatus anzeigen.
+- HILFE: Hinweise zur Bedienung im Spiel anzeigen.
+
+Konfiguration:
+- ANWENDEN / ERZWINGEN schreibt vorbereitete Änderungen an einer Fruchtarten-Regel in die aktive XML-Datei des aktuellen Spielstands.
+- VERWERFEN setzt vorbereitete Werte zurück.
+- STANDARD SPEICHERN IN CONFIG.XML erstellt zuerst eine Sicherung der bestehenden Vorlagenkonfiguration und schreibt anschließend den aktuellen vollständigen Regelsatz in config.xml.
+- Bestehende XML-Dateien einzelner Spielstände werden durch Standard Speichern nicht überschrieben.
+- RESET BLOCKED DRY-RUN ändert den Spielstand nicht. CONFIRM RESET führt das tatsächliche Zurücksetzen blockierter Felder nach der Prüfung aus.
+
+Tastenkombinationen:
+ALT+C öffnet die Crop Control Override GUI. Diese Tastenkombination kann im Steuerungsmenü des Spiels geändert werden.
+Maus: GUI-Reiter, Tabellenzeilen und Schaltflächen verwenden.
+Tastatur: die angezeigten FS25-Fußleistenaktionen für Reiterwechsel, Standardwerte laden und Zurück verwenden.
+
+Nützliche Konsolenbefehle:
+ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoHelp
+
+GitHub-Link:
+https://github.com/SimGamerJen/FS25_CropControlOverride
+]]></de>
+        <fr><![CDATA[
+Description :
+Crop Control Override est un gestionnaire de règles de cultures par sauvegarde pour Farming Simulator 25. Il permet de contrôler quelles cultures sont autorisées pour le joueur, quelles cultures les agriculteurs PNJ peuvent semer, et si les cultures PNJ doivent être limitées par taille de champ.
+
+Le mod inclut une interface modifiable de style FS25, des fichiers XML de règles par sauvegarde, une validation des champs PNJ, un affichage des champs PNJ bloqués, ainsi qu’un flux sécurisé Appliquer / Forcer l’application pour éviter les états de sauvegarde invalides accidentels.
+
+Fonctions principales de l’interface :
+- TOUTES LES RÈGLES : afficher et modifier les règles de cultures.
+- DÉSACTIVÉES : afficher les cultures désactivées globalement.
+- LIMITÉES : afficher les cultures avec une limite de taille de champ PNJ.
+- PNJ DÉSACTIVÉ : afficher les cultures que les PNJ ne doivent pas semer.
+- VALIDATION : afficher les champs PNJ existants qui ne respectent pas la règle active et utiliser le flux sécurisé d’essai / confirmation de réinitialisation.
+- RÉSUMÉ : afficher la configuration active, le nombre de règles et l’état de validation.
+- AIDE : afficher l’aide intégrée.
+
+Configuration :
+- APPLIQUER / FORCER L’APPLICATION écrit les changements préparés d’une règle de culture dans le XML actif de la sauvegarde.
+- ANNULER réinitialise les valeurs préparées.
+- ENREGISTRER LES VALEURS PAR DÉFAUT DANS CONFIG.XML sauvegarde d’abord la configuration modèle existante, puis écrit l’ensemble complet des règles actives dans config.xml.
+- Les fichiers XML des sauvegardes existantes ne sont pas écrasés par cette action.
+- RESET BLOCKED DRY-RUN ne modifie pas la sauvegarde. CONFIRM RESET effectue la réinitialisation réelle des champs bloqués après vérification.
+
+Raccourcis :
+ALT+C ouvre l’interface Crop Control Override. Ce raccourci peut être modifié dans le menu des commandes du jeu.
+Souris : utiliser les onglets, les lignes du tableau et les boutons de l’interface.
+Clavier : utiliser les actions affichées dans la barre inférieure FS25 pour changer d’onglet, charger les valeurs par défaut et revenir en arrière.
+
+Commandes console utiles :
+ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoHelp
+
+Lien GitHub :
+https://github.com/SimGamerJen/FS25_CropControlOverride
+]]></fr>
+    </description>
+    <iconFilename>icon_CropControlOverride.dds</iconFilename>
+    <inputBinding>
+        <actionBinding action="CCO_OPEN_GUI">
+            <binding device="KB_MOUSE_DEFAULT" input="KEY_lalt KEY_c"/>
+        </actionBinding>
+    </inputBinding>
+
+    <actions>
+        <action name="CCO_OPEN_GUI" axisType="HALF"/>
+    </actions>
+
     <multiplayer supported="true"/>
     <extraSourceFiles>
-        <sourceFile filename="scripts/CropControlOverride.lua"/>
         <sourceFile filename="scripts/Debug.lua"/>
+        <sourceFile filename="scripts/gui/CropControlOverrideMenu.lua"/>
+        <sourceFile filename="scripts/CropControlOverride.lua"/>
     </extraSourceFiles>
 </modDesc>

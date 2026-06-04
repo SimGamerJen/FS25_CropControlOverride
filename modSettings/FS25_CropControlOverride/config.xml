@@ -1,53 +1,34 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<cropControl version="1">
-  <fruits>
-    <fruit name="WHEAT" 		enabled="true"/>
-    <fruit name="BARLEY" 		enabled="true"/>
-    <fruit name="OAT" 			enabled="true"/>
-    <fruit name="CANOLA" 		enabled="true"/>
-    <fruit name="MAIZE" 		enabled="true"/>
-    <fruit name="SORGHUM" 		enabled="true"/>
-    <fruit name="SOYBEAN" 		enabled="true"/>
-    <fruit name="GRASS" 		enabled="true"/>
-    <fruit name="PEA" 			enabled="true"/>
-    <fruit name="OILSEEDRADISH" enabled="true"/>
-	<fruit name="ONION"        	enabled="true"/>
-    <fruit name="POTATO"        enabled="true"/>
-    <fruit name="RICE"          enabled="true"/>
-    <fruit name="RICELONGGRAIN" enabled="true"/>
-    <fruit name="SUGARBEET"     enabled="true"/>
-    <fruit name="SUGARCANE"     enabled="true"/>
-    <fruit name="COTTON"        enabled="true"/>
-    <fruit name="GRAPE"         enabled="true"/>
-    <fruit name="OLIVE"         enabled="true"/>
-    <fruit name="POPLAR"        enabled="true"/>
-    <fruit name="BEETROOT"      enabled="true"/>
-    <fruit name="CARROT"        enabled="true"/>
-    <fruit name="PARSNIP"       enabled="true"/>
-    <fruit name="GREENBEAN"     enabled="true"/>
-    <fruit name="SPINACH"       enabled="true"/>
-    <fruit name="SUNFLOWER"     enabled="true"/>
-    <fruit name="ONION"         enabled="true"/>
-
-<!-- Optional crops added with custom maps or custom fruit bundles
-	Uncomment this entire section of cut/copy and paste specific fruits to the section above
-	Alternatively, build your own savegame?.xml file ready to implement upon starting a new game
-
-	<fruit name="GREENRYE"		enabled="true"/>
-    <fruit name="LINSEED"		enabled="true"/>
-    <fruit name="MUSTARD"		enabled="true"/>
-	<fruit name="POPPY"			enabled="true"/>
-	<fruit name="SILAGEMAIZE"	enabled="true"/>
-	<fruit name="VETCHRYE"		enabled="true"/>
-	<fruit name="HUMUSACTIVE"	enabled="true"/>
-    <fruit name="ALFALFA"		enabled="true"/>
-    <fruit name="CLOVER"		enabled="true"/>
-    <fruit name="RYE"			enabled="true"/>
-    <fruit name="TRITICALE"		enabled="true"/>
-    <fruit name="SPELT"			enabled="true"/>
-    <fruit name="FIELDGRASS"	enabled="true"/>
-	
--->
-
-  </fruits>
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<cropControl version="2" modVersion="2.0.0-beta.2">
+    <settings>
+        <reseedCandidateWeights seasonalMission="5" seasonalLifecycle="5" leaveCultivated="1"/>
+    </settings>
+    <fruits>
+        <fruit name="BARLEY" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="BEETROOT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="CANOLA" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="CARROT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="COTTON" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="GRAPE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="GRASS" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="GREENBEAN" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="MAIZE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="MEADOW" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="OAT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="OILSEEDRADISH" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="OLIVE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="PARSNIP" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="PEA" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="POPLAR" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="POTATO" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="RICE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="RICELONGGRAIN" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="SORGHUM" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="SOYBEAN" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="SPINACH" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="SUGARBEET" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="SUGARCANE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="SUNFLOWER" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="WHEAT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+    </fruits>
 </cropControl>
