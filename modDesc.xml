@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<modDesc descVersion="108">
+<modDesc descVersion="109">
     <author>SimGamerJen, Hyper138</author>
     <version>2.0.0.0</version>
     <title>
         <en>Crop Control Override</en>
-		<de>Crop Control Override öffnen</de>
+        <de>Crop Control Override Öffnen</de>
         <fr>Remplacement Du Contrôle Des Cultures</fr>
     </title>
     <description>
@@ -43,6 +43,12 @@ Keyboard: use the displayed FS25 footer actions for tab navigation, Load Default
 Useful console commands:
 ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoHelp
 
+Changelog 2.0.0.0:
+- Added the in-game Crop Control Override GUI.
+- Added per-save crop policy rule editing and guarded apply workflows.
+- Added NPC field validation, blocked-field reporting, and reset dry-run / confirmation support.
+- Added seasonal reseed logic and weighted reseed candidate settings.
+
 GitHub link:
 https://github.com/SimGamerJen/FS25_CropControlOverride
 ]]></en>
@@ -75,6 +81,12 @@ Tastatur: die angezeigten FS25-Fußleistenaktionen für Reiterwechsel, Standardw
 
 Nützliche Konsolenbefehle:
 ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoHelp
+
+Änderungen 2.0.0.0:
+- Integrierte Crop-Control-Override-GUI hinzugefügt.
+- Regelbearbeitung pro Spielstand und geschützte Anwenden-Abläufe hinzugefügt.
+- Validierung von NPC-Feldern, Anzeige blockierter Felder sowie Testlauf-/Bestätigungsfunktionen zum Zurücksetzen hinzugefügt.
+- Saisonale Neuansaatlogik und gewichtete Einstellungen für Neuansaatkandidaten hinzugefügt.
 
 GitHub-Link:
 https://github.com/SimGamerJen/FS25_CropControlOverride
@@ -109,17 +121,24 @@ Clavier : utiliser les actions affichées dans la barre inférieure FS25 pour ch
 Commandes console utiles :
 ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoHelp
 
+Journal des modifications 2.0.0.0 :
+- Ajout de l’interface intégrée Crop Control Override.
+- Ajout de l’édition des règles par sauvegarde et des flux d’application sécurisés.
+- Ajout de la validation des champs PNJ, du rapport des champs bloqués et de la réinitialisation avec essai / confirmation.
+- Ajout de la logique de réensemencement saisonnier et des réglages pondérés des cultures candidates.
+
 Lien GitHub :
 https://github.com/SimGamerJen/FS25_CropControlOverride
 ]]></fr>
     </description>
-	<l10n>
-		<text name="input_CCO_OPEN_GUI">
-		<en>Open Crop Control Override</en>
-		<de>Crop Control Override öffnen</de>
-		<fr>Ouvrir Crop Control Override</fr>
-		</text>
-	</l10n>
+
+    <l10n>
+        <text name="input_CCO_OPEN_GUI">
+            <en>Open Crop Control Override</en>
+            <de>Crop Control Override Öffnen</de>
+            <fr>Ouvrir Crop Control Override</fr>
+        </text>
+    </l10n>
     <iconFilename>icon_CropControlOverride.dds</iconFilename>
     <inputBinding>
         <actionBinding action="CCO_OPEN_GUI">
