@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.0.0-beta.2",
+    VERSION = "2.0.1.0",
 
     _origFlags = {},
     _rules = {},
@@ -513,10 +513,9 @@ function CCO:_applyDisabledFlags(fruit)
 end
 
 function CCO:_applyNpcBlockedFlags(fruit)
-    -- Keep the crop available to the player, but prevent generated field jobs
-    -- and NPC mission crop selection where the engine respects this flag.
-    fruit.useForFieldMissions = false
-    fruit.useForFieldJob = false
+    -- NPC-only rules are enforced in FieldManager.generatePlannedFruitForField
+    -- and mission availability hooks. Do not mutate global fruit mission flags here;
+    -- doing so can cause contract-list flicker and affects player-facing crop data.
 end
 
 function CCO:applyRules(rules)
@@ -1434,43 +1433,71 @@ function CCO:resetNpcFields(filterCrop, dryRun, resetMode)
     return queued, skipped
 end
 
+
+function CCO:generatePlannedFruitForField(superFunc, fieldManager, field)
+    local ok, proposedFruit = pcall(function()
+        return superFunc(fieldManager, field)
+    end)
+
+    if not ok then
+        warn("generatePlannedFruitForField original call failed: " .. tostring(proposedFruit))
+        return nil
+    end
+
+    local ok2, selectedFruit = pcall(function()
+        if proposedFruit == nil or proposedFruit == FruitType.UNKNOWN then
+            return proposedFruit
+        end
+
+        if field ~= nil and not isNpcField(field) then
+            return proposedFruit
+        end
+
+        local ft = g_fruitTypeManager ~= nil and g_fruitTypeManager:getFruitTypeByIndex(proposedFruit) or nil
+        if ft == nil then
+            return proposedFruit
+        end
+
+        local cropName = upper(ft.name)
+        local fieldHa = getFieldSizeHa(field)
+        local allowed, reason = self:isNpcCropAllowedForField(fieldHa, cropName)
+        if allowed then
+            return proposedFruit
+        end
+
+        local replacement, replacementReason = self:findReplacementNpcCropForField(field, cropName)
+        if replacement ~= nil and replacement.index ~= nil then
+            debug(("planned fruit replacement for field %s: %s -> %s (%.2f ha): %s"):format(
+                tostring(getFieldId(field)), cropName, upper(replacement.name), fieldHa, tostring(reason)))
+            return replacement.index
+        end
+
+        debug(("planned fruit blocked for field %s: %s (%.2f ha): %s; no replacement selected (%s)"):format(
+            tostring(getFieldId(field)), cropName, fieldHa, tostring(reason), tostring(replacementReason)))
+        return nil
+    end)
+
+    if not ok2 then
+        warn("generatePlannedFruitForField CCO selection failed: " .. tostring(selectedFruit))
+        return proposedFruit
+    end
+
+    return selectedFruit
+end
+
 function CCO:applyRuntimeHooks()
     if self._hookApplied then return end
     self._hookApplied = true
 
-    if MissionManager ~= nil and MissionManager.generateMissions ~= nil then
-        local originalGenerateMissions = MissionManager.generateMissions
-        MissionManager.generateMissions = function(mm, ...)
-            local saved = {}
-
-            if g_currentMission ~= nil and g_currentMission.getIsServer ~= nil and g_currentMission:getIsServer()
-                and CCO._rules ~= nil and g_fieldManager ~= nil and g_fieldManager.getFields ~= nil then
-
-                for _, field in pairs(g_fieldManager:getFields()) do
-                    local ft = getFieldFruit(field)
-                    if ft ~= nil then
-                        local cropName = upper(ft.name)
-                        local allowed, reason = CCO:isNpcCropAllowedForField(getFieldSizeHa(field), cropName)
-                        if not allowed and saved[cropName] == nil then
-                            saved[cropName] = { fruit = ft, useForFieldMissions = ft.useForFieldMissions }
-                            ft.useForFieldMissions = false
-                            debug(("temporarily blocked %s during mission generation: %s"):format(cropName, tostring(reason)))
-                        end
-                    end
-                end
-            end
-
-            local result = originalGenerateMissions(mm, ...)
-
-            for cropName, state in pairs(saved) do
-                state.fruit.useForFieldMissions = state.useForFieldMissions
-                debug(("restored mission flag for %s to %s"):format(cropName, tostring(state.useForFieldMissions)))
-            end
-
-            return result
-        end
-        debug("hooked MissionManager.generateMissions")
+    if FieldManager ~= nil and FieldManager.generatePlannedFruitForField ~= nil then
+        FieldManager.generatePlannedFruitForField = Utils.overwrittenFunction(FieldManager.generatePlannedFruitForField, function(fieldManager, superFunc, field)
+            return CCO:generatePlannedFruitForField(superFunc, fieldManager, field)
+        end)
+        debug("hooked FieldManager.generatePlannedFruitForField")
+    else
+        warn("FieldManager.generatePlannedFruitForField not available; NPC crop planning hook not installed")
     end
+
 
     if FieldManager ~= nil and FieldManager.getFruitIndexForField ~= nil then
         local originalGetFruitIndexForField = FieldManager.getFruitIndexForField
@@ -2019,6 +2046,14 @@ local function cloneRulesForGuiApply(rules)
     return cloned
 end
 
+
+function CCO:loadTemplateDefaultsIntoCurrentSave()
+    if self:_shouldUseMultiplayerEvent() then
+        return self:_sendMultiplayerEvent("loadDefaults")
+    end
+    return self:_loadTemplateDefaultsIntoCurrentSaveLocal()
+end
+
 function CCO:buildFieldSummaryWithRules(rules, filterCrop)
     local oldRules = self._rules
     self._rules = rules
@@ -2027,7 +2062,109 @@ function CCO:buildFieldSummaryWithRules(rules, filterCrop)
     return summary
 end
 
+
+function CCO:_shouldUseMultiplayerEvent()
+    if self._handlingMpEvent == true then
+        return false
+    end
+    if CropControlOverrideChangeSettingsEvent == nil then
+        return false
+    end
+    return g_client ~= nil or g_server ~= nil
+end
+
+function CCO:_sendMultiplayerEvent(operation, a, b, c, d, e, f, g)
+    if CropControlOverrideChangeSettingsEvent == nil then
+        return false, "CCO multiplayer event is not available."
+    end
+
+    local event = CropControlOverrideChangeSettingsEvent.new(operation, a, b, c, d, e, f, g)
+
+    if g_client ~= nil and g_server == nil and g_client.getServerConnection ~= nil then
+        g_client:getServerConnection():sendEvent(event)
+        local msg = "Sent CCO " .. tostring(operation) .. " request to the server."
+        self._guiNotice = msg
+        return true, msg
+    end
+
+    if g_server ~= nil then
+        local ok, msg, extra = self:handleMultiplayerEvent(operation, {a, b, c, d, e, f, g}, nil)
+        g_server:broadcastEvent(event, false)
+        return ok, msg, extra
+    end
+
+    return false, "No multiplayer connection is available."
+end
+
+function CCO:handleMultiplayerEvent(operation, args, connection)
+    args = args or {}
+    self._handlingMpEvent = true
+
+    local ok, r1, r2, r3 = pcall(function()
+        if operation == "applyRule" then
+            local staged = {
+                crop = args[1],
+                enabled = boolFromStringOrBool(args[2], true) == true,
+                npc = tostring(args[3] or "mapDefault"),
+                maxHa = tonumber(args[4] or 0) or 0,
+                resetNpcFields = boolFromStringOrBool(args[5], true) ~= false,
+            }
+            local forceApply = boolFromStringOrBool(args[6], false) == true
+            return self:_applyGuiStagedRuleLocal(staged, forceApply)
+        elseif operation == "saveDefaults" then
+            return self:_saveCurrentRulesToTemplateConfigLocal()
+        elseif operation == "loadDefaults" then
+            return self:_loadTemplateDefaultsIntoCurrentSaveLocal()
+        elseif operation == "resetBlocked" then
+            local scopeArg = args[1]
+            local scope = scopeArg
+            if type(scopeArg) == "string" then
+                local mode, value = string.match(scopeArg, "^([^:]+):(.*)$")
+                if mode == "all" then
+                    scope = { mode = "all", label = "ALL" }
+                elseif mode == "crop" then
+                    scope = { mode = "crop", crop = upper(value or ""), label = upper(value or "") }
+                elseif mode == "field" then
+                    scope = { mode = "field", fieldId = tonumber(value), label = "FIELD " .. tostring(value) }
+                end
+            end
+            return self:_resetBlockedFieldsFromGuiLocal(scope, args[2])
+        elseif operation == "consoleSetCrop" then
+            return self:_consoleSetCropLocal(args[1], args[2], args[3], args[4])
+        end
+        return false, "Unknown CCO multiplayer operation: " .. tostring(operation)
+    end)
+
+    self._handlingMpEvent = false
+
+    if not ok then
+        local msg = "CCO multiplayer event failed: " .. tostring(r1)
+        warn(msg)
+        self._guiNotice = msg
+        return false, msg
+    end
+
+    return r1, r2, r3
+end
+
 function CCO:applyGuiStagedRule(staged, forceApply)
+    if self:_shouldUseMultiplayerEvent() then
+        local npc = staged ~= nil and staged.npc or "mapDefault"
+        return self:_sendMultiplayerEvent(
+            "applyRule",
+            staged ~= nil and staged.crop or "",
+            tostring(staged ~= nil and staged.enabled == true),
+            tostring(npc or "mapDefault"),
+            tostring(staged ~= nil and staged.maxHa or 0),
+            tostring(staged == nil or staged.resetNpcFields ~= false),
+            tostring(forceApply == true)
+        )
+    end
+
+    return self:_applyGuiStagedRuleLocal(staged, forceApply)
+end
+
+function CCO:_applyGuiStagedRuleLocal(staged, forceApply)
     if staged == nil or staged.crop == nil or staged.crop == "" then
         return false, "No crop selected."
     end
@@ -2108,7 +2245,7 @@ function CCO:applyGuiStagedRule(staged, forceApply)
 end
 
 
-function CCO:saveCurrentRulesToTemplateConfig()
+function CCO:_saveCurrentRulesToTemplateConfigLocal()
     local rules = self._rules
     if rules == nil or not next(rules) then
         return false, "No active CCO rules are loaded."
@@ -2155,7 +2292,15 @@ end
 
 
 
-function CCO:loadTemplateDefaultsIntoCurrentSave()
+
+function CCO:saveCurrentRulesToTemplateConfig()
+    if self:_shouldUseMultiplayerEvent() then
+        return self:_sendMultiplayerEvent("saveDefaults")
+    end
+    return self:_saveCurrentRulesToTemplateConfigLocal()
+end
+
+function CCO:_loadTemplateDefaultsIntoCurrentSaveLocal()
     local sid = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo)
     local per = sid ~= nil and perSavePathForId(sid) or nil
     local tpl = templatePath()
@@ -2218,7 +2363,7 @@ function CCO:registerGlobalActionEvents(player, inputBinding)
     if ok and eventId ~= nil then
         self._openGuiActionEventId = eventId
         if inputBinding.setActionEventText ~= nil and g_i18n ~= nil then
-            inputBinding:setActionEventText(eventId, "Open Crop Control Override")
+            inputBinding:setActionEventText(eventId, g_i18n:getText("input_CCO_OPEN_GUI"))
         end
         if inputBinding.setActionEventTextVisibility ~= nil then
             inputBinding:setActionEventTextVisibility(eventId, false)
@@ -2382,7 +2527,7 @@ function CCO:consoleNormalizeConfig(modeArg)
 end
 addConsoleCommand("ccoNormalizeConfig", "Normalize/migrate active config to v2. Usage: ccoNormalizeConfig [dryrun]", "consoleNormalizeConfig", CCO)
 
-function CCO:consoleSetCrop(name, enabledArg, npcAllowedArg, npcMaxHaArg)
+function CCO:_consoleSetCropLocal(name, enabledArg, npcAllowedArg, npcMaxHaArg)
     if name == nil or name == "" then
         print("CCO: usage ccoSetCrop <CROP> <enabled:true|false> [npcAllowed:true|false|mapDefault] [npcMaxHa]")
         return
@@ -2413,6 +2558,15 @@ function CCO:consoleSetCrop(name, enabledArg, npcAllowedArg, npcMaxHaArg)
         writeConfig(self._configPath, self._rules, self._settings)
     end
     self:consoleListRules(nameU)
+end
+
+function CCO:consoleSetCrop(name, enabledArg, npcAllowedArg, npcMaxHaArg)
+    if self:_shouldUseMultiplayerEvent() then
+        local ok, msg = self:_sendMultiplayerEvent("consoleSetCrop", tostring(name or ""), tostring(enabledArg or ""), tostring(npcAllowedArg or ""), tostring(npcMaxHaArg or 0))
+        if msg ~= nil then print("CCO: " .. tostring(msg)) end
+        return
+    end
+    return self:_consoleSetCropLocal(name, enabledArg, npcAllowedArg, npcMaxHaArg)
 end
 addConsoleCommand("ccoSetCrop", "Set a crop rule. Usage: ccoSetCrop <CROP> <enabled> [npcAllowed] [npcMaxHa]", "consoleSetCrop", CCO)
 
@@ -3061,7 +3215,7 @@ function CCO:resetBlockedFieldsDryRunFromGui(scope, resetMode)
     return msg, tonumber(wouldQueue or 0) or 0, tonumber(skipped or 0) or 0
 end
 
-function CCO:resetBlockedFieldsFromGui(scope, resetMode)
+function CCO:_resetBlockedFieldsFromGuiLocal(scope, resetMode)
     local s = self:normaliseGuiResetScope(scope)
     local queued, skipped = 0, 0
 
@@ -3093,6 +3247,21 @@ function CCO:resetBlockedFieldsFromGui(scope, resetMode)
     return msg, tonumber(queued or 0) or 0, tonumber(skipped or 0) or 0
 end
 
+
+
+function CCO:resetBlockedFieldsFromGui(scope, resetMode)
+    if self:_shouldUseMultiplayerEvent() then
+        local s = self:normaliseGuiResetScope(scope)
+        local scopeArg = "all:"
+        if s.mode == "crop" then
+            scopeArg = "crop:" .. tostring(upper(s.crop or ""))
+        elseif s.mode == "field" then
+            scopeArg = "field:" .. tostring(s.fieldId or "")
+        end
+        return self:_sendMultiplayerEvent("resetBlocked", scopeArg, tostring(resetMode or "cultivated"))
+    end
+    return self:_resetBlockedFieldsFromGuiLocal(scope, resetMode)
+end
 
 function CCO:consoleResetNpcFields(cropNameArg, modeArg)
     local cropName, dryRun = parseResetArgs(cropNameArg, modeArg)
