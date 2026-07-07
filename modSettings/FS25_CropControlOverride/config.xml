@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
-<cropControl version="2" modVersion="2.0.0-beta.2">
+<cropControl version="2" modVersion="2.0.1.7">
     <settings>
         <reseedCandidateWeights seasonalMission="5" seasonalLifecycle="5" leaveCultivated="1"/>
     </settings>
