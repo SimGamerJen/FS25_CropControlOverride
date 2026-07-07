@@ -1,6 +1,6 @@
 # FS25 Crop Control Override
 
-**Version:** 2.0.0  
+**Version:** 2.0.1.7  
 **Game:** Farming Simulator 25  
 **Status:** Stable release  
 **Author:** SimGamerJen, Hyper138
@@ -13,7 +13,7 @@ The mod is designed for players who want tighter control over crop realism, map-
 
 The current recommended release is:
 
-**v2.0.0** from the main branch.
+**v2.0.1.7** from the main branch.
 
 Older alpha and beta releases are retained for history only.
 
@@ -28,6 +28,7 @@ Older alpha and beta releases are retained for history only.
 - [Important concepts](#important-concepts)
 - [GUI overview](#gui-overview)
 - [Crop rule settings](#crop-rule-settings)
+- [Multiplayer support](#multiplayer-support)
 - [Validation and blocked NPC fields](#validation-and-blocked-npc-fields)
 - [Reset modes](#reset-modes)
 - [RESEED SEASONAL and candidate selection](#reseed-seasonal-and-candidate-selection)
@@ -67,7 +68,7 @@ Examples:
 
 ## Release highlights
 
-Version `2.0.0` promotes the beta workflow to the stable release and includes the major validation and cleanup workflow update introduced during beta testing.
+Version `2.0.1.7` builds on the stable 2.0.0 release with dedicated-server multiplayer support, server-authoritative rule synchronisation, admin/master-user edit permissions, external l10n support, and the NPC crop planning hook update introduced during the multiplayer hotfix cycle.
 
 Key features:
 
@@ -89,6 +90,11 @@ Key features:
 - Weighted deterministic reseed variety.
 - Dry-run before confirm workflow.
 - Diagnostic console commands.
+- Multiplayer-aware settings flow for local host and dedicated servers.
+- Server-authoritative per-save XML handling for dedicated multiplayer.
+- Read-only rule viewing for normal dedicated-server clients.
+- Admin/master-user editing support for elevated multiplayer users.
+- External l10n file support for community translations.
 
 ---
 
@@ -126,7 +132,7 @@ You can also open the GUI from the console:
 ccoGui
 ```
 
-<img width="3840" height="2160" alt="CCO v2.0.0 all rules" src="https://github.com/user-attachments/assets/b00e0e57-61a6-47db-ab90-568538857f5f" />
+<img width="3840" height="2160" alt="CCO v2.0.x all rules" src="https://github.com/user-attachments/assets/b00e0e57-61a6-47db-ab90-568538857f5f" />
 
 ---
 
@@ -171,7 +177,7 @@ Shows all configured crop rules.
 
 Use this tab to select a crop and edit its policy in the details pane.
 
-<img width="3840" height="2160" alt="CCO v2.0.0 selected crop" src="https://github.com/user-attachments/assets/042f22eb-5eeb-4652-8b4f-b6dd47718b6e" />
+<img width="3840" height="2160" alt="CCO v2.0.x selected crop" src="https://github.com/user-attachments/assets/042f22eb-5eeb-4652-8b4f-b6dd47718b6e" />
 
 ### DISABLED
 
@@ -191,7 +197,7 @@ Shows NPC fields that violate the active crop policy.
 
 This is the most important tab when changing NPC rules or field-size limits.
 
-<img width="3840" height="2160" alt="CCO v2.0.0 validation blocked fields" src="https://github.com/user-attachments/assets/285f6ed4-956b-4031-8146-e94d11d6c6fa" />
+<img width="3840" height="2160" alt="CCO v2.0.x validation blocked fields" src="https://github.com/user-attachments/assets/285f6ed4-956b-4031-8146-e94d11d6c6fa" />
 
 ### SUMMARY
 
@@ -255,6 +261,65 @@ If this is `OFF`, blocked fields of that crop are not reset by the reset workflo
 
 ---
 
+## Multiplayer support
+
+CCO supports single-player, local hosted multiplayer, and dedicated/cloud multiplayer. The mod uses different authority rules depending on how the save is being run.
+
+| Mode | XML authority | GUI access | Expected behaviour |
+|---|---|---|---|
+| Single-player | Local player PC | Editable | Uses local `modSettings/FS25_CropControlOverride/config.xml` and the active local per-save XML. |
+| Local hosted multiplayer | Host PC | Host editable; joined clients server-synced | The host remains the authority. Joined clients receive the host/server rule state and should not own the rules independently. |
+| Dedicated/cloud server | Server | Admin/master users editable; normal players read-only | The dedicated server owns the active per-save XML. Remote clients display a server-synchronised in-memory copy. |
+
+### Dedicated server rule ownership
+
+On a dedicated or cloud-hosted server, CCO treats the server as the only source of truth. The server loads or creates its own active per-save XML and sends the current ruleset to joining clients.
+
+Remote clients should not load, create, or overwrite local CCO save files while connected to a dedicated server. In particular, a cloud-server session should not create local files such as:
+
+```text
+modSettings/FS25_CropControlOverride/saves/savegame0.xml
+modSettings/FS25_CropControlOverride/saves/savegame1.xml
+```
+
+The client GUI uses the server-sent rules in memory only. This prevents dedicated-server rules from overwriting local single-player or local-hosted multiplayer files.
+
+### Multiplayer editing permissions
+
+Normal dedicated-server players can open CCO and view the active server rules, but the rule controls are read-only.
+
+Players who elevate to admin/master-user status through the Farming Simulator multiplayer admin/Farm Management controls can update crop rules. Even for an elevated remote admin, changes are still sent to the server and saved server-side. The remote client does not write local CCO XML.
+
+Admin-edit flow:
+
+```text
+Remote admin opens CCO
+↓
+Client displays the server-synchronised ruleset
+↓
+Admin changes a rule and clicks APPLY
+↓
+Request is sent to the server
+↓
+Server validates admin/master-user permission
+↓
+Server updates the active server-side savegame XML
+↓
+Server broadcasts the refreshed ruleset back to clients
+```
+
+### Multiplayer safety guarantees
+
+The multiplayer support is designed to preserve existing local behaviour:
+
+- Single-player saves continue to use local per-save XML files.
+- Local hosted multiplayer continues to use the host machine as the file authority.
+- Dedicated-server clients use server-synchronised rules and do not create local per-save CCO XML files.
+- Normal multiplayer players can view rules but cannot change them.
+- Admin/master-user edits are validated by the server before the server XML is changed.
+
+---
+
 ## Validation and blocked NPC fields
 
 A blocked NPC field is an NPC-owned field that no longer complies with the active CCO rules.
@@ -284,7 +349,7 @@ CROP: <crop>
 FIELD: <field id> <crop>
 ```
 
-<img width="3840" height="2160" alt="CCO v2.0.0 reset scope" src="https://github.com/user-attachments/assets/0fb38e86-5dfc-410c-bbda-8783ce0d3eef" />
+<img width="3840" height="2160" alt="CCO v2.0.x reset scope" src="https://github.com/user-attachments/assets/0fb38e86-5dfc-410c-bbda-8783ce0d3eef" />
 
 ---
 
@@ -335,7 +400,7 @@ If the weighted reseed variety chooses to leave a field cultivated, dry-run repo
 action=CULTIVATED_VARIETY
 ```
 
-<img width="3840" height="2160" alt="CCO v2.0.0 reset mode" src="https://github.com/user-attachments/assets/f4bcc844-cb06-49d5-9827-b611c77d5ece" />
+<img width="3840" height="2160" alt="CCO v2.0.x reset mode" src="https://github.com/user-attachments/assets/f4bcc844-cb06-49d5-9827-b611c77d5ece" />
 
 ---
 
@@ -485,6 +550,14 @@ When a savegame is loaded, CCO uses the per-save XML if it exists. If it does no
 
 This prevents rules for one savegame from unexpectedly changing another savegame.
 
+### Multiplayer file behaviour
+
+In single-player and local hosted multiplayer, the local machine or host machine owns the CCO XML files.
+
+In dedicated/cloud multiplayer, the dedicated server owns the XML files. Remote clients receive the active ruleset from the server and keep it in memory for display. They should not create or update local CCO per-save XML files during that session.
+
+Use `ccoWhichConfig` from the server or host environment when you need to confirm the active file path. On a normal remote client, the GUI reflects the server-synchronised rules rather than a local savegame XML.
+
 ### Save Defaults to config.xml
 
 The GUI option `SAVE DEFAULTS TO CONFIG.XML` writes the current active rule set to the template config.
@@ -511,6 +584,17 @@ Use this carefully because it updates the active save’s CCO XML.
 6. If validation blocks the change, review the warning.
 7. Use `FORCE APPLY` only if you intend to allow blocked fields temporarily.
 8. Go to `VALIDATION` to review affected NPC fields.
+
+### Change rules on a dedicated server
+
+1. Join the server.
+2. Open CCO with `ALT+C`.
+3. If you are a normal player, the rules should display as read-only.
+4. Elevate to admin/master-user status through the Farming Simulator multiplayer admin/Farm Management controls.
+5. Reopen or refresh CCO if needed.
+6. Change the rule and click `APPLY`.
+7. Confirm the server-side CCO savegame XML updates.
+8. Confirm no local client-side CCO `savegame?.xml` file has been created.
 
 ### Reset blocked fields to cultivated
 
@@ -648,6 +732,18 @@ Check:
 - `scripts/gui/CropControlOverrideMenu.lua`.
 - The game log for stack traces.
 
+### Dedicated server client sees default/local rules
+
+On a dedicated server, remote clients should display the server-synchronised ruleset, not their own local `config.xml` or local per-save XML.
+
+Check the game log for CCO sync messages and confirm the client is running the same mod version as the server. A normal remote client should not create a local CCO `savegame0.xml` when joining a dedicated server.
+
+### Dedicated server GUI is read-only
+
+This is expected for normal players. Rule changes are restricted to admin/master users.
+
+To edit rules on a dedicated server, elevate privileges through the Farming Simulator multiplayer admin/Farm Management controls, then reopen or refresh CCO. Changes are still saved by the server, not by the remote client.
+
 ### Changes apply to config.xml but not the save XML
 
 The active target should normally be:
@@ -721,6 +817,8 @@ Run dry-run again immediately before confirm.
 - Candidate weighting is category-based, not per-crop.
 - Seasonal logic depends on FS25 crop growth data being available for the loaded crop.
 - Modded crops may behave differently depending on how their fruit type data is defined.
+- Dedicated-server clients depend on the server-synchronised ruleset; if the server/client mod versions differ, GUI state may not match.
+- Remote multiplayer editing requires admin/master-user elevation. Normal players are intentionally read-only.
 
 ---
 
@@ -770,6 +868,21 @@ Use this pattern:
 ---
 
 ## Changelog
+
+### 2.0.1.7
+
+- Added dedicated/cloud multiplayer support with server-authoritative rule synchronisation.
+- Added remote client protection so dedicated-server clients do not create or update local CCO per-save XML files.
+- Added read-only GUI behaviour for normal dedicated-server players.
+- Added admin/master-user permission support for elevated multiplayer users.
+- Added server-side validation before accepting multiplayer rule changes.
+- Updated NPC crop planning logic to use the FS25 planned-fruit hook rather than the older mission-generation approach.
+- Reduced contract-list side effects by avoiding global NPC mission flag mutation for NPC-only blocking.
+- Added defensive handling around NPC crop replacement logic.
+- Added external l10n file support for translations.
+- Fixed input-binding localisation fallback.
+- Fixed dedicated-client server sync timing and GUI wait-state behaviour.
+- Fixed permission hook load order.
 
 ### 2.0.0
 

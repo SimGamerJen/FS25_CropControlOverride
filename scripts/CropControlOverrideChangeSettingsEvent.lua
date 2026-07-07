@@ -39,11 +39,23 @@ function CropControlOverrideChangeSettingsEvent:writeStream(streamId, connection
 end
 
 function CropControlOverrideChangeSettingsEvent:run(connection)
+    local operation = tostring(self.operation or "")
+
     if CropControlOverride ~= nil and CropControlOverride.handleMultiplayerEvent ~= nil then
-        CropControlOverride:handleMultiplayerEvent(self.operation, self.args or {}, connection)
+        CropControlOverride:handleMultiplayerEvent(operation, self.args or {}, connection)
     end
 
     if g_server ~= nil then
-        g_server:broadcastEvent(self, false, connection)
+        -- requestSettings is answered directly to the requesting connection by
+        -- CropControlOverride:sendSettingsSnapshotToClient(). syncSettings is
+        -- already a server-authoritative snapshot, so do not rebroadcast it from
+        -- clients/receivers and create loops.
+        if operation ~= "requestSettings" and operation ~= "syncSettings" and operation ~= "adminStatus" then
+            if CropControlOverride ~= nil and CropControlOverride.sendSettingsSnapshotToClient ~= nil then
+                CropControlOverride:sendSettingsSnapshotToClient(nil, operation)
+            else
+                g_server:broadcastEvent(self, false)
+            end
+        end
     end
 end

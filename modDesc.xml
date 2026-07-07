@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modDesc descVersion="109">
     <author>SimGamerJen, Hyper138</author>
-    <version>2.0.1.0</version>
+    <version>2.0.1.7</version>
     <title>
         <en>Crop Control Override</en>
         <de>Crop Control Override</de>
@@ -34,6 +34,34 @@ Configuration:
 - GRASS may be used as a lifecycle reseed candidate when seasonal and policy checks allow it.
 - Reseed candidate weighting can be tuned in XML with reseedCandidateWeights using seasonalMission, seasonalLifecycle, and leaveCultivated weights.
 - Weighted reseed can produce CULTIVATED_VARIETY, leaving some reset fields cultivated instead of reseeding them.
+
+Changelog 2.0.1.7:
+- Fixed the permission-hook installer load order so the admin-permission build loads cleanly before installing Farm Management admin listeners.
+
+Changelog 2.0.1.6:
+- Remote dedicated-server clients that elevate to game admin/master user through the Farm Management admin console can now unlock CCO editing for that session.
+- Added a permission refresh handshake so admin status changes are sent to the server and the CCO GUI refreshes without using local client XML files.
+- Server-side validation still protects rule changes; normal remote clients remain read-only.
+
+Changelog 2.0.1.5:
+- Added dedicated-server admin/master-user edit permissions using the EasyDevControls-style authority model.
+- Remote server admins can edit CCO rules through server-validated multiplayer events while normal remote clients remain read-only.
+- Dedicated-server clients still do not read, create, or write local CCO XML files.
+
+Changelog 2.0.1.4:
+- Fixed the custom CCO GUI opening path by removing the unstable paging selector that could trigger a TextElement stack overflow in some FS25 builds.
+- Remote multiplayer clients now show a waiting/sync state instead of rendering local default rules before the server snapshot arrives.
+
+Changelog 2.0.1.3:
+- Fixed remote multiplayer client sync requests firing before the server connection is ready.
+
+Changelog 2.0.1.2:
+- Dedicated/cloud multiplayer clients now ignore local CCO XML files and use an in-memory ruleset synced from the server.
+- Remote multiplayer clients are read-only by default, preventing local savegame XML creation or accidental rule writes.
+- Single-player, local-host multiplayer, and server-side file behaviour remain unchanged.
+
+Changelog 2.0.1.1:
+- Fixed dedicated/cloud multiplayer client GUI refresh after server-side rule changes; the originating client now receives the server-authoritative update and refreshes an open CCO GUI.
 
 Changelog 2.0.1.0:
 - Added multiplayer event handling so GUI changes and server-side reset/apply actions are sent to the server on dedicated multiplayer games.
@@ -74,6 +102,34 @@ Konfiguration:
 - Bestehende XML-Dateien einzelner Spielstände werden durch Standard Speichern nicht überschrieben.
 - RESET BLOCKED DRY-RUN ändert den Spielstand nicht. CONFIRM RESET führt das tatsächliche Zurücksetzen blockierter Felder nach der Prüfung aus.
 
+Änderungen 2.0.1.7:
+- Die Lade-Reihenfolge des Berechtigungs-Hook-Installers korrigiert, damit der Admin-Berechtigungs-Build sauber lädt, bevor Listener für Farmverwaltungs-Administratoren installiert werden.
+
+Änderungen 2.0.1.6:
+- Entfernte Clients auf dedizierten Servern, die sich über die Farmverwaltung als Spieladministrator/Master User anmelden, können CCO-Bearbeitung nun für diese Sitzung freischalten.
+- Eine Berechtigungsaktualisierung sendet Admin-Statusänderungen an den Server und aktualisiert die CCO-GUI, ohne lokale Client-XML-Dateien zu verwenden.
+- Die serverseitige Validierung schützt Regeländerungen weiterhin; normale entfernte Clients bleiben schreibgeschützt.
+
+Änderungen 2.0.1.5:
+- Admin-/Master-User-Bearbeitungsrechte für dedizierte Server nach dem EasyDevControls-Berechtigungsmodell hinzugefügt.
+- Entfernte Serveradministratoren können CCO-Regeln über serverseitig validierte Mehrspieler-Ereignisse bearbeiten, während normale entfernte Clients schreibgeschützt bleiben.
+- Clients auf dedizierten Servern lesen, erstellen oder schreiben weiterhin keine lokalen CCO-XML-Dateien.
+
+Änderungen 2.0.1.4:
+- Korrigiert den CCO-GUI-Start, indem der instabile Seitenwahlschalter entfernt wurde, der in manchen FS25-Versionen einen TextElement-Stack-Overflow auslösen konnte.
+- Entfernte Mehrspieler-Clients zeigen nun einen Warte-/Synchronisationsstatus, statt lokale Standardregeln vor dem Server-Snapshot darzustellen.
+
+Änderungen 2.0.1.3:
+- Synchronisationsanfragen entfernter Multiplayer-Clients werden nun erst gesendet, wenn die Serververbindung bereit ist.
+
+Änderungen 2.0.1.2:
+- Clients im dedizierten/Cloud-Multiplayer ignorieren lokale CCO-XML-Dateien und verwenden einen vom Server synchronisierten Regelsatz im Speicher.
+- Entfernte Multiplayer-Clients sind standardmäßig schreibgeschützt, wodurch lokale savegame-XML-Erstellung und unbeabsichtigte Regeländerungen verhindert werden.
+- Einzelspieler-, lokaler Host-Multiplayer- und serverseitiges Dateiverhalten bleiben unverändert.
+
+Änderungen 2.0.1.1:
+- Client-GUI-Aktualisierung im dedizierten/Cloud-Multiplayer nach serverseitigen Regeländerungen korrigiert; der auslösende Client erhält nun die serverseitige Aktualisierung und aktualisiert eine geöffnete CCO-GUI.
+
 Änderungen 2.0.1.0:
 - Multiplayer-Ereignisverarbeitung hinzugefügt, damit GUI-Änderungen und serverseitige Zurücksetzen-/Anwenden-Aktionen in dedizierten Multiplayer-Spielen an den Server gesendet werden.
 - Die NPC-Fruchtplanung verwendet nun FieldManager.generatePlannedFruitForField anstelle der bisherigen Änderung von Missions-Flags.
@@ -112,6 +168,34 @@ Configuration :
 - ENREGISTRER LES VALEURS PAR DÉFAUT DANS CONFIG.XML sauvegarde d’abord la configuration modèle existante, puis écrit l’ensemble complet des règles actives dans config.xml.
 - Les fichiers XML des sauvegardes existantes ne sont pas écrasés par cette action.
 - RESET BLOCKED DRY-RUN ne modifie pas la sauvegarde. CONFIRM RESET effectue la réinitialisation réelle des champs bloqués après vérification.
+
+Journal des modifications 2.0.1.7 :
+- Correction de l’ordre de chargement de l’installation des hooks de permissions afin que la version avec permissions administrateur se charge correctement avant d’installer les écouteurs d’administration de la gestion de ferme.
+
+Journal des modifications 2.0.1.6 :
+- Les clients distants d’un serveur dédié qui élèvent leurs droits en administrateur/master user via la gestion de ferme peuvent désormais déverrouiller l’édition CCO pour la session.
+- Ajout d’une actualisation des permissions afin d’envoyer les changements de statut administrateur au serveur et de rafraîchir l’interface CCO sans utiliser de fichiers XML locaux côté client.
+- La validation côté serveur protège toujours les changements de règles ; les clients distants normaux restent en lecture seule.
+
+Journal des modifications 2.0.1.5 :
+- Ajout de la détection des droits d’édition administrateur/master user sur serveur dédié, inspirée du modèle de permissions d’EasyDevControls.
+- Les administrateurs distants du serveur peuvent désormais modifier les règles CCO via des événements multijoueurs validés par le serveur, tandis que les clients distants normaux restent en lecture seule.
+- Les clients dédiés ne lisent, ne créent et n’écrivent toujours aucun fichier XML CCO local.
+
+Journal des modifications 2.0.1.4 :
+- Correction de l’ouverture de l’interface CCO en supprimant le sélecteur de pages instable qui pouvait provoquer un dépassement de pile TextElement dans certaines versions de FS25.
+- Les clients multijoueurs distants affichent désormais un état d’attente/synchronisation au lieu d’afficher les règles locales par défaut avant la réception de l’instantané serveur.
+
+Journal des modifications 2.0.1.3 :
+- Correction des demandes de synchronisation des clients multijoueurs distants déclenchées avant que la connexion serveur soit prête.
+
+Journal des modifications 2.0.1.2 :
+- Les clients en multijoueur dédié/cloud ignorent désormais les fichiers XML CCO locaux et utilisent un jeu de règles en mémoire synchronisé depuis le serveur.
+- Les clients multijoueurs distants sont en lecture seule par défaut, empêchant la création de XML savegame locaux ou les écritures de règles accidentelles.
+- Le comportement fichier en solo, hôte multijoueur local et côté serveur reste inchangé.
+
+Journal des modifications 2.0.1.1 :
+- Correction de l’actualisation de l’interface client en multijoueur dédié/cloud après les changements de règles côté serveur ; le client à l’origine de la demande reçoit désormais la mise à jour serveur et actualise l’interface CCO ouverte.
 
 Journal des modifications 2.0.1.0 :
 - Ajout de la gestion des événements multijoueur afin que les changements de l’interface et les actions serveur d’application/réinitialisation soient envoyés au serveur dans les parties multijoueur dédiées.

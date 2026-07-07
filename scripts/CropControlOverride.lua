@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.0.1.0",
+    VERSION = "2.0.1.7",
 
     _origFlags = {},
     _rules = {},
@@ -23,6 +23,15 @@ CropControlOverride = {
     _loadFinishedHookApplied = false,
     _startupValidationPrinted = false,
     MOD_DIRECTORY = g_currentModDirectory or "",
+    _mpClientOnly = false,
+    _awaitingServerSettings = false,
+    _serverSettingsSynced = false,
+    _serverConfigPath = nil,
+    _serverSaveId = nil,
+    _serverCanEditRules = false,
+    _connectionToMasterUser = {},
+    _permissionHooksApplied = false,
+    _clientReportedMasterUser = false,
 }
 
 local CCO = CropControlOverride
@@ -137,6 +146,37 @@ local function settingsRoot()
         base = getUserProfileAppPath() .. "modSettings/"
     end
     return ensureSlash(ensureSlash(base) .. SETTINGS_FOLDER)
+end
+
+local function isClientOnlyMultiplayer()
+    return g_client ~= nil and g_server == nil
+end
+
+local function getLocalMissionMasterUserState()
+    if g_currentMission ~= nil and g_currentMission.isMasterUser == true then
+        return true
+    end
+    return false
+end
+
+local function ccoCanEditRules()
+    -- Single-player, local-host multiplayer and the dedicated server process are
+    -- authoritative. Remote dedicated clients are editable only when the player
+    -- has elevated to the game master/admin state or the server has confirmed
+    -- CCO edit rights for this connection.
+    if not isClientOnlyMultiplayer() then
+        return true
+    end
+
+    if CCO._serverCanEditRules == true then
+        return true
+    end
+
+    if getLocalMissionMasterUserState() == true then
+        return true
+    end
+
+    return false
 end
 
 local function templatePath()
@@ -815,7 +855,91 @@ local function ensureTemplateExists()
     return tpl
 end
 
+
+local function serializeRulesForMultiplayer(rules, settings)
+    local lines = {}
+    local weights = normalizeReseedWeights(settings ~= nil and settings.reseedWeights or nil)
+    table.insert(lines, ("@weights|%d|%d|%d"):format(weights.seasonalMission, weights.seasonalLifecycle, weights.leaveCultivated))
+
+    local names = {}
+    for nameU, _ in pairs(rules or {}) do table.insert(names, nameU) end
+    table.sort(names)
+
+    for _, nameU in ipairs(names) do
+        local rule = normalizeRule(nameU, rules[nameU])
+        if rule ~= nil then
+            local npc = "M"
+            if rule.npcAllowed == true then npc = "1" elseif rule.npcAllowed == false then npc = "0" end
+            table.insert(lines, table.concat({
+                tostring(rule.name or nameU),
+                rule.enabled ~= false and "1" or "0",
+                npc,
+                tostring(tonumber(rule.npcMaxHa or 0) or 0),
+                rule.resetNpcFields ~= false and "1" or "0",
+            }, "|"))
+        end
+    end
+
+    return table.concat(lines, "\n")
+end
+
+local function deserializeRulesFromMultiplayer(payload)
+    local rules = {}
+    local settings = { reseedWeights = normalizeReseedWeights(nil) }
+    payload = tostring(payload or "")
+
+    for line in (payload .. "\n"):gmatch("(.-)\n") do
+        if line ~= "" then
+            local parts = {}
+            for part in (line .. "|"):gmatch("(.-)|") do
+                table.insert(parts, part)
+            end
+
+            if parts[1] == "@weights" then
+                settings.reseedWeights = normalizeReseedWeights({
+                    seasonalMission = tonumber(parts[2]),
+                    seasonalLifecycle = tonumber(parts[3]),
+                    leaveCultivated = tonumber(parts[4]),
+                })
+            else
+                local nameU = upper(parts[1] or "")
+                if nameU ~= "" then
+                    local npcAllowed = nil
+                    if parts[3] == "1" then npcAllowed = true elseif parts[3] == "0" then npcAllowed = false end
+                    rules[nameU] = normalizeRule(nameU, {
+                        enabled = parts[2] ~= "0",
+                        npcAllowed = npcAllowed,
+                        npcMaxHa = tonumber(parts[4] or 0) or 0,
+                        resetNpcFields = parts[5] ~= "0",
+                    })
+                end
+            end
+        end
+    end
+
+    if rules == nil or not next(rules) then
+        rules = buildDefaultRules()
+    end
+    rules = mergeMissingDiscoveredFruits(rules)
+    return rules, settings
+end
+
 function CCO:loadRulesForMission(missionInfo)
+    if isClientOnlyMultiplayer() then
+        self._mpClientOnly = true
+        self._awaitingServerSettings = true
+        self._serverSettingsSynced = false
+        self._serverCanEditRules = false
+        self._serverSaveId = getSaveIdFromMissionInfo(missionInfo)
+        self._configPath = "server:pending"
+        self._rules = mergeMissingDiscoveredFruits(buildDefaultRules())
+        self._settings = { reseedWeights = normalizeReseedWeights(nil) }
+        self:requestServerSettings("loadRulesForMission")
+        return self._rules, self._configPath
+    end
+
+    self._mpClientOnly = false
+    self._awaitingServerSettings = false
     local saveId = getSaveIdFromMissionInfo(missionInfo)
     local per = perSavePathForId(saveId)
     local tpl = ensureTemplateExists()
@@ -1640,7 +1764,7 @@ function FSBaseMission:loadMapFinished(...)
 
     local ok, e = pcall(function()
         CCO._rules = mergeMissingDiscoveredFruits(CCO._rules or {})
-        if CCO._configPath ~= nil then
+        if not isClientOnlyMultiplayer() and CCO._configPath ~= nil then
             writeConfig(CCO._configPath, CCO._rules, CCO._settings)
         end
         CCO:applyRules(CCO._rules)
@@ -1667,6 +1791,8 @@ FSBaseMission.delete = Utils.appendedFunction(FSBaseMission.delete, function()
     CCO._rules = {}
     CCO._configPath = nil
     CCO._startupValidationPrinted = false
+    CCO._serverCanEditRules = false
+    CCO._connectionToMasterUser = {}
 end)
 
 
@@ -2008,6 +2134,20 @@ function CCO:buildGuiHelpText()
 end
 
 function CCO:openGui(topic, pageArg)
+    if isClientOnlyMultiplayer() and self._serverSettingsSynced ~= true then
+        local ok, msg = self:requestServerSettings("openGui")
+        local status = tostring(msg or self._guiNotice or "Waiting for server CCO rules.")
+        local body = table.concat({
+            "CROP CONTROL OVERRIDE - SERVER SYNC",
+            "",
+            status,
+            "",
+            "This is a remote multiplayer client. Local CCO config.xml and savegame?.xml files are not used in this session.",
+            "",
+            "Open CCO again once the server snapshot has been received, or use ccoReload to request the server rules again.",
+        }, "\n")
+        return showCcoCustomGui("Crop Control Override - Waiting for Server Rules", body, "status", 1)
+    end
     topic = topic ~= nil and topic ~= "" and string.lower(tostring(topic)) or "rules"
     if topic == "status" then
         return showCcoCustomGui("Crop Control Override - Summary", self:buildGuiStatusText(), "status", 1)
@@ -2048,6 +2188,11 @@ end
 
 
 function CCO:loadTemplateDefaultsIntoCurrentSave()
+    if not self:canEditRules() then
+        local msg = "CCO defaults are read-only for remote multiplayer clients. Log in as server admin/master user to change them."
+        self._guiNotice = msg
+        return false, msg
+    end
     if self:_shouldUseMultiplayerEvent() then
         return self:_sendMultiplayerEvent("loadDefaults")
     end
@@ -2063,6 +2208,358 @@ function CCO:buildFieldSummaryWithRules(rules, filterCrop)
 end
 
 
+
+
+function CCO:_refreshOpenGuiPermissionState(msg)
+    local controller = nil
+    if CropControlOverrideMenu ~= nil then
+        controller = CropControlOverrideMenu.INSTANCE
+    end
+
+    if controller ~= nil and controller.showTopic ~= nil then
+        pcall(function()
+            controller:showTopic(controller.currentTopic or "rules", controller.currentPage or 1)
+        end)
+    end
+
+    if msg ~= nil then
+        self._guiNotice = tostring(msg)
+    end
+end
+
+function CCO:_setServerConnectionMasterUser(connection, isMasterUser)
+    if connection == nil then
+        return false
+    end
+
+    self._connectionToMasterUser = self._connectionToMasterUser or {}
+
+    if isMasterUser == true then
+        local user = true
+        if g_currentMission ~= nil and g_currentMission.userManager ~= nil and g_currentMission.userManager.getUserByConnection ~= nil then
+            local okUser, resolvedUser = pcall(function()
+                return g_currentMission.userManager:getUserByConnection(connection)
+            end)
+            if okUser and resolvedUser ~= nil then
+                user = resolvedUser
+            end
+        end
+        self._connectionToMasterUser[connection] = user
+        return true
+    end
+
+    self._connectionToMasterUser[connection] = nil
+    return true
+end
+
+function CCO:_notifyServerOfLocalMasterUserState(reason)
+    if not isClientOnlyMultiplayer() then
+        return false
+    end
+    if CropControlOverrideChangeSettingsEvent == nil then
+        return false
+    end
+    if g_client == nil or g_client.getServerConnection == nil then
+        return false
+    end
+
+    local connection = g_client:getServerConnection()
+    if connection == nil or connection.sendEvent == nil then
+        return false
+    end
+
+    local isMasterUser = getLocalMissionMasterUserState() == true
+    if self._clientReportedMasterUser == isMasterUser and reason ~= "force" then
+        return false
+    end
+
+    self._clientReportedMasterUser = isMasterUser
+    connection:sendEvent(CropControlOverrideChangeSettingsEvent.new("adminStatus", tostring(isMasterUser), tostring(reason or "statusChanged")))
+    return true
+end
+
+function CCO:_onLocalAdminStateChanged(reason)
+    local wasEditable = self._serverCanEditRules == true
+
+    if getLocalMissionMasterUserState() == true then
+        self._serverCanEditRules = true
+    elseif isClientOnlyMultiplayer() then
+        self._serverCanEditRules = false
+    end
+
+    self:_notifyServerOfLocalMasterUserState(reason or "adminStateChanged")
+
+    if isClientOnlyMultiplayer() then
+        self:requestServerSettings(reason or "adminStateChanged")
+    end
+
+    if self._serverCanEditRules ~= wasEditable then
+        local msg = self._serverCanEditRules == true
+            and "CCO admin access enabled for this session."
+            or "CCO admin access removed; server rules are read-only."
+        self:_refreshOpenGuiPermissionState(msg)
+    else
+        self:_refreshOpenGuiPermissionState(nil)
+    end
+end
+
+function CCO:onNativeAdminAccessGranted()
+    self:_onLocalAdminStateChanged("gameAdminLogin")
+end
+
+function CCO:onPlayerFarmChanged(player)
+    if player == nil or player == g_localPlayer then
+        self:_onLocalAdminStateChanged("playerFarmChanged")
+    end
+end
+
+function CCO:onMasterUserAdded(user)
+    if user ~= nil and user.getConnection ~= nil then
+        local ok, connection = pcall(function() return user:getConnection() end)
+        if ok and connection ~= nil then
+            self:_setServerConnectionMasterUser(connection, true)
+        end
+    end
+
+    if g_currentMission ~= nil and user ~= nil and user.getId ~= nil then
+        local ok, userId = pcall(function() return user:getId() end)
+        if ok and userId == g_currentMission.playerUserId then
+            self:_onLocalAdminStateChanged("masterUserAdded")
+        end
+    end
+end
+
+function CCO:onUserAdded(user)
+    if user == nil or user.getConnection == nil then
+        return
+    end
+
+    -- Local server/host authority is always trusted. Track that connection too,
+    -- matching the EasyDevControls master-user model.
+    if g_currentMission ~= nil and user.getId ~= nil then
+        local okId, userId = pcall(function() return user:getId() end)
+        if okId and userId == g_currentMission.playerUserId then
+            local okCon, connection = pcall(function() return user:getConnection() end)
+            if okCon and connection ~= nil then
+                self:_setServerConnectionMasterUser(connection, true)
+            end
+        end
+    end
+end
+
+function CCO:onUserRemoved(user)
+    if user ~= nil and user.getConnection ~= nil then
+        local ok, connection = pcall(function() return user:getConnection() end)
+        if ok and connection ~= nil then
+            self:_setServerConnectionMasterUser(connection, false)
+        end
+    end
+end
+
+function CCO:installPermissionHooks()
+    if self._permissionHooksApplied == true or g_messageCenter == nil or MessageType == nil then
+        return
+    end
+
+    self._permissionHooksApplied = true
+    self._connectionToMasterUser = self._connectionToMasterUser or {}
+
+    if MessageType.MASTERUSER_ADDED ~= nil then
+        g_messageCenter:subscribe(MessageType.MASTERUSER_ADDED, self.onMasterUserAdded, self)
+    end
+    if MessageType.USER_ADDED ~= nil then
+        g_messageCenter:subscribe(MessageType.USER_ADDED, self.onUserAdded, self)
+    end
+    if MessageType.USER_REMOVED ~= nil then
+        g_messageCenter:subscribe(MessageType.USER_REMOVED, self.onUserRemoved, self)
+    end
+    if MessageType.PLAYER_FARM_CHANGED ~= nil then
+        g_messageCenter:subscribe(MessageType.PLAYER_FARM_CHANGED, self.onPlayerFarmChanged, self)
+    end
+    if PlayerPermissionsEvent ~= nil then
+        g_messageCenter:subscribe(PlayerPermissionsEvent, self.onNativeAdminAccessGranted, self)
+    end
+    if GetAdminAnswerEvent ~= nil then
+        g_messageCenter:subscribe(GetAdminAnswerEvent, self.onNativeAdminAccessGranted, self)
+    end
+end
+
+function CCO:getIsAdminConnection(connection)
+    -- Server/host/local calls have no remote connection and are authoritative.
+    if connection == nil then
+        return true
+    end
+
+    if self._connectionToMasterUser ~= nil and self._connectionToMasterUser[connection] ~= nil then
+        return true
+    end
+
+    if connection ~= nil then
+        local connectionChecks = { "getIsMasterUser", "getIsAdmin", "getIsServerAdmin" }
+        for _, fn in ipairs(connectionChecks) do
+            if connection[fn] ~= nil then
+                local okCheck, value = pcall(function() return connection[fn](connection) end)
+                if okCheck and value == true then
+                    self:_setServerConnectionMasterUser(connection, true)
+                    return true
+                end
+            end
+        end
+        if connection.isMasterUser == true or connection.isAdmin == true or connection.isServerAdmin == true then
+            self:_setServerConnectionMasterUser(connection, true)
+            return true
+        end
+    end
+
+    -- Defensive fallback: if FS25 exposes the remote user and marks it directly
+    -- as master/admin, honour that without requiring CCO to own an admin login.
+    if g_currentMission ~= nil and g_currentMission.userManager ~= nil and g_currentMission.userManager.getUserByConnection ~= nil then
+        local ok, user = pcall(function()
+            return g_currentMission.userManager:getUserByConnection(connection)
+        end)
+        if ok and user ~= nil then
+            local checks = { "getIsMasterUser", "getIsAdmin", "getIsServerAdmin" }
+            for _, fn in ipairs(checks) do
+                if user[fn] ~= nil then
+                    local okCheck, value = pcall(function() return user[fn](user) end)
+                    if okCheck and value == true then
+                        self:_setServerConnectionMasterUser(connection, true)
+                        return true
+                    end
+                end
+            end
+            if user.isMasterUser == true or user.isAdmin == true or user.isServerAdmin == true then
+                self:_setServerConnectionMasterUser(connection, true)
+                return true
+            end
+            if user.getId ~= nil then
+                local okId, userId = pcall(function() return user:getId() end)
+                if okId and userId ~= nil then
+                    local missionChecks = { "getIsUserMasterUser", "getIsUserAdmin", "getIsMasterUser" }
+                    for _, fn in ipairs(missionChecks) do
+                        if g_currentMission[fn] ~= nil then
+                            local okMission, value = pcall(function() return g_currentMission[fn](g_currentMission, userId) end)
+                            if okMission and value == true then
+                                self:_setServerConnectionMasterUser(connection, true)
+                                return true
+                            end
+                        end
+                    end
+                    local managerChecks = { "getIsUserMasterUser", "getIsUserAdmin", "getIsMasterUser" }
+                    for _, fn in ipairs(managerChecks) do
+                        if g_currentMission.userManager[fn] ~= nil then
+                            local okManager, value = pcall(function() return g_currentMission.userManager[fn](g_currentMission.userManager, userId) end)
+                            if okManager and value == true then
+                                self:_setServerConnectionMasterUser(connection, true)
+                                return true
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+-- Install permission hooks after the hook functions have been defined.
+-- Calling this earlier during Lua load can fail because method declarations below
+-- the call have not yet been assigned to the CCO table.
+CCO:installPermissionHooks()
+
+function CCO:isClientOnlyMultiplayer()
+    return isClientOnlyMultiplayer()
+end
+
+function CCO:canEditRules()
+    return ccoCanEditRules()
+end
+
+function CCO:requestServerSettings(reason)
+    if not isClientOnlyMultiplayer() then
+        return false, "CCO server sync is only needed by remote multiplayer clients."
+    end
+    if CropControlOverrideChangeSettingsEvent == nil then
+        return false, "CCO multiplayer event is not available."
+    end
+
+    self._awaitingServerSettings = true
+    self._pendingServerSettingsReason = tostring(reason or "manual")
+
+    if g_client == nil or g_client.getServerConnection == nil then
+        self._guiNotice = "Waiting for multiplayer server connection before syncing CCO rules."
+        return false, self._guiNotice
+    end
+
+    local connection = g_client:getServerConnection()
+    if connection == nil or connection.sendEvent == nil then
+        self._guiNotice = "Waiting for multiplayer server connection before syncing CCO rules."
+        return false, self._guiNotice
+    end
+
+    self:_notifyServerOfLocalMasterUserState("requestSettings")
+    local event = CropControlOverrideChangeSettingsEvent.new("requestSettings", tostring(reason or self._pendingServerSettingsReason or "manual"), tostring(getLocalMissionMasterUserState() == true))
+    connection:sendEvent(event)
+    self._pendingServerSettingsReason = nil
+    self._guiNotice = "Requested CCO rules from server."
+    return true, self._guiNotice
+end
+
+function CCO:applyServerSettingsPayload(payload, configPath, saveId, canEdit)
+    local rules, settings = deserializeRulesFromMultiplayer(payload)
+    self._rules = rules
+    self._settings = settings or { reseedWeights = normalizeReseedWeights(nil) }
+    self._configPath = "server:" .. tostring(saveId or "active")
+    self._serverConfigPath = tostring(configPath or "server")
+    self._serverSaveId = tostring(saveId or "")
+    if canEdit ~= nil and tostring(canEdit) ~= "" then
+        self._serverCanEditRules = boolFromStringOrBool(canEdit, false) == true
+    end
+    self._awaitingServerSettings = false
+    self._serverSettingsSynced = true
+    self._mpClientOnly = true
+    self:applyRules(self._rules)
+    local msg = self._serverCanEditRules == true
+        and "Server CCO rules synced. Admin editing is enabled for this session. Local CCO XML files were not read or written."
+        or "Server CCO rules synced. Local CCO XML files were not read or written."
+    self._guiNotice = msg
+    self:refreshOpenGuiAfterMultiplayerSync("syncSettings", msg)
+    return true, msg
+end
+
+function CCO:sendSettingsSnapshotToClient(connection, reason)
+    if self._rules == nil or not next(self._rules) then
+        if not isClientOnlyMultiplayer() then
+            pcall(function() self:loadRulesForMission(g_currentMission and g_currentMission.missionInfo) end)
+        end
+    end
+
+    if CropControlOverrideChangeSettingsEvent == nil then
+        return false, "CCO multiplayer event is not available."
+    end
+
+    local saveId = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo) or tostring(self._serverSaveId or "active")
+    local payload = serializeRulesForMultiplayer(self._rules or buildDefaultRules(), self._settings)
+    local canEdit = ""
+    if connection ~= nil then
+        canEdit = tostring(self:getIsAdminConnection(connection) == true)
+    end
+    local event = CropControlOverrideChangeSettingsEvent.new("syncSettings", payload, tostring(self._configPath or "server"), tostring(saveId or "active"), tostring(reason or "server"), canEdit)
+
+    if connection ~= nil and connection.sendEvent ~= nil then
+        connection:sendEvent(event)
+        return true, "Sent CCO server rules to client."
+    end
+
+    if g_server ~= nil then
+        g_server:broadcastEvent(event, false)
+        return true, "Broadcast CCO server rules to clients."
+    end
+
+    return false, "No connection/server available for CCO settings sync."
+end
+
 function CCO:_shouldUseMultiplayerEvent()
     if self._handlingMpEvent == true then
         return false
@@ -2074,26 +2571,72 @@ function CCO:_shouldUseMultiplayerEvent()
 end
 
 function CCO:_sendMultiplayerEvent(operation, a, b, c, d, e, f, g)
+    if isClientOnlyMultiplayer() and operation ~= "requestSettings" and not self:canEditRules() then
+        local msg = "CCO rules are read-only for remote multiplayer clients. Log in as server admin/master user to change them."
+        self._guiNotice = msg
+        return false, msg
+    end
+
     if CropControlOverrideChangeSettingsEvent == nil then
         return false, "CCO multiplayer event is not available."
+    end
+
+    if isClientOnlyMultiplayer() and operation ~= "requestSettings" and operation ~= "syncSettings" then
+        self:_notifyServerOfLocalMasterUserState("beforeEdit")
     end
 
     local event = CropControlOverrideChangeSettingsEvent.new(operation, a, b, c, d, e, f, g)
 
     if g_client ~= nil and g_server == nil and g_client.getServerConnection ~= nil then
-        g_client:getServerConnection():sendEvent(event)
-        local msg = "Sent CCO " .. tostring(operation) .. " request to the server."
+        local connection = g_client:getServerConnection()
+        if connection ~= nil and connection.sendEvent ~= nil then
+            connection:sendEvent(event)
+            local msg = "Sent CCO " .. tostring(operation) .. " request to the server."
+            self._guiNotice = msg
+            return true, msg
+        end
+        local msg = "Waiting for multiplayer server connection before sending CCO " .. tostring(operation) .. " request."
         self._guiNotice = msg
-        return true, msg
+        return false, msg
     end
 
     if g_server ~= nil then
         local ok, msg, extra = self:handleMultiplayerEvent(operation, {a, b, c, d, e, f, g}, nil)
-        g_server:broadcastEvent(event, false)
+        if operation ~= "requestSettings" and operation ~= "syncSettings" and ok == true then
+            self:sendSettingsSnapshotToClient(nil, operation)
+        end
         return ok, msg, extra
     end
 
     return false, "No multiplayer connection is available."
+end
+
+function CCO:refreshOpenGuiAfterMultiplayerSync(operation, msg)
+    self._guiNotice = tostring(msg or self._guiNotice or "CCO settings synced from server.")
+
+    local controller = nil
+    if CropControlOverrideMenu ~= nil then
+        controller = CropControlOverrideMenu.INSTANCE
+    end
+
+    if controller ~= nil and controller.showTopic ~= nil then
+        local topic = controller.currentTopic or "rules"
+        local page = controller.currentPage or 1
+        pcall(function()
+            controller:showTopic(topic, page)
+        end)
+
+        if controller.selectedDirtyText ~= nil and controller.selectedDirtyText.setText ~= nil then
+            pcall(function()
+                controller.selectedDirtyText:setText("Settings synced from server.")
+            end)
+        end
+        if controller.selectedInfoText ~= nil and controller.selectedInfoText.setText ~= nil then
+            pcall(function()
+                controller.selectedInfoText:setText(tostring(self._guiNotice or "Server settings applied."))
+            end)
+        end
+    end
 end
 
 function CCO:handleMultiplayerEvent(operation, args, connection)
@@ -2101,7 +2644,27 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
     self._handlingMpEvent = true
 
     local ok, r1, r2, r3 = pcall(function()
-        if operation == "applyRule" then
+        if operation == "syncSettings" then
+            return self:applyServerSettingsPayload(args[1], args[2], args[3], args[5])
+        elseif operation == "adminStatus" then
+            if g_server ~= nil and connection ~= nil then
+                self:_setServerConnectionMasterUser(connection, boolFromStringOrBool(args[1], false) == true)
+                return self:sendSettingsSnapshotToClient(connection, args[2] or "adminStatus")
+            end
+            return true, "CCO admin status ignored outside server context."
+        elseif operation == "requestSettings" then
+            if g_server ~= nil and connection ~= nil and boolFromStringOrBool(args[2], false) == true then
+                self:_setServerConnectionMasterUser(connection, true)
+            end
+            return self:sendSettingsSnapshotToClient(connection, args[1])
+        elseif g_server ~= nil and connection ~= nil and not self:getIsAdminConnection(connection) then
+            local msg = "CCO edit rejected: this player is not logged in as a server admin/master user."
+            warn(msg)
+            self:sendSettingsSnapshotToClient(connection, "editRejected")
+            return false, msg
+        elseif isClientOnlyMultiplayer() and not self:canEditRules() then
+            return false, "CCO rules are read-only for remote multiplayer clients. Log in as server admin/master user to change them."
+        elseif operation == "applyRule" then
             local staged = {
                 crop = args[1],
                 enabled = boolFromStringOrBool(args[2], true) == true,
@@ -2144,10 +2707,20 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
         return false, msg
     end
 
+    if r1 == true and g_client ~= nil and self.refreshOpenGuiAfterMultiplayerSync ~= nil then
+        self:refreshOpenGuiAfterMultiplayerSync(operation, r2)
+    end
+
     return r1, r2, r3
 end
 
 function CCO:applyGuiStagedRule(staged, forceApply)
+    if not self:canEditRules() then
+        local msg = "CCO rules are read-only for remote multiplayer clients. Log in as server admin/master user to change them."
+        self._guiNotice = msg
+        return false, msg
+    end
+
     if self:_shouldUseMultiplayerEvent() then
         local npc = staged ~= nil and staged.npc or "mapDefault"
         return self:_sendMultiplayerEvent(
@@ -2294,6 +2867,11 @@ end
 
 
 function CCO:saveCurrentRulesToTemplateConfig()
+    if not self:canEditRules() then
+        local msg = "CCO defaults are read-only for remote multiplayer clients. Log in as server admin/master user to change them."
+        self._guiNotice = msg
+        return false, msg
+    end
     if self:_shouldUseMultiplayerEvent() then
         return self:_sendMultiplayerEvent("saveDefaults")
     end
@@ -2387,6 +2965,12 @@ end
 
 -- Console commands ---------------------------------------------------------
 function CCO:consoleReload()
+    if isClientOnlyMultiplayer() then
+        local ok, msg = self:requestServerSettings("consoleReload")
+        print("CCO: " .. tostring(msg or (ok and "requested server settings" or "server settings request failed")))
+        return
+    end
+
     local sid = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo)
     local per = sid ~= nil and perSavePathForId(sid) or nil
     local tpl = templatePath()
@@ -2425,6 +3009,15 @@ end
 addConsoleCommand("ccoReload", "Reload CropControlOverride config and reapply", "consoleReload", CCO)
 
 function CCO:consoleWhichConfig()
+    if isClientOnlyMultiplayer() then
+        print("CCO: remote multiplayer client mode")
+        print("CCO: local XML files are ignored for this session")
+        print("CCO: server save : " .. tostring(self._serverSaveId or "pending"))
+        print("CCO: server path : " .. tostring(self._serverConfigPath or "pending"))
+        print("CCO: USING       : " .. tostring(self._configPath or "server:pending"))
+        return
+    end
+
     local sid = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo)
     local per = sid ~= nil and perSavePathForId(sid) or nil
     local tpl = templatePath()
@@ -2490,6 +3083,11 @@ end
 addConsoleCommand("ccoListUndiscovered", "List configured crops that are not loaded on this map/save", "consoleListUndiscovered", CCO)
 
 function CCO:consoleNormalizeConfig(modeArg)
+    if isClientOnlyMultiplayer() then
+        print("CCO: ccoNormalizeConfig is disabled for remote multiplayer clients; local XML files are ignored in this session.")
+        return
+    end
+
     local path = self._configPath or templatePath()
     local dryRun = modeArg ~= nil and string.lower(tostring(modeArg)) == "dryrun"
     local meta = inspectConfigNormalization(path)
@@ -2561,6 +3159,11 @@ function CCO:_consoleSetCropLocal(name, enabledArg, npcAllowedArg, npcMaxHaArg)
 end
 
 function CCO:consoleSetCrop(name, enabledArg, npcAllowedArg, npcMaxHaArg)
+    if not self:canEditRules() then
+        print("CCO: rules are read-only for remote multiplayer clients. Log in as server admin/master user to change them.")
+        self:requestServerSettings("consoleSetCropDenied")
+        return
+    end
     if self:_shouldUseMultiplayerEvent() then
         local ok, msg = self:_sendMultiplayerEvent("consoleSetCrop", tostring(name or ""), tostring(enabledArg or ""), tostring(npcAllowedArg or ""), tostring(npcMaxHaArg or 0))
         if msg ~= nil then print("CCO: " .. tostring(msg)) end
@@ -3250,6 +3853,11 @@ end
 
 
 function CCO:resetBlockedFieldsFromGui(scope, resetMode)
+    if not self:canEditRules() then
+        local msg = "CCO reset is read-only for remote multiplayer clients. Log in as server admin/master user to change fields."
+        self._guiNotice = msg
+        return msg, 0, 0
+    end
     if self:_shouldUseMultiplayerEvent() then
         local s = self:normaliseGuiResetScope(scope)
         local scopeArg = "all:"
@@ -3265,12 +3873,20 @@ end
 
 function CCO:consoleResetNpcFields(cropNameArg, modeArg)
     local cropName, dryRun = parseResetArgs(cropNameArg, modeArg)
+    if isClientOnlyMultiplayer() and dryRun ~= true then
+        print("CCO: reset is read-only for remote multiplayer clients. Run dryrun for viewing only, or use the server/host.")
+        return
+    end
     self:resetNpcFields(cropName, dryRun)
 end
 addConsoleCommand("ccoResetNpcFields", "Reset offending NPC fields to cultivated state. Usage: ccoResetNpcFields [CROP|all] [dryrun]", "consoleResetNpcFields", CCO)
 
 function CCO:consoleResetBlocked(modeArg)
     local _, dryRun = parseResetArgs(modeArg, nil)
+    if isClientOnlyMultiplayer() and dryRun ~= true then
+        print("CCO: reset is read-only for remote multiplayer clients. Run ccoResetBlocked dryrun for viewing only, or use the server/host.")
+        return
+    end
     self:resetNpcFields(nil, dryRun)
 end
 addConsoleCommand("ccoResetBlocked", "Reset all currently blocked NPC fields. Usage: ccoResetBlocked [dryrun]", "consoleResetBlocked", CCO)

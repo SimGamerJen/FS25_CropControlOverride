@@ -35,7 +35,7 @@
             </Button>
         </BoxLayout>
         <ThreePartBitmap profile="fs25_lineSeparatorTopHighlighted" position="0px -57px"/>
-        <MultiTextOption profile="fs25_subCategorySelectorTabbed" id="subCategoryPaging" position="0px -10px" onClick="updateSubCategoryPages"/>
+        <!-- subCategoryPaging removed in 2.0.1.4: FS25 TextElement stack overflow on some builds. Tab buttons remain active. -->
 
         <GuiElement profile="fs25_subCategorySelectorTabbedContainer" id="ccoMainPage">
             <Bitmap position="-20px 150px" size="1525px 615px" imageColor="0.015 0.017 0.015 0.28"/>
