@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<modDesc descVersion="109">
+<modDesc descVersion="110">
     <author>SimGamerJen, Hyper138</author>
     <version>2.0.1.7</version>
     <title>
         <en>Crop Control Override</en>
-        <de>Crop Control Override</de>
-        <fr>Crop Control Override</fr>
     </title>
     <description>
         <en><![CDATA[
