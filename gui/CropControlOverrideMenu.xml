@@ -8,29 +8,29 @@
             <Bitmap profile="fs25_menuHeaderIconBg">
                 <Bitmap profile="fs25_menuHeaderIcon"/>
             </Bitmap>
-            <Text profile="fs25_menuHeaderTitle" id="titleElement" text="CROP CONTROL OVERRIDE"/>
+            <Text profile="fs25_menuHeaderTitle" id="titleElement" text="$l10n_cco_title_upper"/>
         </GuiElement>
 
         <BoxLayout profile="fs25_subCategorySelectorTabbedBox" id="subCategoryBox">
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[1]" text="ALL RULES" onClick="onClickRules">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[1]" text="$l10n_cco_tab_all_rules" onClick="onClickRules">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[2]" text="DISABLED" onClick="onClickDisabled">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[2]" text="$l10n_cco_tab_disabled" onClick="onClickDisabled">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[3]" text="NPC DISABLED" onClick="onClickBlockedRules">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[3]" text="$l10n_cco_tab_npc_disabled" onClick="onClickBlockedRules">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[4]" text="SIZE LIMITED" onClick="onClickLimited">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[4]" text="$l10n_cco_tab_size_limited" onClick="onClickLimited">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[5]" text="VALIDATION" onClick="onClickValidate">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[5]" text="$l10n_cco_tab_validation" onClick="onClickValidate">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[6]" text="SUMMARY" onClick="onClickStatus">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[6]" text="$l10n_cco_tab_summary" onClick="onClickStatus">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[7]" text="HELP" onClick="onClickHelp">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[7]" text="$l10n_cco_tab_help" onClick="onClickHelp">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
         </BoxLayout>
@@ -39,23 +39,23 @@
 
         <GuiElement profile="fs25_subCategorySelectorTabbedContainer" id="ccoMainPage">
             <Bitmap position="-20px 150px" size="1525px 615px" imageColor="0.015 0.017 0.015 0.28"/>
-            <Text text="Crop policy editor | Apply writes per-save XML | Load Defaults imports config.xml" position="0px 12px" size="1480px 25px" textSize="15px" textColor="0.55 0.63 0.50 1" textVerticalAlignment="middle" textAlignment="left"/>
-            <Button profile="ccoValidationActionButton" id="resetScopeButton" position="1180px -8px" size="320px 34px" text="RESET SCOPE: ALL" onClick="onClickResetScope" visible="false"/>
-            <Button profile="ccoValidationActionButton" id="resetModeButton" position="1180px -50px" size="320px 34px" text="RESET MODE: CULTIVATED" onClick="onClickResetMode" visible="false"/>
+            <Text text="$l10n_cco_gui_subtitle" position="0px 12px" size="1480px 25px" textSize="15px" textColor="0.55 0.63 0.50 1" textVerticalAlignment="middle" textAlignment="left"/>
+            <Button profile="ccoValidationActionButton" id="resetScopeButton" position="1180px -8px" size="320px 34px" text="$l10n_cco_reset_scope_all" onClick="onClickResetScope" visible="false"/>
+            <Button profile="ccoValidationActionButton" id="resetModeButton" position="1180px -50px" size="320px 34px" text="$l10n_cco_reset_mode_cultivated_button" onClick="onClickResetMode" visible="false"/>
 
-            <Button profile="ccoValidationActionButton" id="resetBlockedDryRunButton" position="1180px -92px" size="320px 34px" text="RESET BLOCKED DRY-RUN" onClick="onClickResetBlockedDryRun" visible="false"/>
-            <Button profile="ccoValidationDangerButton" id="confirmBlockedResetButton" position="1180px -134px" size="320px 34px" text="CONFIRM RESET" onClick="onClickConfirmBlockedReset" visible="false"/>
+            <Button profile="ccoValidationActionButton" id="resetBlockedDryRunButton" position="1180px -92px" size="320px 34px" text="$l10n_cco_button_reset_blocked_dryrun" onClick="onClickResetBlockedDryRun" visible="false"/>
+            <Button profile="ccoValidationDangerButton" id="confirmBlockedResetButton" position="1180px -134px" size="320px 34px" text="$l10n_cco_button_confirm_reset" onClick="onClickConfirmBlockedReset" visible="false"/>
 
             <Text id="bodyTextElement" text="" position="40px 150px" size="1480px 585px" textSize="16px" textColor="0.88 0.90 0.86 1" textVerticalAlignment="top" textAlignment="left" textMaxNumLines="36"/>
 
             <GuiElement id="ruleTableContainer" visible="false" position="0px 260px" size="1520px 520px">
                 <GuiElement id="ruleTableListArea" position="0px 0px" size="1030px 520px">
                     <GuiElement profile="fs25_statisticsHeaderBox" position="0px -18px" size="1015px 38px">
-                        <Text profile="ccoColumnHeader" position="20px -3px"   size="170px 34px" text="Crop Type"/>
-                        <Text profile="ccoColumnHeader" position="205px -3px"  size="140px 34px" text="Player"/>
-                        <Text profile="ccoColumnHeader" position="355px -3px"  size="140px 34px" text="NPC"/>
-                        <Text profile="ccoColumnHeader" position="505px -3px"  size="190px 34px" text="Max Field"/>
-                        <Text profile="ccoColumnHeader" position="720px -3px"  size="280px 34px" text="Status"/>
+                        <Text profile="ccoColumnHeader" position="20px -3px"   size="170px 34px" text="$l10n_cco_column_crop_type"/>
+                        <Text profile="ccoColumnHeader" position="205px -3px"  size="140px 34px" text="$l10n_cco_column_player"/>
+                        <Text profile="ccoColumnHeader" position="355px -3px"  size="140px 34px" text="$l10n_cco_column_npc"/>
+                        <Text profile="ccoColumnHeader" position="505px -3px"  size="190px 34px" text="$l10n_cco_column_max_field"/>
+                        <Text profile="ccoColumnHeader" position="720px -3px"  size="280px 34px" text="$l10n_cco_column_status"/>
                     </GuiElement>
 
                     <SmoothList id="ruleList" profile="ccoRulesList" position="0px -70px" size="1015px 505px" listItemSpacing="-1px">
@@ -73,56 +73,56 @@
                         <Slider profile="fs25_listSlider" dataElementId="ruleList"/>
                     </ThreePartBitmap>
 
-                    <Button profile="ccoEditButtonWide" id="notLoadedToggleButton" position="20px -590px" size="220px 30px" text="NOT LOADED: HIDDEN" onClick="onClickToggleNotLoaded" visible="false"/>
+                    <Button profile="ccoEditButtonWide" id="notLoadedToggleButton" position="20px -590px" size="220px 30px" text="$l10n_cco_not_loaded_hidden" onClick="onClickToggleNotLoaded" visible="false"/>
                 </GuiElement>
 
                 <GuiElement id="ruleDetailsPanel" position="1080px -50px" size="420px 565px">
                     <Bitmap position="0px 0px" size="420px 565px" imageColor="0.012 0.014 0.012 0.52"/>
-                    <Text profile="ccoDetailsHeader" position="20px -18px" size="380px 34px" text="SELECTED CROP"/>
-                    <Text profile="ccoDetailsCropName" id="selectedCropText" position="20px -58px" size="380px 40px" text="No crop selected"/>
+                    <Text profile="ccoDetailsHeader" position="20px -18px" size="380px 34px" text="$l10n_cco_panel_selected_crop"/>
+                    <Text profile="ccoDetailsCropName" id="selectedCropText" position="20px -58px" size="380px 40px" text="$l10n_cco_no_crop_selected_short"/>
                     <ThreePartBitmap profile="fs25_contractsContentSeparator" position="20px -104px" size="380px 2px"/>
 
-                    <Text profile="ccoDetailsHeader" position="20px -124px" size="380px 28px" text="STAGED RULE VALUES"/>
+                    <Text profile="ccoDetailsHeader" position="20px -124px" size="380px 28px" text="$l10n_cco_panel_staged_rule_values"/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -158px" size="170px 28px" text="Player Permitted"/>
+                    <Text profile="ccoDetailsLabel" position="20px -158px" size="170px 28px" text="$l10n_cco_label_player_permitted"/>
                     <MultiTextOption profile="ccoSelectorOption" id="editEnabledOption" position="210px -158px" texts="-" onClick="onClickEnabledOption" wrap="false"/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -198px" size="170px 28px" text="NPC Permitted"/>
+                    <Text profile="ccoDetailsLabel" position="20px -198px" size="170px 28px" text="$l10n_cco_label_npc_permitted"/>
                     <MultiTextOption profile="ccoSelectorOption" id="editNpcOption" position="210px -198px" texts="-" onClick="onClickNpcOption" wrap="false"/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -238px" size="190px 28px" text="Max Field (ha) 1 ha = 2.47 ac"/>
+                    <Text profile="ccoDetailsLabel" position="20px -238px" size="190px 28px" text="$l10n_cco_label_max_field_ha"/>
                     <Button profile="ccoEditButton" id="editMaxDownButton" position="210px -238px" size="54px 28px" text="-1" onClick="onClickMaxDown"/>
                     <Text profile="ccoDetailsValue" id="editMaxHaText" position="276px -238px" size="70px 28px" text="-"/>
                     <Button profile="ccoEditButton" id="editMaxUpButton" position="350px -238px" size="54px 28px" text="+1" onClick="onClickMaxUp"/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -278px" size="170px 28px" text="Reset NPC Fields"/>
+                    <Text profile="ccoDetailsLabel" position="20px -278px" size="170px 28px" text="$l10n_cco_label_reset_npc_fields"/>
                     <MultiTextOption profile="ccoSelectorOption" id="editResetOption" position="210px -278px" texts="-" onClick="onClickResetOption" wrap="false"/>
 
                     <ThreePartBitmap profile="fs25_contractsContentSeparator" position="20px -320px" size="380px 2px"/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -342px" size="170px 28px" text="Loaded on Map"/>
+                    <Text profile="ccoDetailsLabel" position="20px -342px" size="170px 28px" text="$l10n_cco_label_loaded_on_map"/>
                     <Text profile="ccoDetailsValue" id="selectedLoadedText" position="210px -342px" size="180px 28px" text="-"/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -378px" size="170px 28px" text="Rule Status"/>
+                    <Text profile="ccoDetailsLabel" position="20px -378px" size="170px 28px" text="$l10n_cco_label_rule_status"/>
                     <Text profile="ccoDetailsValue" id="selectedStatusText" position="210px -378px" size="180px 28px" text="-"/>
 
-                    <Text profile="ccoDetailsDirty" id="selectedDirtyText" position="20px -418px" size="380px 40px" text="No staged changes."/>
+                    <Text profile="ccoDetailsDirty" id="selectedDirtyText" position="20px -418px" size="380px 40px" text="$l10n_cco_no_staged_changes"/>
 
-                    <Button profile="ccoApplyActionButton" id="editApplyButton" position="20px -442px" size="180px 34px" text="APPLY" onClick="onClickApplyDryRun"/>
-                    <Button profile="ccoDiscardActionButton" id="editDiscardButton" position="210px -442px" size="180px 34px" text="DISCARD" onClick="onClickDiscardStaged"/>
+                    <Button profile="ccoApplyActionButton" id="editApplyButton" position="20px -442px" size="180px 34px" text="$l10n_cco_button_apply" onClick="onClickApplyDryRun"/>
+                    <Button profile="ccoDiscardActionButton" id="editDiscardButton" position="210px -442px" size="180px 34px" text="$l10n_cco_button_discard" onClick="onClickDiscardStaged"/>
 
-                    <Button profile="ccoSaveDefaultsPanelButton" id="saveDefaultsButton" position="20px -486px" size="370px 38px" text="SAVE DEFAULTS TO CONFIG.XML" onClick="onClickSaveDefaults"/>
+                    <Button profile="ccoSaveDefaultsPanelButton" id="saveDefaultsButton" position="20px -486px" size="370px 38px" text="$l10n_cco_button_save_defaults" onClick="onClickSaveDefaults"/>
 
-                    <Text profile="ccoDetailsInfo" id="selectedInfoText" position="20px -532px" size="380px 42px" text="Use the selector/value controls to stage changes, then APPLY."/>
+                    <Text profile="ccoDetailsInfo" id="selectedInfoText" position="20px -532px" size="380px 42px" text="$l10n_cco_stage_changes_info"/>
                 </GuiElement>
-                <Text id="emptyStateText" profile="ccoEmptyStateText" position="220px -220px" text="No matching crop rules." visible="false"/>
+                <Text id="emptyStateText" profile="ccoEmptyStateText" position="220px -220px" text="$l10n_cco_empty_matching_rules" visible="false"/>
             </GuiElement>
         </GuiElement>
 
         <BoxLayout profile="fs25_dialogButtonBox">
-            <Button profile="buttonMenuPrev" text="PREV TAB" onClick="onPagePrevious" id="prevTabButton"/>
-            <Button profile="buttonMenuNext" text="NEXT TAB" onClick="onPageNext" id="nextTabButton"/>
-            <Button profile="buttonExtra1" text="LOAD DEFAULTS" onClick="onClickReload" id="reloadButton"/>
+            <Button profile="buttonMenuPrev" text="$l10n_cco_button_prev_tab" onClick="onPagePrevious" id="prevTabButton"/>
+            <Button profile="buttonMenuNext" text="$l10n_cco_button_next_tab" onClick="onPageNext" id="nextTabButton"/>
+            <Button profile="buttonExtra1" text="$l10n_cco_button_load_defaults" onClick="onClickReload" id="reloadButton"/>
             <Button profile="buttonBack" text="$l10n_button_back" onClick="onClickBack" id="backButton"/>
         </BoxLayout>
     </GuiElement>

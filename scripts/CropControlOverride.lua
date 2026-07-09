@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.0.1.7",
+    VERSION = "2.0.1.9",
 
     _origFlags = {},
     _rules = {},
@@ -95,6 +95,25 @@ local function upper(s)
     return s and string.upper(tostring(s)) or s
 end
 
+local function ccoL10n(key, fallback, ...)
+    local text = nil
+    if g_i18n ~= nil and g_i18n.getText ~= nil then
+        local ok, result = pcall(function() return g_i18n:getText(key) end)
+        if ok and result ~= nil and result ~= "" and result ~= key then
+            text = result
+        end
+    end
+    text = text or fallback or key
+    if select("#", ...) > 0 then
+        local ok, formatted = pcall(string.format, text, ...)
+        if ok then
+            return formatted
+        end
+    end
+    return text
+end
+
+
 
 local HA_TO_ACRES = 2.47105
 
@@ -111,15 +130,16 @@ local function policyText(v)
 end
 
 local function policyTextOnOff(v)
-    if v == nil then return "Map Default" end
-    if v == true then return "ON" end
-    if v == false then return "OFF" end
+    if v == nil then return ccoL10n("cco_value_map_default", "Map Default") end
+    if v == true then return ccoL10n("cco_value_on", "ON") end
+    if v == false then return ccoL10n("cco_value_off", "OFF") end
     return tostring(v)
 end
 
 local function boolTextOnOff(v)
-    return v and "ON" or "OFF"
+    return v and ccoL10n("cco_value_on", "ON") or ccoL10n("cco_value_off", "OFF")
 end
+
 
 local function boolFromStringOrBool(v, default)
     if v == nil then return default end
@@ -1801,7 +1821,7 @@ end)
 -- Read-only GIANTS XML screen backed by the validated CCO policy engine.
 -- Alpha.16 adds a structured crop-policy table while keeping editing disabled.
 local function showCcoCustomGui(title, text, topic, page)
-    title = title or "Crop Control Override"
+    title = title or ccoL10n("cco_title", "Crop Control Override")
     text = text or ""
 
     if CropControlOverrideMenu ~= nil and CropControlOverrideMenu.show ~= nil then
@@ -1827,7 +1847,7 @@ local function showCcoCustomGui(title, text, topic, page)
 end
 
 function CCO:consoleGuiTest()
-    return showCcoCustomGui("Crop Control Override - Dialog Test", "If you can read this, the custom CCO GUI screen is rendering correctly.\n\nThis screen replaces the experimental InfoDialog approach used in alpha.11-alpha.13.")
+    return showCcoCustomGui(ccoL10n("cco_title_dialog_test", "Crop Control Override - Dialog Test"), ccoL10n("cco_dialog_test_body", "If you can read this, the custom CCO GUI screen is rendering correctly.\n\nThis screen replaces the experimental InfoDialog approach used in alpha.11-alpha.13."))
 end
 
 function CCO:buildGuiStatusText()
@@ -1842,75 +1862,75 @@ function CCO:buildGuiStatusText()
     end
 
     local summary = self:buildFieldSummary(nil)
-    local validation = (summary.offending or 0) == 0 and "PASS" or ("FAILED - " .. tostring(summary.offending or 0) .. " offending NPC field(s)")
+    local validation = (summary.offending or 0) == 0 and ccoL10n("cco_validation_pass", "PASS") or ccoL10n("cco_validation_failed_count", "FAILED - %s offending NPC field(s)", tostring(summary.offending or 0))
 
     local lines = {}
 
     if self._guiNotice ~= nil and self._guiNotice ~= "" then
-        table.insert(lines, "NOTICE")
+        table.insert(lines, ccoL10n("cco_heading_notice", "NOTICE"))
         table.insert(lines, tostring(self._guiNotice))
         table.insert(lines, "")
         self._guiNotice = nil
     end
 
-    table.insert(lines, "ACTIVE CONFIG")
-    table.insert(lines, tostring(self._configPath or "not loaded"))
+    table.insert(lines, ccoL10n("cco_heading_active_config", "ACTIVE CONFIG"))
+    table.insert(lines, tostring(self._configPath or ccoL10n("cco_not_loaded_lower", "not loaded")))
     table.insert(lines, "")
 
-    table.insert(lines, "CONFIG HIERARCHY")
-    table.insert(lines, "APPLY / FORCE APPLY writes the selected rule to the active per-save XML.")
-    table.insert(lines, "SAVE DEFAULTS writes the full active rule set to config.xml for future/default use.")
-    table.insert(lines, "Existing per-save XML files are not overwritten by SAVE DEFAULTS.")
+    table.insert(lines, ccoL10n("cco_heading_config_hierarchy", "CONFIG HIERARCHY"))
+    table.insert(lines, ccoL10n("cco_status_config_hierarchy_apply", "APPLY / FORCE APPLY writes the selected rule to the active per-save XML."))
+    table.insert(lines, ccoL10n("cco_status_config_hierarchy_save_defaults", "SAVE DEFAULTS writes the full active rule set to config.xml for future/default use."))
+    table.insert(lines, ccoL10n("cco_status_config_hierarchy_per_save", "Existing per-save XML files are not overwritten by SAVE DEFAULTS."))
     table.insert(lines, "")
 
-    table.insert(lines, "CROP RULES")
-    table.insert(lines, ("Configured rules:       %d"):format(total))
-    table.insert(lines, ("Loaded crop rules:      %d"):format(discovered))
-    table.insert(lines, ("Not loaded on map:      %d"):format(undiscovered))
+    table.insert(lines, ccoL10n("cco_heading_crop_rules", "CROP RULES"))
+    table.insert(lines, ccoL10n("cco_status_configured_rules_count", "Configured rules:       %d", total))
+    table.insert(lines, ccoL10n("cco_status_loaded_rules_count", "Loaded crop rules:      %d", discovered))
+    table.insert(lines, ccoL10n("cco_status_not_loaded_count", "Not loaded on map:      %d", undiscovered))
     table.insert(lines, "")
 
-    table.insert(lines, "POLICY SUMMARY")
-    table.insert(lines, ("Disabled crops:         %d"):format(disabled))
-    table.insert(lines, ("NPC-disabled crops:      %d"):format(npcBlocked))
-    table.insert(lines, ("Size-limited crops:     %d"):format(limited))
+    table.insert(lines, ccoL10n("cco_heading_policy_summary", "POLICY SUMMARY"))
+    table.insert(lines, ccoL10n("cco_status_disabled_crops_count", "Disabled crops:         %d", disabled))
+    table.insert(lines, ccoL10n("cco_status_npc_disabled_count", "NPC-disabled crops:      %d", npcBlocked))
+    table.insert(lines, ccoL10n("cco_status_size_limited_count", "Size-limited crops:     %d", limited))
     table.insert(lines, "")
 
-    table.insert(lines, "SAVE VALIDATION")
-    table.insert(lines, ("Status:                 %s"):format(validation))
-    table.insert(lines, ("Checked fields:         %d"):format(tonumber(summary.total or 0)))
-    table.insert(lines, ("NPC fields:             %d"):format(tonumber(summary.npcTotal or 0)))
-    table.insert(lines, ("Player fields:          %d"):format(tonumber(summary.playerTotal or 0)))
+    table.insert(lines, ccoL10n("cco_heading_save_validation", "SAVE VALIDATION"))
+    table.insert(lines, ccoL10n("cco_status_validation_status", "Status:                 %s", validation))
+    table.insert(lines, ccoL10n("cco_status_checked_fields", "Checked fields:         %d", tonumber(summary.total or 0)))
+    table.insert(lines, ccoL10n("cco_status_npc_fields", "NPC fields:             %d", tonumber(summary.npcTotal or 0)))
+    table.insert(lines, ccoL10n("cco_status_player_fields", "Player fields:          %d", tonumber(summary.playerTotal or 0)))
     table.insert(lines, "")
 
-    table.insert(lines, "ACTIONS")
-    table.insert(lines, "APPLY / FORCE APPLY writes staged crop changes to this save only.")
-    table.insert(lines, "SAVE DEFAULTS exports the current save rules to template config.xml.")
-    table.insert(lines, "LOAD DEFAULTS imports template config.xml into this save and overwrites the active per-save rules.")
+    table.insert(lines, ccoL10n("cco_heading_actions", "ACTIONS"))
+    table.insert(lines, ccoL10n("cco_status_actions_apply", "APPLY / FORCE APPLY writes staged crop changes to this save only."))
+    table.insert(lines, ccoL10n("cco_status_actions_save_defaults", "SAVE DEFAULTS exports the current save rules to template config.xml."))
+    table.insert(lines, ccoL10n("cco_status_actions_load_defaults", "LOAD DEFAULTS imports template config.xml into this save and overwrites the active per-save rules."))
     table.insert(lines, "")
-    table.insert(lines, "VALIDATION CLEANUP")
-    table.insert(lines, "Use RESET SCOPE to choose ALL, CROP, or FIELD.")
-    table.insert(lines, "Use RESET BLOCKED DRY-RUN first, then CONFIRM RESET if the result looks correct. Dry-run also reports a reseed candidate for future reseed mode.")
+    table.insert(lines, ccoL10n("cco_heading_validation_cleanup", "VALIDATION CLEANUP"))
+    table.insert(lines, ccoL10n("cco_status_cleanup_scope", "Use RESET SCOPE to choose ALL, CROP, or FIELD."))
+    table.insert(lines, ccoL10n("cco_status_cleanup_dryrun", "Use RESET BLOCKED DRY-RUN first, then CONFIRM RESET if the result looks correct. Dry-run also reports a reseed candidate for future reseed mode."))
     table.insert(lines, "")
-    table.insert(lines, "NAVIGATION")
-    table.insert(lines, "Use the top tabs, or PREV TAB / NEXT TAB, to move between sections. Use BACK to close.")
+    table.insert(lines, ccoL10n("cco_heading_navigation", "NAVIGATION"))
+    table.insert(lines, ccoL10n("cco_status_navigation_help", "Use the top tabs, or PREV TAB / NEXT TAB, to move between sections. Use BACK to close."))
     return table.concat(lines, "\n")
 end
 
 function CCO:ruleStatusText(nameU, r)
-    if r == nil then return "UNKNOWN" end
-    if getFruitByName(nameU) == nil then return "NOT LOADED" end
-    if r.enabled == false then return "DISABLED" end
-    if r.npcAllowed == false then return "NPC DISABLED" end
-    if tonumber(r.npcMaxHa or 0) > 0 then return "SIZE LIMITED" end
-    return "ALLOWED"
+    if r == nil then return ccoL10n("cco_status_unknown", "UNKNOWN") end
+    if getFruitByName(nameU) == nil then return ccoL10n("cco_status_not_loaded", "NOT LOADED") end
+    if r.enabled == false then return ccoL10n("cco_status_disabled", "DISABLED") end
+    if r.npcAllowed == false then return ccoL10n("cco_status_npc_disabled", "NPC DISABLED") end
+    if tonumber(r.npcMaxHa or 0) > 0 then return ccoL10n("cco_status_size_limited", "SIZE LIMITED") end
+    return ccoL10n("cco_status_allowed", "ALLOWED")
 end
 
 function CCO:ruleModeTitle(mode)
-    if mode == "disabled" then return "Disabled crop rules" end
-    if mode == "limited" then return "Size-limited NPC crop rules" end
-    if mode == "blockedrules" or mode == "blocked-rules" then return "NPC-disabled crop rules" end
-    if mode == "undiscovered" then return "Configured but not loaded on this map" end
-    return "All configured crop rules"
+    if mode == "disabled" then return ccoL10n("cco_mode_title_disabled", "Disabled crop rules") end
+    if mode == "limited" then return ccoL10n("cco_mode_title_limited", "Size-limited NPC crop rules") end
+    if mode == "blockedrules" or mode == "blocked-rules" then return ccoL10n("cco_mode_title_blockedrules", "NPC-disabled crop rules") end
+    if mode == "undiscovered" then return ccoL10n("cco_mode_title_undiscovered", "Configured but not loaded on this map") end
+    return ccoL10n("cco_mode_title_rules", "All configured crop rules")
 end
 
 
@@ -1950,7 +1970,7 @@ function CCO:getGuiRuleRows(mode)
                 npcValue = npcValue,
                 maxHa = tonumber(r.npcMaxHa or 0) or 0,
                 maxHaDisplay = formatHaAcCompact(r.npcMaxHa or 0),
-                loaded = loadedBool and "Yes" or "No",
+                loaded = loadedBool and ccoL10n("cco_value_yes", "Yes") or ccoL10n("cco_value_no", "No"),
                 loadedBool = loadedBool,
                 status = self:ruleStatusText(nameU, r),
             })
@@ -1978,7 +1998,7 @@ function CCO:buildGuiRuleListText(mode, pageArg)
     local lines = {
         ("%s — Page %d/%d"):format(self:ruleModeTitle(mode), page, totalPages),
         "",
-        string.format("%-16s %-7s %-11s %-17s %-10s %-10s", "Crop", "Player", "NPC", "Max Field", "Loaded", "Status"),
+        string.format("%-16s %-7s %-11s %-17s %-10s %-10s", ccoL10n("cco_column_crop", "Crop"), ccoL10n("cco_column_player", "Player"), ccoL10n("cco_column_npc", "NPC"), ccoL10n("cco_column_max_field", "Max Field"), ccoL10n("cco_column_loaded", "Loaded"), ccoL10n("cco_column_status", "Status")),
         string.rep("-", 82),
     }
 
@@ -1993,18 +2013,18 @@ function CCO:buildGuiRuleListText(mode, pageArg)
     end
 
     if count == 0 then
-        table.insert(lines, "No matching crop rules.")
+        table.insert(lines, ccoL10n("cco_empty_matching_rules", "No matching crop rules."))
     elseif page < totalPages then
-        table.insert(lines, ("Page %d/%d. Use ccoGui %s %d for next page."):format(page, totalPages, mode == "rules" and "rules" or mode, page + 1))
+        table.insert(lines, ccoL10n("cco_page_next_hint", "Page %d/%d. Use ccoGui %s %d for next page.", page, totalPages, mode == "rules" and "rules" or mode, page + 1))
     elseif totalPages > 1 then
-        table.insert(lines, ("Page %d/%d. End of list."):format(page, totalPages))
+        table.insert(lines, ccoL10n("cco_page_end_hint", "Page %d/%d. End of list.", page, totalPages))
     end
 
     table.insert(lines, "")
     if count > 0 then
-        table.insert(lines, ("Shown %d-%d of %d matching rule(s)."):format(startIndex, endIndex, count))
+        table.insert(lines, ccoL10n("cco_shown_matching_rules", "Shown %d-%d of %d matching rule(s).", startIndex, endIndex, count))
     else
-        table.insert(lines, "Shown 0 of 0 matching rule(s).")
+        table.insert(lines, ccoL10n("cco_shown_zero_matching_rules", "Shown 0 of 0 matching rule(s)."))
     end
     return table.concat(lines, "\n")
 end
@@ -2013,25 +2033,25 @@ function CCO:buildGuiBlockedText()
     local summary = self:buildFieldSummary(nil)
     if (summary.offending or 0) == 0 then
         return table.concat({
-            "SAVE VALIDATION",
-            "Validation:     PASS",
+            ccoL10n("cco_heading_save_validation", "SAVE VALIDATION"),
+            ccoL10n("cco_validation_line_pass", "Validation:     PASS"),
             "",
-            ("Checked fields: %d"):format(tonumber(summary.total or 0)),
-            ("NPC fields:     %d"):format(tonumber(summary.npcTotal or 0)),
-            ("Player fields:  %d"):format(tonumber(summary.playerTotal or 0)),
-            "Blocked NPC fields: 0",
+            ccoL10n("cco_checked_fields_line", "Checked fields: %d", tonumber(summary.total or 0)),
+            ccoL10n("cco_npc_fields_line", "NPC fields:     %d", tonumber(summary.npcTotal or 0)),
+            ccoL10n("cco_player_fields_line", "Player fields:  %d", tonumber(summary.playerTotal or 0)),
+            ccoL10n("cco_blocked_npc_fields_zero", "Blocked NPC fields: 0"),
             "",
-            "No blocked NPC fields were detected under the current crop policy.",
+            ccoL10n("cco_no_blocked_npc_fields", "No blocked NPC fields were detected under the current crop policy."),
         }, "\n")
     end
 
     local lines = {
-        "SAVE VALIDATION",
-        "Validation:     FAILED",
-        ("Blocked NPC fields: %d"):format(tonumber(summary.offending or 0)),
+        ccoL10n("cco_heading_save_validation", "SAVE VALIDATION"),
+        ccoL10n("cco_validation_line_failed", "Validation:     FAILED"),
+        ccoL10n("cco_blocked_npc_fields_count", "Blocked NPC fields: %d", tonumber(summary.offending or 0)),
         "",
-        "BLOCKED NPC FIELD DETAILS",
-        "Field       Crop             Size ha   Candidate        Reason",
+        ccoL10n("cco_heading_blocked_npc_field_details", "BLOCKED NPC FIELD DETAILS"),
+        ccoL10n("cco_blocked_fields_header", "Field       Crop             Size ha   Candidate        Reason"),
         "--------------------------------------------------------------------------",
     }
 
@@ -2068,7 +2088,7 @@ function CCO:buildGuiBlockedText()
         local maxRows = 12
         for i, row in ipairs(rows) do
             if i > maxRows then
-                table.insert(lines, ("... %d more blocked NPC field(s). Use ccoScanBlocked for the full console list."):format(#rows - maxRows))
+                table.insert(lines, ccoL10n("cco_more_blocked_fields", "... %d more blocked NPC field(s). Use ccoScanBlocked for the full console list.", #rows - maxRows))
                 break
             end
 
@@ -2076,98 +2096,98 @@ function CCO:buildGuiBlockedText()
                 row.fieldId,
                 row.cropName,
                 tonumber(row.sizeHa or 0) or 0,
-                tostring(row.candidateCrop or "NONE"),
+                tostring(row.candidateCrop or ccoL10n("cco_none", "NONE")),
                 row.reason
             ))
         end
     end
 
     table.insert(lines, "")
-    table.insert(lines, "GUI CLEANUP")
-    table.insert(lines, "1. Use RESET SCOPE to choose ALL, a crop, or an individual field.")
-    table.insert(lines, "2. Run RESET BLOCKED DRY-RUN before changing the save state.")
-    table.insert(lines, "3. Use CONFIRM RESET only after the dry-run result looks correct.")
+    table.insert(lines, ccoL10n("cco_heading_gui_cleanup", "GUI CLEANUP"))
+    table.insert(lines, ccoL10n("cco_cleanup_step_1", "1. Use RESET SCOPE to choose ALL, a crop, or an individual field."))
+    table.insert(lines, ccoL10n("cco_cleanup_step_2", "2. Run RESET BLOCKED DRY-RUN before changing the save state."))
+    table.insert(lines, ccoL10n("cco_cleanup_step_3", "3. Use CONFIRM RESET only after the dry-run result looks correct."))
     table.insert(lines, "")
-    table.insert(lines, "Console alternatives remain available: ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked.")
+    table.insert(lines, ccoL10n("cco_cleanup_console_alternatives", "Console alternatives remain available: ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked."))
     return table.concat(lines, "\n")
 end
 
 function CCO:buildGuiHelpText()
     return table.concat({
-        "CROP CONTROL OVERRIDE HELP",
+        ccoL10n("cco_help_title", "CROP CONTROL OVERRIDE HELP"),
         "",
-        "NAVIGATION",
-        "Use the tab headings or PREV TAB / NEXT TAB to switch sections.",
-        "Use BACK or ESC to close the CCO screen.",
+        ccoL10n("cco_heading_navigation", "NAVIGATION"),
+        ccoL10n("cco_help_navigation_tabs", "Use the tab headings or PREV TAB / NEXT TAB to switch sections."),
+        ccoL10n("cco_help_navigation_back", "Use BACK or ESC to close the CCO screen."),
         "",
-        "EDITING",
-        "Use ALL RULES to select a crop and stage changes in the right panel.",
-        "APPLY writes safe changes to the active per-save XML.",
-        "FORCE APPLY deliberately saves a rule that creates blocked NPC fields.",
-        "DISCARD resets staged values for the selected crop.",
+        ccoL10n("cco_heading_editing", "EDITING"),
+        ccoL10n("cco_help_editing_all_rules", "Use ALL RULES to select a crop and stage changes in the right panel."),
+        ccoL10n("cco_help_editing_apply", "APPLY writes safe changes to the active per-save XML."),
+        ccoL10n("cco_help_editing_force_apply", "FORCE APPLY deliberately saves a rule that creates blocked NPC fields."),
+        ccoL10n("cco_help_editing_discard", "DISCARD resets staged values for the selected crop."),
         "",
-        "CONFIG FILES",
-        "config.xml is the template/default rule file.",
-        "saves/savegameX.xml is the active rule file for the current save.",
-        "SAVE DEFAULTS exports the full active save rules to config.xml and creates a backup.",
-        "LOAD DEFAULTS imports config.xml into this save and overwrites the active per-save XML.",
+        ccoL10n("cco_heading_config_files", "CONFIG FILES"),
+        ccoL10n("cco_help_config_template", "config.xml is the template/default rule file."),
+        ccoL10n("cco_help_config_savegame", "saves/savegameX.xml is the active rule file for the current save."),
+        ccoL10n("cco_help_config_save_defaults", "SAVE DEFAULTS exports the full active save rules to config.xml and creates a backup."),
+        ccoL10n("cco_help_config_load_defaults", "LOAD DEFAULTS imports config.xml into this save and overwrites the active per-save XML."),
         "",
-        "TABLE COLUMNS",
-        "Player Permitted: whether the crop is available under the crop policy.",
-        "NPC Permitted: whether NPCs may plant the crop, or whether the map default is used.",
-        "Max Field: maximum actual NPC field size. Values are stored in hectares; acres are shown for reference.",
-        "Loaded: whether the crop exists on the active map/save.",
+        ccoL10n("cco_heading_table_columns", "TABLE COLUMNS"),
+        ccoL10n("cco_help_column_player", "Player Permitted: whether the crop is available under the crop policy."),
+        ccoL10n("cco_help_column_npc", "NPC Permitted: whether NPCs may plant the crop, or whether the map default is used."),
+        ccoL10n("cco_help_column_max_field", "Max Field: maximum actual NPC field size. Values are stored in hectares; acres are shown for reference."),
+        ccoL10n("cco_help_column_loaded", "Loaded: whether the crop exists on the active map/save."),
         "",
-        "POLICY TERMS",
-        "Disabled: the crop is unavailable under the crop policy.",
-        "NPC Disabled: NPCs should not plant this crop. Globally disabled crops also count as NPC-disabled.",
-        "Size Limited: NPCs may plant the crop only below the configured hectare limit.",
-        "Blocked NPC Fields: existing NPC fields that currently violate the active policy.",
-        "Not Loaded: the rule is preserved, but the crop is not present on this map/save.",
+        ccoL10n("cco_heading_policy_terms", "POLICY TERMS"),
+        ccoL10n("cco_help_term_disabled", "Disabled: the crop is unavailable under the crop policy."),
+        ccoL10n("cco_help_term_npc_disabled", "NPC Disabled: NPCs should not plant this crop. Globally disabled crops also count as NPC-disabled."),
+        ccoL10n("cco_help_term_size_limited", "Size Limited: NPCs may plant the crop only below the configured hectare limit."),
+        ccoL10n("cco_help_term_blocked", "Blocked NPC Fields: existing NPC fields that currently violate the active policy."),
+        ccoL10n("cco_help_term_not_loaded", "Not Loaded: the rule is preserved, but the crop is not present on this map/save."),
         "",
-        "VALIDATION CLEANUP",
-        "Use RESET SCOPE to cycle through ALL, CROP, and FIELD cleanup targets.",
-        "Run RESET BLOCKED DRY-RUN first. It does not change the save state.",
-        "Use CONFIRM RESET only after the dry-run result looks correct.",
-        "Console alternatives remain available: ccoScanBlocked and ccoResetBlocked dryrun.",
+        ccoL10n("cco_heading_validation_cleanup", "VALIDATION CLEANUP"),
+        ccoL10n("cco_help_cleanup_scope", "Use RESET SCOPE to cycle through ALL, CROP, and FIELD cleanup targets."),
+        ccoL10n("cco_help_cleanup_dryrun", "Run RESET BLOCKED DRY-RUN first. It does not change the save state."),
+        ccoL10n("cco_cleanup_step_3", "3. Use CONFIRM RESET only after the dry-run result looks correct."),
+        ccoL10n("cco_help_cleanup_console", "Console alternatives remain available: ccoScanBlocked and ccoResetBlocked dryrun."),
     }, "\n")
 end
 
 function CCO:openGui(topic, pageArg)
     if isClientOnlyMultiplayer() and self._serverSettingsSynced ~= true then
         local ok, msg = self:requestServerSettings("openGui")
-        local status = tostring(msg or self._guiNotice or "Waiting for server CCO rules.")
+        local status = tostring(msg or self._guiNotice or ccoL10n("cco_waiting_server_rules", "Waiting for server CCO rules."))
         local body = table.concat({
-            "CROP CONTROL OVERRIDE - SERVER SYNC",
+            ccoL10n("cco_title_server_sync_upper", "CROP CONTROL OVERRIDE - SERVER SYNC"),
             "",
             status,
             "",
-            "This is a remote multiplayer client. Local CCO config.xml and savegame?.xml files are not used in this session.",
+            ccoL10n("cco_server_sync_remote_client", "This is a remote multiplayer client. Local CCO config.xml and savegame?.xml files are not used in this session."),
             "",
-            "Open CCO again once the server snapshot has been received, or use ccoReload to request the server rules again.",
+            ccoL10n("cco_server_sync_open_again", "Open CCO again once the server snapshot has been received, or use ccoReload to request the server rules again."),
         }, "\n")
-        return showCcoCustomGui("Crop Control Override - Waiting for Server Rules", body, "status", 1)
+        return showCcoCustomGui(ccoL10n("cco_title_waiting_server_rules", "Crop Control Override - Waiting for Server Rules"), body, "status", 1)
     end
     topic = topic ~= nil and topic ~= "" and string.lower(tostring(topic)) or "rules"
     if topic == "status" then
-        return showCcoCustomGui("Crop Control Override - Summary", self:buildGuiStatusText(), "status", 1)
+        return showCcoCustomGui(ccoL10n("cco_title_summary", "Crop Control Override - Summary"), self:buildGuiStatusText(), "status", 1)
     elseif topic == "rules" then
-        return showCcoCustomGui("Crop Control Override - Configured Rules", self:buildGuiRuleListText("rules", pageArg), "rules", pageArg or 1)
+        return showCcoCustomGui(ccoL10n("cco_title_configured_rules", "Crop Control Override - Configured Rules"), self:buildGuiRuleListText("rules", pageArg), "rules", pageArg or 1)
     elseif topic == "disabled" then
-        return showCcoCustomGui("Crop Control Override - Disabled Crops", self:buildGuiRuleListText("disabled", pageArg), "disabled", pageArg or 1)
+        return showCcoCustomGui(ccoL10n("cco_title_disabled_crops", "Crop Control Override - Disabled Crops"), self:buildGuiRuleListText("disabled", pageArg), "disabled", pageArg or 1)
     elseif topic == "limited" then
-        return showCcoCustomGui("Crop Control Override - Size-Limited Crops", self:buildGuiRuleListText("limited", pageArg), "limited", pageArg or 1)
+        return showCcoCustomGui(ccoL10n("cco_title_size_limited_crops", "Crop Control Override - Size-Limited Crops"), self:buildGuiRuleListText("limited", pageArg), "limited", pageArg or 1)
     elseif topic == "blockedrules" or topic == "blocked-rules" then
-        return showCcoCustomGui("Crop Control Override - Blocked Rules", self:buildGuiRuleListText("blockedrules", pageArg), "blockedrules", pageArg or 1)
+        return showCcoCustomGui(ccoL10n("cco_title_blocked_rules", "Crop Control Override - Blocked Rules"), self:buildGuiRuleListText("blockedrules", pageArg), "blockedrules", pageArg or 1)
     elseif topic == "blocked" then
-        return showCcoCustomGui("Crop Control Override - Blocked Fields", self:buildGuiBlockedText(), "blocked", 1)
+        return showCcoCustomGui(ccoL10n("cco_title_blocked_fields", "Crop Control Override - Blocked Fields"), self:buildGuiBlockedText(), "blocked", 1)
     elseif topic == "undiscovered" then
-        return showCcoCustomGui("Crop Control Override - Undiscovered Rules", self:buildGuiRuleListText("undiscovered", pageArg), "undiscovered", pageArg or 1)
+        return showCcoCustomGui(ccoL10n("cco_title_undiscovered_rules", "Crop Control Override - Undiscovered Rules"), self:buildGuiRuleListText("undiscovered", pageArg), "undiscovered", pageArg or 1)
     elseif topic == "help" then
-        return showCcoCustomGui("Crop Control Override - GUI Help", self:buildGuiHelpText(), "help", 1)
+        return showCcoCustomGui(ccoL10n("cco_title_gui_help", "Crop Control Override - GUI Help"), self:buildGuiHelpText(), "help", 1)
     end
 
-    return showCcoCustomGui("Crop Control Override - GUI Help", "Unknown topic: " .. tostring(topic) .. "\n\n" .. self:buildGuiHelpText(), "help", 1)
+    return showCcoCustomGui(ccoL10n("cco_title_gui_help", "Crop Control Override - GUI Help"), ccoL10n("cco_unknown_topic", "Unknown topic: %s", tostring(topic)) .. "\n\n" .. self:buildGuiHelpText(), "help", 1)
 end
 
 
@@ -2189,7 +2209,7 @@ end
 
 function CCO:loadTemplateDefaultsIntoCurrentSave()
     if not self:canEditRules() then
-        local msg = "CCO defaults are read-only for remote multiplayer clients. Log in as server admin/master user to change them."
+        local msg = ccoL10n("cco_defaults_readonly_admin", "CCO defaults are read-only for remote multiplayer clients. Log in as server admin/master user to change them.")
         self._guiNotice = msg
         return false, msg
     end
@@ -2488,13 +2508,13 @@ function CCO:requestServerSettings(reason)
     self._pendingServerSettingsReason = tostring(reason or "manual")
 
     if g_client == nil or g_client.getServerConnection == nil then
-        self._guiNotice = "Waiting for multiplayer server connection before syncing CCO rules."
+        self._guiNotice = ccoL10n("cco_waiting_mp_connection_sync", "Waiting for multiplayer server connection before syncing CCO rules.")
         return false, self._guiNotice
     end
 
     local connection = g_client:getServerConnection()
     if connection == nil or connection.sendEvent == nil then
-        self._guiNotice = "Waiting for multiplayer server connection before syncing CCO rules."
+        self._guiNotice = ccoL10n("cco_waiting_mp_connection_sync", "Waiting for multiplayer server connection before syncing CCO rules.")
         return false, self._guiNotice
     end
 
@@ -2502,7 +2522,7 @@ function CCO:requestServerSettings(reason)
     local event = CropControlOverrideChangeSettingsEvent.new("requestSettings", tostring(reason or self._pendingServerSettingsReason or "manual"), tostring(getLocalMissionMasterUserState() == true))
     connection:sendEvent(event)
     self._pendingServerSettingsReason = nil
-    self._guiNotice = "Requested CCO rules from server."
+    self._guiNotice = ccoL10n("cco_requested_rules_from_server", "Requested CCO rules from server.")
     return true, self._guiNotice
 end
 
@@ -2572,7 +2592,7 @@ end
 
 function CCO:_sendMultiplayerEvent(operation, a, b, c, d, e, f, g)
     if isClientOnlyMultiplayer() and operation ~= "requestSettings" and not self:canEditRules() then
-        local msg = "CCO rules are read-only for remote multiplayer clients. Log in as server admin/master user to change them."
+        local msg = ccoL10n("cco_rules_readonly_admin", "CCO rules are read-only for remote multiplayer clients. Log in as server admin/master user to change them.")
         self._guiNotice = msg
         return false, msg
     end
@@ -2591,11 +2611,11 @@ function CCO:_sendMultiplayerEvent(operation, a, b, c, d, e, f, g)
         local connection = g_client:getServerConnection()
         if connection ~= nil and connection.sendEvent ~= nil then
             connection:sendEvent(event)
-            local msg = "Sent CCO " .. tostring(operation) .. " request to the server."
+            local msg = ccoL10n("cco_sent_operation_request", "Sent CCO %s request to the server.", tostring(operation))
             self._guiNotice = msg
             return true, msg
         end
-        local msg = "Waiting for multiplayer server connection before sending CCO " .. tostring(operation) .. " request."
+        local msg = ccoL10n("cco_waiting_mp_connection_send", "Waiting for multiplayer server connection before sending CCO %s request.", tostring(operation))
         self._guiNotice = msg
         return false, msg
     end
@@ -2612,7 +2632,7 @@ function CCO:_sendMultiplayerEvent(operation, a, b, c, d, e, f, g)
 end
 
 function CCO:refreshOpenGuiAfterMultiplayerSync(operation, msg)
-    self._guiNotice = tostring(msg or self._guiNotice or "CCO settings synced from server.")
+    self._guiNotice = tostring(msg or self._guiNotice or ccoL10n("cco_settings_synced_server", "CCO settings synced from server."))
 
     local controller = nil
     if CropControlOverrideMenu ~= nil then
@@ -2658,7 +2678,7 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
             end
             return self:sendSettingsSnapshotToClient(connection, args[1])
         elseif g_server ~= nil and connection ~= nil and not self:getIsAdminConnection(connection) then
-            local msg = "CCO edit rejected: this player is not logged in as a server admin/master user."
+            local msg = ccoL10n("cco_edit_rejected_not_admin", "CCO edit rejected: this player is not logged in as a server admin/master user.")
             warn(msg)
             self:sendSettingsSnapshotToClient(connection, "editRejected")
             return false, msg
@@ -2701,7 +2721,7 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
     self._handlingMpEvent = false
 
     if not ok then
-        local msg = "CCO multiplayer event failed: " .. tostring(r1)
+        local msg = ccoL10n("cco_mp_event_failed", "CCO multiplayer event failed: %s", tostring(r1))
         warn(msg)
         self._guiNotice = msg
         return false, msg
@@ -2716,7 +2736,7 @@ end
 
 function CCO:applyGuiStagedRule(staged, forceApply)
     if not self:canEditRules() then
-        local msg = "CCO rules are read-only for remote multiplayer clients. Log in as server admin/master user to change them."
+        local msg = ccoL10n("cco_rules_readonly_admin", "CCO rules are read-only for remote multiplayer clients. Log in as server admin/master user to change them.")
         self._guiNotice = msg
         return false, msg
     end
@@ -2837,7 +2857,7 @@ function CCO:_saveCurrentRulesToTemplateConfigLocal()
         end
 
         if not writeConfig(backupPath, backupRules, self._settings) then
-            local msg = "Failed to create template backup; config.xml was not changed."
+            local msg = ccoL10n("cco_failed_template_backup", "Failed to create template backup; config.xml was not changed.")
             print("CCO GUI SAVE DEFAULTS: " .. msg)
             self._guiNotice = msg
             return false, msg
@@ -2845,13 +2865,13 @@ function CCO:_saveCurrentRulesToTemplateConfigLocal()
     end
 
     if not writeConfig(tpl, rules, self._settings) then
-        local msg = "Failed to write template config.xml."
+        local msg = ccoL10n("cco_failed_write_template", "Failed to write template config.xml.")
         print("CCO GUI SAVE DEFAULTS: " .. msg)
         self._guiNotice = msg
         return false, msg
     end
 
-    local msg = "Saved current active rules to template config.xml. Existing per-save XML files were not overwritten"
+    local msg = ccoL10n("cco_saved_rules_to_template", "Saved current active rules to template config.xml. Existing per-save XML files were not overwritten")
     if backupRules ~= nil then
         msg = msg .. "; backup=" .. tostring(backupPath)
     else
@@ -2868,7 +2888,7 @@ end
 
 function CCO:saveCurrentRulesToTemplateConfig()
     if not self:canEditRules() then
-        local msg = "CCO defaults are read-only for remote multiplayer clients. Log in as server admin/master user to change them."
+        local msg = ccoL10n("cco_defaults_readonly_admin", "CCO defaults are read-only for remote multiplayer clients. Log in as server admin/master user to change them.")
         self._guiNotice = msg
         return false, msg
     end
@@ -2896,14 +2916,14 @@ function CCO:_loadTemplateDefaultsIntoCurrentSaveLocal()
         self._settings = templateSettings
         self._configPath = tpl
         self:applyRules(templateRules)
-        local msg = "Loaded template config.xml. No savegame context was available, so no per-save XML was written."
+        local msg = ccoL10n("cco_loaded_template_no_save", "Loaded template config.xml. No savegame context was available, so no per-save XML was written.")
         print("CCO GUI LOAD DEFAULTS: " .. msg)
         self._guiNotice = msg
         return true, msg
     end
 
     if not writeConfig(per, templateRules, templateSettings) then
-        local msg = "Failed to write template defaults into active per-save XML."
+        local msg = ccoL10n("cco_failed_write_defaults_per_save", "Failed to write template defaults into active per-save XML.")
         print("CCO GUI LOAD DEFAULTS: " .. msg)
         self._guiNotice = msg
         return false, msg
@@ -2914,7 +2934,7 @@ function CCO:_loadTemplateDefaultsIntoCurrentSaveLocal()
     self._configPath = per
     self:applyRules(templateRules)
 
-    local msg = "Loaded template config.xml into active save config: " .. tostring(per)
+    local msg = ccoL10n("cco_loaded_template_into_save", "Loaded template config.xml into active save config: %s", tostring(per))
     print("CCO GUI LOAD DEFAULTS: " .. msg)
     self._guiNotice = msg
     return true, msg
@@ -3854,7 +3874,7 @@ end
 
 function CCO:resetBlockedFieldsFromGui(scope, resetMode)
     if not self:canEditRules() then
-        local msg = "CCO reset is read-only for remote multiplayer clients. Log in as server admin/master user to change fields."
+        local msg = ccoL10n("cco_reset_readonly_admin", "CCO reset is read-only for remote multiplayer clients. Log in as server admin/master user to change fields.")
         self._guiNotice = msg
         return msg, 0, 0
     end
