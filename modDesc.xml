@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<modDesc descVersion="110">
+<modDesc descVersion="109">
     <author>SimGamerJen, Hyper138</author>
-    <version>2.0.1.9</version>
+    <version>2.0.3.4</version>
     <title>
         <en>Crop Control Override</en>
+        <de>Crop Control Override</de>
+        <fr>Crop Control Override</fr>
     </title>
     <description>
         <en><![CDATA[
@@ -32,14 +34,6 @@ Configuration:
 - GRASS may be used as a lifecycle reseed candidate when seasonal and policy checks allow it.
 - Reseed candidate weighting can be tuned in XML with reseedCandidateWeights using seasonalMission, seasonalLifecycle, and leaveCultivated weights.
 - Weighted reseed can produce CULTIVATED_VARIETY, leaving some reset fields cultivated instead of reseeding them.
-
-Changelog 2.0.1.9:
-- Extended external l10n support across the CCO GUI, including labels, tabs, buttons, status text, help text, validation text, and runtime GUI notices.
-- Added a larger Courseplay-style l10n key set so community translators can add complete GUI translations through l10n/l10n_*.xml files.
-
-Changelog 2.0.1.8:
-- Updated localisation to use Courseplay-style external l10n files loaded through filenamePrefix="l10n/l10n".
-- Removed duplicated inline l10n entries from modDesc.xml so community translations can be added via l10n/l10n_*.xml files.
 
 Changelog 2.0.1.7:
 - Fixed the permission-hook installer load order so the admin-permission build loads cleanly before installing Farm Management admin listeners.
@@ -108,14 +102,6 @@ Konfiguration:
 - Bestehende XML-Dateien einzelner Spielstände werden durch Standard Speichern nicht überschrieben.
 - RESET BLOCKED DRY-RUN ändert den Spielstand nicht. CONFIRM RESET führt das tatsächliche Zurücksetzen blockierter Felder nach der Prüfung aus.
 
-Änderungen 2.0.1.9:
-- Externe l10n-Unterstützung auf die CCO-GUI erweitert, einschließlich Beschriftungen, Reitern, Schaltflächen, Statustexten, Hilfetexten, Validierungstexten und GUI-Meldungen zur Laufzeit.
-- Ein größerer l10n-Schlüsselsatz im Courseplay-Stil wurde hinzugefügt, damit Community-Übersetzer vollständige GUI-Übersetzungen über l10n/l10n_*.xml ergänzen können.
-
-Änderungen 2.0.1.8:
-- Lokalisierung auf Courseplay-ähnliche externe l10n-Dateien umgestellt, geladen über filenamePrefix="l10n/l10n".
-- Doppelte Inline-l10n-Einträge aus modDesc.xml entfernt, damit Community-Übersetzungen über l10n/l10n_*.xml ergänzt werden können.
-
 Änderungen 2.0.1.7:
 - Die Lade-Reihenfolge des Berechtigungs-Hook-Installers korrigiert, damit der Admin-Berechtigungs-Build sauber lädt, bevor Listener für Farmverwaltungs-Administratoren installiert werden.
 
@@ -183,14 +169,6 @@ Configuration :
 - Les fichiers XML des sauvegardes existantes ne sont pas écrasés par cette action.
 - RESET BLOCKED DRY-RUN ne modifie pas la sauvegarde. CONFIRM RESET effectue la réinitialisation réelle des champs bloqués après vérification.
 
-Journal des modifications 2.0.1.9 :
-- Extension de la prise en charge l10n externe à l’ensemble de l’interface CCO, y compris les libellés, onglets, boutons, textes d’état, textes d’aide, textes de validation et messages d’interface générés à l’exécution.
-- Ajout d’un ensemble plus complet de clés l10n de style Courseplay afin que les traducteurs communautaires puissent ajouter des traductions complètes de l’interface via l10n/l10n_*.xml.
-
-Journal des modifications 2.0.1.8 :
-- Mise à jour de la localisation pour utiliser des fichiers l10n externes de style Courseplay, chargés via filenamePrefix="l10n/l10n".
-- Suppression des entrées l10n en double dans modDesc.xml afin que les traductions communautaires puissent être ajoutées via l10n/l10n_*.xml.
-
 Journal des modifications 2.0.1.7 :
 - Correction de l’ordre de chargement de l’installation des hooks de permissions afin que la version avec permissions administrateur se charge correctement avant d’installer les écouteurs d’administration de la gestion de ferme.
 
@@ -238,7 +216,13 @@ https://github.com/SimGamerJen/FS25_CropControlOverride
 ]]></fr>
     </description>
 
-    <l10n filenamePrefix="l10n/l10n" />
+    <l10n filenamePrefix="l10n/l10n">
+        <text name="input_CCO_OPEN_GUI">
+            <en>Open Crop Control Override</en>
+            <de>Crop Control Override Öffnen</de>
+            <fr>Ouvrir Crop Control Override</fr>
+        </text>
+    </l10n>
     <iconFilename>icon_CropControlOverride.dds</iconFilename>
     <inputBinding>
         <actionBinding action="CCO_OPEN_GUI">

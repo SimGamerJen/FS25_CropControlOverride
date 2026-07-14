@@ -7,29 +7,10 @@ CropControlOverrideMenu = {}
 
 local CropControlOverrideMenu_mt = Class(CropControlOverrideMenu, ScreenElement)
 
-local function ccoL10n(key, fallback, ...)
-    local text = nil
-    if g_i18n ~= nil and g_i18n.getText ~= nil then
-        local ok, result = pcall(function() return g_i18n:getText(key) end)
-        if ok and result ~= nil and result ~= "" and result ~= key then
-            text = result
-        end
-    end
-    text = text or fallback or key
-    if select("#", ...) > 0 then
-        local ok, formatted = pcall(string.format, text, ...)
-        if ok then
-            return formatted
-        end
-    end
-    return text
-end
-
-
 function CropControlOverrideMenu.new(target, customMt)
     local self = ScreenElement.new(target, customMt or CropControlOverrideMenu_mt)
     self.returnScreenName = ""
-    self.pendingTitle = ccoL10n("cco_title", "Crop Control Override")
+    self.pendingTitle = "Crop Control Override"
     self.pendingBody = ""
     self.currentTopic = "rules"
     self.currentPage = 1
@@ -189,28 +170,28 @@ end
 function buildTopicContent(topic, page)
     topic = topic ~= nil and tostring(topic):lower() or "rules"
     if CropControlOverride == nil then
-        return ccoL10n("cco_title", "Crop Control Override"), ccoL10n("cco_backend_unavailable", "CropControlOverride backend is not available."), "status", 1
+        return "Crop Control Override", "CropControlOverride backend is not available.", "status", 1
     end
 
     if topic == "status" then
-        return ccoL10n("cco_title_summary", "Crop Control Override - Summary"), CropControlOverride:buildGuiStatusText(), "status", 1
+        return "Crop Control Override - Summary", CropControlOverride:buildGuiStatusText(), "status", 1
     elseif topic == "rules" then
-        return ccoL10n("cco_title_configured_rules", "Crop Control Override - Configured Rules"), CropControlOverride:buildGuiRuleListText("rules", page), "rules", page or 1
+        return "Crop Control Override - Configured Rules", CropControlOverride:buildGuiRuleListText("rules", page), "rules", page or 1
     elseif topic == "disabled" then
-        return ccoL10n("cco_title_disabled_crops", "Crop Control Override - Disabled Crops"), CropControlOverride:buildGuiRuleListText("disabled", page), "disabled", page or 1
+        return "Crop Control Override - Disabled Crops", CropControlOverride:buildGuiRuleListText("disabled", page), "disabled", page or 1
     elseif topic == "limited" then
-        return ccoL10n("cco_title_size_limited_crops", "Crop Control Override - Size-Limited Crops"), CropControlOverride:buildGuiRuleListText("limited", page), "limited", page or 1
+        return "Crop Control Override - Size-Limited Crops", CropControlOverride:buildGuiRuleListText("limited", page), "limited", page or 1
     elseif topic == "blockedrules" or topic == "blocked-rules" then
-        return ccoL10n("cco_title_npc_disabled_rules", "Crop Control Override - NPC Disabled Rules"), CropControlOverride:buildGuiRuleListText("blockedrules", page), "blockedrules", page or 1
+        return "Crop Control Override - NPC Disabled Rules", CropControlOverride:buildGuiRuleListText("blockedrules", page), "blockedrules", page or 1
     elseif topic == "blocked" or topic == "validation" then
-        return ccoL10n("cco_title_validation", "Crop Control Override - Validation"), CropControlOverride:buildGuiBlockedText(), "blocked", 1
+        return "Crop Control Override - Validation", CropControlOverride:buildGuiBlockedText(), "blocked", 1
     elseif topic == "undiscovered" then
-        return ccoL10n("cco_title_undiscovered_rules", "Crop Control Override - Undiscovered Rules"), CropControlOverride:buildGuiRuleListText("undiscovered", page), "undiscovered", page or 1
+        return "Crop Control Override - Undiscovered Rules", CropControlOverride:buildGuiRuleListText("undiscovered", page), "undiscovered", page or 1
     elseif topic == "help" then
-        return ccoL10n("cco_title_help", "Crop Control Override - Help"), CropControlOverride:buildGuiHelpText(), "help", 1
+        return "Crop Control Override - Help", CropControlOverride:buildGuiHelpText(), "help", 1
     end
 
-    return ccoL10n("cco_title_help", "Crop Control Override - Help"), ccoL10n("cco_unknown_topic", "Unknown topic: %s", tostring(topic)) .. "\n\n" .. CropControlOverride:buildGuiHelpText(), "help", 1
+    return "Crop Control Override - Help", "Unknown topic: " .. tostring(topic) .. "\n\n" .. CropControlOverride:buildGuiHelpText(), "help", 1
 end
 
 
@@ -392,7 +373,7 @@ function CropControlOverrideMenu:initialiseEditControls()
 
     if self.editEnabledOption ~= nil then
         if self.editEnabledOption.setTexts ~= nil then
-            self.editEnabledOption:setTexts({ccoL10n("cco_value_off", "OFF"), ccoL10n("cco_value_on", "ON")})
+            self.editEnabledOption:setTexts({"OFF", "ON"})
         end
         if self.editEnabledOption.setState ~= nil then
             self.editEnabledOption:setState(1, true)
@@ -404,7 +385,7 @@ function CropControlOverrideMenu:initialiseEditControls()
 
     if self.editResetOption ~= nil then
         if self.editResetOption.setTexts ~= nil then
-            self.editResetOption:setTexts({ccoL10n("cco_value_off", "OFF"), ccoL10n("cco_value_on", "ON")})
+            self.editResetOption:setTexts({"OFF", "ON"})
         end
         if self.editResetOption.setState ~= nil then
             self.editResetOption:setState(1, true)
@@ -416,7 +397,7 @@ function CropControlOverrideMenu:initialiseEditControls()
 
     if self.editNpcOption ~= nil then
         if self.editNpcOption.setTexts ~= nil then
-            self.editNpcOption:setTexts({ccoL10n("cco_value_map_default", "Map Default"), ccoL10n("cco_value_on", "ON"), ccoL10n("cco_value_off", "OFF")})
+            self.editNpcOption:setTexts({"Map Default", "ON", "OFF"})
         end
         if self.editNpcOption.setState ~= nil then
             self.editNpcOption:setState(1, true)
@@ -585,7 +566,7 @@ function CropControlOverrideMenu:onMenuBackAction(actionName, inputValue, callba
 end
 
 function CropControlOverrideMenu:setContent(title, body, topic)
-    self.pendingTitle = title or ccoL10n("cco_title", "Crop Control Override")
+    self.pendingTitle = title or "Crop Control Override"
     self.pendingBody = body or ""
     self.tableTopic = TABLE_TOPICS[topic or self.currentTopic or ""] == true
     local parsedRows = {}
@@ -609,15 +590,15 @@ end
 function CropControlOverrideMenu:getEmptyStateText()
     local topic = self.currentTopic or ""
     if topic == "limited" then
-        return ccoL10n("cco_empty_limited", "No size-limited crops are configured for this save.")
+        return "No size-limited crops are configured for this save."
     elseif topic == "disabled" then
-        return ccoL10n("cco_empty_disabled", "No disabled crops are configured for this save.")
+        return "No disabled crops are configured for this save."
     elseif topic == "blockedrules" then
-        return ccoL10n("cco_empty_blockedrules", "No crops are currently disabled for NPC use.")
+        return "No crops are currently disabled for NPC use."
     elseif topic == "undiscovered" then
-        return ccoL10n("cco_empty_undiscovered", "All configured crops are currently loaded on this map/save.")
+        return "All configured crops are currently loaded on this map/save."
     end
-    return ccoL10n("cco_empty_rules", "No configured crop rules match this view.")
+    return "No configured crop rules match this view."
 end
 
 
@@ -628,7 +609,7 @@ local function ccoValueToBool(value)
 end
 
 local function ccoBoolText(value)
-    return value and ccoL10n("cco_value_on", "ON") or ccoL10n("cco_value_off", "OFF")
+    return value and "ON" or "OFF"
 end
 
 local function ccoNpcToStage(value)
@@ -644,9 +625,9 @@ local function ccoNpcToStage(value)
 end
 
 local function ccoNpcStageText(value)
-    if value == "mapDefault" then return ccoL10n("cco_value_map_default", "Map Default") end
-    if value == "yes" then return ccoL10n("cco_value_on", "ON") end
-    return ccoL10n("cco_value_off", "OFF")
+    if value == "mapDefault" then return "Map Default" end
+    if value == "yes" then return "ON" end
+    return "OFF"
 end
 
 local function ccoGuiCanEditRules()
@@ -701,10 +682,10 @@ function CropControlOverrideMenu:updateStagedButtons()
         setButton(self.editMaxDownButton, "-1", true)
         setButton(self.editMaxUpButton, "+1", true)
         self:setResetSelectorState(false, true)
-        setButton(self.editApplyButton, ccoL10n("cco_button_apply", "APPLY"), true)
-        setButton(self.editDiscardButton, ccoL10n("cco_button_discard", "DISCARD"), true)
+        setButton(self.editApplyButton, "APPLY", true)
+        setButton(self.editDiscardButton, "DISCARD", true)
         setText(self.editMaxHaText, "-")
-        setText(self.selectedDirtyText, ccoL10n("cco_no_crop_selected", "No crop selected."))
+        setText(self.selectedDirtyText, "No crop selected.")
         return
     end
 
@@ -713,16 +694,16 @@ function CropControlOverrideMenu:updateStagedButtons()
     setButton(self.editMaxDownButton, "-1", readOnly)
     setButton(self.editMaxUpButton, "+1", readOnly)
     self:setResetSelectorState(staged.resetNpcFields == true, readOnly)
-    setButton(self.editApplyButton, self.forceApplyArmed and ccoL10n("cco_button_force_apply", "FORCE APPLY") or ccoL10n("cco_button_apply", "APPLY"), readOnly or not self.stagedDirty)
-    setButton(self.editDiscardButton, ccoL10n("cco_button_discard", "DISCARD"), readOnly or not self.stagedDirty)
+    setButton(self.editApplyButton, self.forceApplyArmed and "FORCE APPLY" or "APPLY", readOnly or not self.stagedDirty)
+    setButton(self.editDiscardButton, "DISCARD", readOnly or not self.stagedDirty)
     setText(self.editMaxHaText, string.format("%.2f", tonumber(staged.maxHa or 0) or 0))
 
     if readOnly then
-        setText(self.selectedDirtyText, ccoL10n("cco_readonly_server_rules", "Read-only server rules. Only the server/host can change CCO settings."))
+        setText(self.selectedDirtyText, "Read-only server rules. Only the server/host can change CCO settings.")
     elseif self.stagedDirty then
-        setText(self.selectedDirtyText, ccoL10n("cco_staged_changes_ready", "Staged changes ready. Apply will save XML."))
+        setText(self.selectedDirtyText, "Staged changes ready. Apply will save XML.")
     else
-        setText(self.selectedDirtyText, ccoL10n("cco_no_staged_changes", "No staged changes."))
+        setText(self.selectedDirtyText, "No staged changes.")
     end
 end
 
@@ -740,10 +721,10 @@ function CropControlOverrideMenu:updateSelectedDetails()
     end
 
     if row == nil then
-        set(self.selectedCropText, ccoL10n("cco_no_crop_selected_short", "No crop selected"))
+        set(self.selectedCropText, "No crop selected")
         set(self.selectedLoadedText, "-")
         set(self.selectedStatusText, "-")
-        set(self.selectedInfoText, ccoL10n("cco_select_crop_info", "Select a crop row, then use the selector/value controls to stage changes."))
+        set(self.selectedInfoText, "Select a crop row, then use the selector/value controls to stage changes.")
         self:createStagedRuleFromRow(nil)
         self:updateStagedButtons()
         return
@@ -757,16 +738,16 @@ function CropControlOverrideMenu:updateSelectedDetails()
     set(self.selectedLoadedText, row.loaded)
     set(self.selectedStatusText, row.status)
     if ccoGuiCanEditRules() then
-        set(self.selectedInfoText, ccoL10n("cco_stage_changes_info", "Use the selector/value controls to stage changes, then APPLY."))
+        set(self.selectedInfoText, "Use the selector/value controls to stage changes, then APPLY.")
     else
-        set(self.selectedInfoText, ccoL10n("cco_viewing_server_rules", "Viewing server-side CCO rules. Remote clients cannot edit or write local XML in multiplayer."))
+        set(self.selectedInfoText, "Viewing server-side CCO rules. Remote clients cannot edit or write local XML in multiplayer.")
     end
     self:updateStagedButtons()
 end
 
 function CropControlOverrideMenu:updateContent()
     if self.titleElement ~= nil and self.titleElement.setText ~= nil then
-        self.titleElement:setText(tostring(self.pendingTitle or ccoL10n("cco_title", "Crop Control Override")))
+        self.titleElement:setText(tostring(self.pendingTitle or "Crop Control Override"))
     end
 
     self:updateTabs()
@@ -777,7 +758,7 @@ function CropControlOverrideMenu:updateContent()
     if self.notLoadedToggleButton ~= nil then
         self.notLoadedToggleButton:setVisible(self.tableTopic)
         if self.notLoadedToggleButton.setText ~= nil then
-            self.notLoadedToggleButton:setText(self.showNotLoaded and ccoL10n("cco_not_loaded_shown", "NOT LOADED: SHOWN") or ccoL10n("cco_not_loaded_hidden", "NOT LOADED: HIDDEN"))
+            self.notLoadedToggleButton:setText(self.showNotLoaded and "NOT LOADED: SHOWN" or "NOT LOADED: HIDDEN")
         end
     end
     if self.bodyTextElement ~= nil then
@@ -990,8 +971,8 @@ end
 
 function CropControlOverrideMenu:onClickEnabledOption(state, optionElement)
     if not ccoGuiCanEditRules() then
-        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText(ccoL10n("cco_read_only", "Read-only")) end
-        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText(ccoL10n("cco_rules_readonly_remote", "CCO rules are read-only for remote multiplayer clients.")) end
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO rules are read-only for remote multiplayer clients.") end
         self:updateStagedButtons()
         return
     end
@@ -1015,8 +996,8 @@ end
 
 function CropControlOverrideMenu:onClickToggleEnabled()
     if not ccoGuiCanEditRules() then
-        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText(ccoL10n("cco_read_only", "Read-only")) end
-        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText(ccoL10n("cco_rules_readonly_remote", "CCO rules are read-only for remote multiplayer clients.")) end
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO rules are read-only for remote multiplayer clients.") end
         return
     end
     if self.stagedRule ~= nil then
@@ -1029,8 +1010,8 @@ end
 
 function CropControlOverrideMenu:onClickNpcOption(state, optionElement)
     if not ccoGuiCanEditRules() then
-        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText(ccoL10n("cco_read_only", "Read-only")) end
-        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText(ccoL10n("cco_rules_readonly_remote", "CCO rules are read-only for remote multiplayer clients.")) end
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO rules are read-only for remote multiplayer clients.") end
         self:updateStagedButtons()
         return
     end
@@ -1060,8 +1041,8 @@ end
 
 function CropControlOverrideMenu:onClickToggleNpc()
     if not ccoGuiCanEditRules() then
-        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText(ccoL10n("cco_read_only", "Read-only")) end
-        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText(ccoL10n("cco_rules_readonly_remote", "CCO rules are read-only for remote multiplayer clients.")) end
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO rules are read-only for remote multiplayer clients.") end
         return
     end
     if self.stagedRule ~= nil then
@@ -1080,8 +1061,8 @@ end
 
 function CropControlOverrideMenu:onClickMaxDown()
     if not ccoGuiCanEditRules() then
-        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText(ccoL10n("cco_read_only", "Read-only")) end
-        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText(ccoL10n("cco_rules_readonly_remote", "CCO rules are read-only for remote multiplayer clients.")) end
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO rules are read-only for remote multiplayer clients.") end
         return
     end
     if self.stagedRule ~= nil then
@@ -1096,8 +1077,8 @@ end
 
 function CropControlOverrideMenu:onClickMaxUp()
     if not ccoGuiCanEditRules() then
-        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText(ccoL10n("cco_read_only", "Read-only")) end
-        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText(ccoL10n("cco_rules_readonly_remote", "CCO rules are read-only for remote multiplayer clients.")) end
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO rules are read-only for remote multiplayer clients.") end
         return
     end
     if self.stagedRule ~= nil then
@@ -1112,8 +1093,8 @@ end
 
 function CropControlOverrideMenu:onClickResetOption(state, optionElement)
     if not ccoGuiCanEditRules() then
-        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText(ccoL10n("cco_read_only", "Read-only")) end
-        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText(ccoL10n("cco_rules_readonly_remote", "CCO rules are read-only for remote multiplayer clients.")) end
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO rules are read-only for remote multiplayer clients.") end
         self:updateStagedButtons()
         return
     end
@@ -1138,8 +1119,8 @@ end
 
 function CropControlOverrideMenu:onClickToggleReset()
     if not ccoGuiCanEditRules() then
-        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText(ccoL10n("cco_read_only", "Read-only")) end
-        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText(ccoL10n("cco_rules_readonly_remote", "CCO rules are read-only for remote multiplayer clients.")) end
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO rules are read-only for remote multiplayer clients.") end
         return
     end
     if self.stagedRule ~= nil then
@@ -1155,7 +1136,7 @@ end
 function CropControlOverrideMenu:buildStagedRuleText()
     local staged = self.stagedRule
     if staged == nil then
-        return ccoL10n("cco_no_staged_rule_selected", "No staged rule selected.")
+        return "No staged rule selected."
     end
 
     return string.format(
@@ -1170,8 +1151,8 @@ end
 
 function CropControlOverrideMenu:onClickApplyDryRun()
     if not ccoGuiCanEditRules() then
-        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText(ccoL10n("cco_read_only", "Read-only")) end
-        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText(ccoL10n("cco_rules_readonly_remote", "CCO rules are read-only for remote multiplayer clients.")) end
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO rules are read-only for remote multiplayer clients.") end
         return
     end
     if self.stagedRule == nil or not self.stagedDirty then
@@ -1180,7 +1161,7 @@ function CropControlOverrideMenu:onClickApplyDryRun()
 
     if CropControlOverride == nil or CropControlOverride.applyGuiStagedRule == nil then
         if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
-            self.selectedDirtyText:setText(ccoL10n("cco_apply_failed_backend", "Apply failed: CCO backend unavailable."))
+            self.selectedDirtyText:setText("Apply failed: CCO backend unavailable.")
         end
         return
     end
@@ -1196,15 +1177,15 @@ function CropControlOverrideMenu:onClickApplyDryRun()
         local validationFailed = resultText:lower():find("validation failed", 1, true) ~= nil
         local offending = resultText:match("offendingNpcFields=(%d+)") or resultText:match("offending NPC field%(s%)=(%d+)")
 
-        local dirtyMessage = ccoL10n("cco_rule_saved_validation_passed", "Rule saved. Validation passed.")
-        local infoMessage = ccoL10n("cco_rule_saved_info", "The selected crop rule was saved to the active CCO XML and rules were reapplied.")
+        local dirtyMessage = "Rule saved. Validation passed."
+        local infoMessage = "The selected crop rule was saved to the active CCO XML and rules were reapplied."
 
         if validationFailed then
-            dirtyMessage = ccoL10n("cco_rule_saved_validation_warning", "Rule saved. Validation warning.")
+            dirtyMessage = "Rule saved. Validation warning."
             if offending ~= nil then
-                infoMessage = ccoL10n("cco_validation_found_blocked_count", "Validation found %s blocked NPC field(s). Review the VALIDATION tab before using ccoResetBlocked dryrun.", tostring(offending))
+                infoMessage = ("Validation found %s blocked NPC field(s). Review the VALIDATION tab before using ccoResetBlocked dryrun."):format(tostring(offending))
             else
-                infoMessage = ccoL10n("cco_validation_found_blocked", "Validation found blocked NPC fields. Review the VALIDATION tab before using ccoResetBlocked dryrun.")
+                infoMessage = "Validation found blocked NPC fields. Review the VALIDATION tab before using ccoResetBlocked dryrun."
             end
         end
 
@@ -1233,18 +1214,18 @@ function CropControlOverrideMenu:onClickApplyDryRun()
             self.selectedInfoText:setText(infoMessage)
         end
     else
-        local message = tostring(msg or ccoL10n("cco_failed_to_save_rule", "Failed to save rule."))
+        local message = tostring(msg or "Failed to save rule.")
         local blocked = message:lower():find("apply blocked", 1, true) ~= nil or message:lower():find("blocked npc field", 1, true) ~= nil
         if blocked and canForce == true then
             self.forceApplyArmed = true
         end
         self:updateStagedButtons()
         if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
-            self.selectedDirtyText:setText(blocked and ccoL10n("cco_apply_blocked_rule_not_saved", "Apply blocked. Rule not saved.") or ccoL10n("cco_apply_failed", "Apply failed."))
+            self.selectedDirtyText:setText(blocked and "Apply blocked. Rule not saved." or "Apply failed.")
         end
         if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
             if blocked and canForce == true then
-                self.selectedInfoText:setText(message .. " " .. ccoL10n("cco_force_apply_hint", "Click FORCE APPLY to save anyway."))
+                self.selectedInfoText:setText(message .. " Click FORCE APPLY to save anyway.")
             else
                 self.selectedInfoText:setText(message)
             end
@@ -1328,8 +1309,8 @@ end
 
 function CropControlOverrideMenu:onClickReload()
     if not ccoGuiCanEditRules() then
-        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText(ccoL10n("cco_read_only", "Read-only")) end
-        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText(ccoL10n("cco_defaults_readonly_remote", "CCO defaults are read-only for remote multiplayer clients.")) end
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO defaults are read-only for remote multiplayer clients.") end
         return
     end
     if CropControlOverride ~= nil and CropControlOverride.loadTemplateDefaultsIntoCurrentSave ~= nil then
@@ -1338,10 +1319,10 @@ function CropControlOverrideMenu:onClickReload()
         end)
 
         if not ok then
-            CropControlOverride._guiNotice = ccoL10n("cco_load_defaults_failed_detail", "Load Defaults failed: %s", tostring(resultOk))
+            CropControlOverride._guiNotice = "Load Defaults failed: " .. tostring(resultOk)
             print("CCO GUI: load defaults action failed: " .. tostring(resultOk))
         elseif resultOk ~= true then
-            CropControlOverride._guiNotice = tostring(msg or ccoL10n("cco_load_defaults_failed", "Load Defaults failed."))
+            CropControlOverride._guiNotice = tostring(msg or "Load Defaults failed.")
         end
     end
     self:showTopic("status", 1)
@@ -1358,8 +1339,8 @@ end
 
 function CropControlOverrideMenu:onClickSaveDefaults()
     if not ccoGuiCanEditRules() then
-        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText(ccoL10n("cco_read_only", "Read-only")) end
-        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText(ccoL10n("cco_defaults_readonly_remote", "CCO defaults are read-only for remote multiplayer clients.")) end
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO defaults are read-only for remote multiplayer clients.") end
         return
     end
     if CropControlOverride ~= nil and CropControlOverride.saveCurrentRulesToTemplateConfig ~= nil then
@@ -1374,10 +1355,10 @@ function CropControlOverrideMenu:onClickSaveDefaults()
         end
 
         if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
-            self.selectedDirtyText:setText(resultOk and ccoL10n("cco_saved_defaults", "Saved defaults.") or ccoL10n("cco_save_defaults_failed", "Save defaults failed."))
+            self.selectedDirtyText:setText(resultOk and "Saved defaults." or "Save defaults failed.")
         end
         if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
-            self.selectedInfoText:setText(tostring(msg or ccoL10n("cco_template_config_updated", "Template config updated.")))
+            self.selectedInfoText:setText(tostring(msg or "Template config updated."))
         end
 
         CropControlOverride._guiNotice = tostring(msg or "")
@@ -1388,7 +1369,7 @@ end
 
 function CropControlOverrideMenu:refreshResetScopes()
     local scopes = {
-        { mode = "all", label = ccoL10n("cco_scope_all", "ALL") }
+        { mode = "all", label = "ALL" }
     }
 
     if CropControlOverride ~= nil and CropControlOverride.getBlockedResetScopeList ~= nil then
@@ -1404,7 +1385,7 @@ function CropControlOverrideMenu:refreshResetScopes()
         end)
         if ok and type(crops) == "table" then
             for _, crop in ipairs(crops) do
-                table.insert(scopes, { mode = "crop", crop = tostring(crop), label = ccoL10n("cco_scope_crop_prefix", "CROP: %s", tostring(crop)) })
+                table.insert(scopes, { mode = "crop", crop = tostring(crop), label = "CROP: " .. tostring(crop) })
             end
         end
     end
@@ -1417,13 +1398,13 @@ end
 
 function CropControlOverrideMenu:getCurrentResetScope()
     self:refreshResetScopes()
-    local value = self.resetScopes[self.resetScopeIndex or 1] or { mode = "all", label = ccoL10n("cco_scope_all", "ALL") }
-    local label = type(value) == "table" and tostring(value.label or ccoL10n("cco_scope_all", "ALL")) or tostring(value or ccoL10n("cco_scope_all", "ALL"))
+    local value = self.resetScopes[self.resetScopeIndex or 1] or { mode = "all", label = "ALL" }
+    local label = type(value) == "table" and tostring(value.label or "ALL") or tostring(value or "ALL")
     if type(value) == "table" then
         return value, label
     end
     if value == "ALL" then
-        return { mode = "all", label = ccoL10n("cco_scope_all", "ALL") }, "ALL"
+        return { mode = "all", label = "ALL" }, "ALL"
     end
     return { mode = "crop", crop = tostring(value), label = tostring(value) }, tostring(value)
 end
@@ -1431,10 +1412,10 @@ end
 function CropControlOverrideMenu:updateResetScopeButton()
     if self.resetScopeButton ~= nil then
         self:refreshResetScopes()
-        local value = self.resetScopes[self.resetScopeIndex or 1] or { label = ccoL10n("cco_scope_all", "ALL") }
-        local label = type(value) == "table" and tostring(value.label or ccoL10n("cco_scope_all", "ALL")) or tostring(value or ccoL10n("cco_scope_all", "ALL"))
+        local value = self.resetScopes[self.resetScopeIndex or 1] or { label = "ALL" }
+        local label = type(value) == "table" and tostring(value.label or "ALL") or tostring(value or "ALL")
         if self.resetScopeButton.setText ~= nil then
-            self.resetScopeButton:setText(ccoL10n("cco_reset_scope_prefix", "RESET SCOPE: %s", label))
+            self.resetScopeButton:setText("RESET SCOPE: " .. label)
         end
         if self.resetScopeButton.setDisabled ~= nil then
             self.resetScopeButton:setDisabled(#(self.resetScopes or {}) <= 1)
@@ -1444,15 +1425,15 @@ end
 
 function CropControlOverrideMenu:getResetModeLabel()
     if self.resetMode == "reseedSeasonal" then
-        return ccoL10n("cco_reset_mode_reseed_seasonal", "RESEED SEASONAL")
+        return "RESEED SEASONAL"
     end
-    return ccoL10n("cco_reset_mode_cultivated", "CULTIVATED")
+    return "CULTIVATED"
 end
 
 function CropControlOverrideMenu:updateResetModeButton()
     if self.resetModeButton ~= nil then
         if self.resetModeButton.setText ~= nil then
-            self.resetModeButton:setText(ccoL10n("cco_reset_mode_prefix", "RESET MODE: %s", self:getResetModeLabel()))
+            self.resetModeButton:setText("RESET MODE: " .. self:getResetModeLabel())
         end
         if self.resetModeButton.setDisabled ~= nil then
             self.resetModeButton:setDisabled(false)
@@ -1495,7 +1476,7 @@ function CropControlOverrideMenu:onClickResetBlockedDryRun()
         return CropControlOverride:resetBlockedFieldsDryRunFromGui(scopeCrop, self.resetMode)
     end)
 
-    local msg = ok and tostring(result or ccoL10n("cco_dryrun_complete", "Dry-run complete.")) or ccoL10n("cco_dryrun_failed", "Dry-run failed: %s", tostring(result))
+    local msg = ok and tostring(result or "Dry-run complete.") or ("Dry-run failed: " .. tostring(result))
     self.resetConfirmArmed = ccoGuiCanEditRules() and ok and (tonumber(wouldQueue or 0) or 0) > 0
 
     local body = ""
@@ -1505,13 +1486,13 @@ function CropControlOverrideMenu:onClickResetBlockedDryRun()
 
     local confirmHint = ""
     if self.resetConfirmArmed then
-        confirmHint = "\n\n" .. ccoL10n("cco_confirm_reset_available", "CONFIRM RESET is now available for scope=%s resetMode=%s. It will apply the selected reset mode.", tostring(scopeText or ccoL10n("cco_scope_all", "ALL")), self:getResetModeLabel())
+        confirmHint = "\n\nCONFIRM RESET is now available for scope=" .. tostring(scopeText or "ALL") .. " resetMode=" .. self:getResetModeLabel() .. ". It will apply the selected reset mode."
     elseif not ccoGuiCanEditRules() then
-        confirmHint = "\n\n" .. ccoL10n("cco_remote_reset_readonly", "Remote multiplayer clients are read-only. Reset actions can only be run by the server/host.")
+        confirmHint = "\n\nRemote multiplayer clients are read-only. Reset actions can only be run by the server/host."
     end
 
-    self.pendingTitle = ccoL10n("cco_title_validation", "Crop Control Override - Validation")
-    self.pendingBody = tostring(body or "") .. "\n\n" .. ccoL10n("cco_dryrun_result_heading", "DRY-RUN RESULT") .. "\n" .. msg .. confirmHint
+    self.pendingTitle = "Crop Control Override - Validation"
+    self.pendingBody = tostring(body or "") .. "\n\nDRY-RUN RESULT\n" .. msg .. confirmHint
     self.currentTopic = "blocked"
     self.tableTopic = false
     self:updateContent()
@@ -1519,8 +1500,8 @@ end
 
 function CropControlOverrideMenu:onClickConfirmBlockedReset()
     if not ccoGuiCanEditRules() then
-        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText(ccoL10n("cco_read_only", "Read-only")) end
-        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText(ccoL10n("cco_reset_readonly_remote", "CCO reset is read-only for remote multiplayer clients.")) end
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO reset is read-only for remote multiplayer clients.") end
         return
     end
     if self.resetConfirmArmed ~= true then
@@ -1536,7 +1517,7 @@ function CropControlOverrideMenu:onClickConfirmBlockedReset()
         return CropControlOverride:resetBlockedFieldsFromGui(scopeCrop, self.resetMode)
     end)
 
-    local msg = ok and tostring(result or ccoL10n("cco_reset_complete", "Reset complete.")) or ccoL10n("cco_reset_failed", "Reset failed: %s", tostring(result))
+    local msg = ok and tostring(result or "Reset complete.") or ("Reset failed: " .. tostring(result))
     self.resetConfirmArmed = false
     self:refreshResetScopes()
 
@@ -1545,8 +1526,8 @@ function CropControlOverrideMenu:onClickConfirmBlockedReset()
         body = CropControlOverride:buildGuiBlockedText()
     end
 
-    self.pendingTitle = ccoL10n("cco_title_validation", "Crop Control Override - Validation")
-    self.pendingBody = tostring(body or "") .. "\n\n" .. ccoL10n("cco_reset_result_heading", "RESET RESULT") .. "\n" .. msg
+    self.pendingTitle = "Crop Control Override - Validation"
+    self.pendingBody = tostring(body or "") .. "\n\nRESET RESULT\n" .. msg
     self.currentTopic = "blocked"
     self.tableTopic = false
     self:updateContent()
