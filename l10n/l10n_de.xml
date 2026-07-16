@@ -1,224 +1,225 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <l10n>
     <texts>
-        <text name="cco_apply_blocked_rule_not_saved" text="Apply blocked. Rule not saved."/>
-        <text name="cco_apply_failed" text="Apply failed."/>
-        <text name="cco_apply_failed_backend" text="Apply failed: CCO backend unavailable."/>
-        <text name="cco_backend_unavailable" text="CropControlOverride backend is not available."/>
-        <text name="cco_blocked_fields_header" text="Field       Crop             Size ha   Candidate        Reason"/>
-        <text name="cco_blocked_npc_fields_count" text="Blocked NPC fields: %d"/>
-        <text name="cco_blocked_npc_fields_zero" text="Blocked NPC fields: 0"/>
-        <text name="cco_button_apply" text="APPLY"/>
-        <text name="cco_button_confirm_reset" text="CONFIRM RESET"/>
-        <text name="cco_button_discard" text="DISCARD"/>
-        <text name="cco_button_force_apply" text="FORCE APPLY"/>
-        <text name="cco_button_load_defaults" text="LOAD DEFAULTS"/>
-        <text name="cco_button_next_tab" text="NEXT TAB"/>
-        <text name="cco_button_prev_tab" text="PREV TAB"/>
-        <text name="cco_button_reset_blocked_dryrun" text="RESET BLOCKED DRY-RUN"/>
-        <text name="cco_button_save_defaults" text="SAVE DEFAULTS TO CONFIG.XML"/>
-        <text name="cco_checked_fields_line" text="Checked fields: %d"/>
-        <text name="cco_cleanup_console_alternatives" text="Console alternatives remain available: ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked."/>
-        <text name="cco_cleanup_step_1" text="1. Use RESET SCOPE to choose ALL, a crop, or an individual field."/>
-        <text name="cco_cleanup_step_2" text="2. Run RESET BLOCKED DRY-RUN before changing the save state."/>
-        <text name="cco_cleanup_step_3" text="3. Use CONFIRM RESET only after the dry-run result looks correct."/>
-        <text name="cco_column_crop" text="Crop"/>
-        <text name="cco_column_crop_type" text="Crop Type"/>
-        <text name="cco_column_loaded" text="Loaded"/>
-        <text name="cco_column_max_field" text="Max Field"/>
-        <text name="cco_column_npc" text="NPC"/>
-        <text name="cco_column_player" text="Player"/>
-        <text name="cco_column_status" text="Status"/>
-        <text name="cco_confirm_reset_available" text="CONFIRM RESET is now available for scope=%s resetMode=%s. It will apply the selected reset mode."/>
-        <text name="cco_defaults_readonly_admin" text="CCO defaults are read-only for remote multiplayer clients. Log in as server admin/master user to change them."/>
-        <text name="cco_defaults_readonly_remote" text="CCO defaults are read-only for remote multiplayer clients."/>
-        <text name="cco_dialog_test_body" text="If you can read this, the custom CCO GUI screen is rendering correctly.  This screen replaces the experimental InfoDialog approach used in alpha.11-alpha.13."/>
-        <text name="cco_dryrun_complete" text="Dry-run complete."/>
-        <text name="cco_dryrun_failed" text="Dry-run failed: %s"/>
-        <text name="cco_dryrun_result_heading" text="DRY-RUN RESULT"/>
-        <text name="cco_edit_rejected_not_admin" text="CCO edit rejected: this player is not logged in as a server admin/master user."/>
-        <text name="cco_empty_blockedrules" text="No crops are currently disabled for NPC use."/>
-        <text name="cco_empty_disabled" text="No disabled crops are configured for this save."/>
-        <text name="cco_empty_limited" text="No size-limited crops are configured for this save."/>
-        <text name="cco_empty_matching_rules" text="No matching crop rules."/>
-        <text name="cco_empty_rules" text="No configured crop rules match this view."/>
-        <text name="cco_empty_undiscovered" text="All configured crops are currently loaded on this map/save."/>
-        <text name="cco_failed_template_backup" text="Failed to create template backup; config.xml was not changed."/>
-        <text name="cco_failed_to_save_rule" text="Failed to save rule."/>
-        <text name="cco_failed_write_defaults_per_save" text="Failed to write template defaults into active per-save XML."/>
-        <text name="cco_failed_write_template" text="Failed to write template config.xml."/>
-        <text name="cco_force_apply_hint" text="Click FORCE APPLY to save anyway."/>
-        <text name="cco_gui_subtitle" text="Crop policy editor | Apply writes per-save XML | Load Defaults imports config.xml"/>
-        <text name="cco_heading_actions" text="ACTIONS"/>
-        <text name="cco_heading_active_config" text="ACTIVE CONFIG"/>
-        <text name="cco_heading_blocked_npc_field_details" text="BLOCKED NPC FIELD DETAILS"/>
-        <text name="cco_heading_config_files" text="CONFIG FILES"/>
-        <text name="cco_heading_config_hierarchy" text="CONFIG HIERARCHY"/>
-        <text name="cco_heading_crop_rules" text="CROP RULES"/>
-        <text name="cco_heading_editing" text="EDITING"/>
-        <text name="cco_heading_gui_cleanup" text="GUI CLEANUP"/>
-        <text name="cco_heading_navigation" text="NAVIGATION"/>
-        <text name="cco_heading_notice" text="NOTICE"/>
-        <text name="cco_heading_policy_summary" text="POLICY SUMMARY"/>
-        <text name="cco_heading_policy_terms" text="POLICY TERMS"/>
-        <text name="cco_heading_save_validation" text="SAVE VALIDATION"/>
-        <text name="cco_heading_table_columns" text="TABLE COLUMNS"/>
-        <text name="cco_heading_validation_cleanup" text="VALIDATION CLEANUP"/>
-        <text name="cco_help_cleanup_console" text="Console alternatives remain available: ccoScanBlocked and ccoResetBlocked dryrun."/>
-        <text name="cco_help_cleanup_dryrun" text="Run RESET BLOCKED DRY-RUN first. It does not change the save state."/>
-        <text name="cco_help_cleanup_scope" text="Use RESET SCOPE to cycle through ALL, CROP, and FIELD cleanup targets."/>
-        <text name="cco_help_column_loaded" text="Loaded: whether the crop exists on the active map/save."/>
-        <text name="cco_help_column_max_field" text="Max Field: maximum actual NPC field size. Values are stored in hectares; acres are shown for reference."/>
-        <text name="cco_help_column_npc" text="NPC Permitted: whether NPCs may plant the crop, or whether the map default is used."/>
-        <text name="cco_help_column_player" text="Player Permitted: whether the crop is available under the crop policy."/>
-        <text name="cco_help_config_load_defaults" text="LOAD DEFAULTS imports config.xml into this save and overwrites the active per-save XML."/>
-        <text name="cco_help_config_save_defaults" text="SAVE DEFAULTS exports the full active save rules to config.xml and creates a backup."/>
-        <text name="cco_help_config_savegame" text="saves/savegameX.xml is the active rule file for the current save."/>
-        <text name="cco_help_config_template" text="config.xml is the template/default rule file."/>
-        <text name="cco_help_editing_all_rules" text="Use ALL RULES to select a crop and stage changes in the right panel."/>
-        <text name="cco_help_editing_apply" text="APPLY writes safe changes to the active per-save XML."/>
-        <text name="cco_help_editing_discard" text="DISCARD resets staged values for the selected crop."/>
-        <text name="cco_help_editing_force_apply" text="FORCE APPLY deliberately saves a rule that creates blocked NPC fields."/>
-        <text name="cco_help_navigation_back" text="Use BACK or ESC to close the CCO screen."/>
-        <text name="cco_help_navigation_tabs" text="Use the tab headings or PREV TAB / NEXT TAB to switch sections."/>
-        <text name="cco_help_term_blocked" text="Blocked NPC Fields: existing NPC fields that currently violate the active policy."/>
-        <text name="cco_help_term_disabled" text="Disabled: the crop is unavailable under the crop policy."/>
-        <text name="cco_help_term_not_loaded" text="Not Loaded: the rule is preserved, but the crop is not present on this map/save."/>
-        <text name="cco_help_term_npc_disabled" text="NPC Disabled: NPCs should not plant this crop. Globally disabled crops also count as NPC-disabled."/>
-        <text name="cco_help_term_size_limited" text="Size Limited: NPCs may plant the crop only below the configured hectare limit."/>
-        <text name="cco_help_title" text="CROP CONTROL OVERRIDE HELP"/>
-        <text name="cco_label_loaded_on_map" text="Loaded on Map"/>
-        <text name="cco_label_max_field_ha" text="Max Field (ha) 1 ha = 2.47 ac"/>
-        <text name="cco_label_npc_permitted" text="NPC Permitted"/>
-        <text name="cco_label_player_permitted" text="Player Permitted"/>
-        <text name="cco_label_reset_npc_fields" text="Reset NPC Fields"/>
-        <text name="cco_label_rule_status" text="Rule Status"/>
-        <text name="cco_load_defaults_failed" text="Load Defaults failed."/>
-        <text name="cco_load_defaults_failed_detail" text="Load Defaults failed: %s"/>
-        <text name="cco_loaded_template_into_save" text="Loaded template config.xml into active save config: %s"/>
-        <text name="cco_loaded_template_no_save" text="Loaded template config.xml. No savegame context was available, so no per-save XML was written."/>
-        <text name="cco_mode_title_blockedrules" text="NPC-disabled crop rules"/>
-        <text name="cco_mode_title_disabled" text="Disabled crop rules"/>
-        <text name="cco_mode_title_limited" text="Size-limited NPC crop rules"/>
-        <text name="cco_mode_title_rules" text="All configured crop rules"/>
-        <text name="cco_mode_title_undiscovered" text="Configured but not loaded on this map"/>
-        <text name="cco_more_blocked_fields" text="... %d more blocked NPC field(s). Use ccoScanBlocked for the full console list."/>
-        <text name="cco_mp_event_failed" text="CCO multiplayer event failed: %s"/>
-        <text name="cco_no_blocked_npc_fields" text="No blocked NPC fields were detected under the current crop policy."/>
-        <text name="cco_no_crop_selected" text="No crop selected."/>
-        <text name="cco_no_crop_selected_short" text="No crop selected"/>
-        <text name="cco_no_staged_changes" text="No staged changes."/>
-        <text name="cco_no_staged_rule_selected" text="No staged rule selected."/>
-        <text name="cco_none" text="NONE"/>
-        <text name="cco_not_loaded_hidden" text="NOT LOADED: HIDDEN"/>
-        <text name="cco_not_loaded_lower" text="not loaded"/>
-        <text name="cco_not_loaded_shown" text="NOT LOADED: SHOWN"/>
-        <text name="cco_npc_fields_line" text="NPC fields:     %d"/>
-        <text name="cco_page_end_hint" text="Page %d/%d. End of list."/>
-        <text name="cco_page_next_hint" text="Page %d/%d. Use ccoGui %s %d for next page."/>
-        <text name="cco_panel_selected_crop" text="SELECTED CROP"/>
-        <text name="cco_panel_staged_rule_values" text="STAGED RULE VALUES"/>
-        <text name="cco_player_fields_line" text="Player fields:  %d"/>
-        <text name="cco_read_only" text="Read-only"/>
-        <text name="cco_readonly_server_rules" text="Read-only server rules. Only the server/host can change CCO settings."/>
-        <text name="cco_remote_reset_readonly" text="Remote multiplayer clients are read-only. Reset actions can only be run by the server/host."/>
-        <text name="cco_requested_rules_from_server" text="Requested CCO rules from server."/>
-        <text name="cco_reset_complete" text="Reset complete."/>
-        <text name="cco_reset_failed" text="Reset failed: %s"/>
-        <text name="cco_reset_mode_cultivated" text="CULTIVATED"/>
-        <text name="cco_reset_mode_cultivated_button" text="RESET MODE: CULTIVATED"/>
-        <text name="cco_reset_mode_prefix" text="RESET MODE: %s"/>
-        <text name="cco_reset_mode_reseed_seasonal" text="RESEED SEASONAL"/>
-        <text name="cco_reset_readonly_admin" text="CCO reset is read-only for remote multiplayer clients. Log in as server admin/master user to change fields."/>
-        <text name="cco_reset_readonly_remote" text="CCO reset is read-only for remote multiplayer clients."/>
-        <text name="cco_reset_result_heading" text="RESET RESULT"/>
-        <text name="cco_reset_scope_all" text="RESET SCOPE: ALL"/>
-        <text name="cco_reset_scope_prefix" text="RESET SCOPE: %s"/>
-        <text name="cco_rule_saved_info" text="The selected crop rule was saved to the active CCO XML and rules were reapplied."/>
-        <text name="cco_rule_saved_validation_passed" text="Rule saved. Validation passed."/>
-        <text name="cco_rule_saved_validation_warning" text="Rule saved. Validation warning."/>
-        <text name="cco_rules_readonly_admin" text="CCO rules are read-only for remote multiplayer clients. Log in as server admin/master user to change them."/>
-        <text name="cco_rules_readonly_remote" text="CCO rules are read-only for remote multiplayer clients."/>
-        <text name="cco_save_defaults_failed" text="Save defaults failed."/>
-        <text name="cco_saved_defaults" text="Saved defaults."/>
-        <text name="cco_saved_rules_to_template" text="Saved current active rules to template config.xml. Existing per-save XML files were not overwritten"/>
-        <text name="cco_scope_all" text="ALL"/>
-        <text name="cco_scope_crop_prefix" text="CROP: %s"/>
-        <text name="cco_select_crop_info" text="Select a crop row, then use the selector/value controls to stage changes."/>
-        <text name="cco_sent_operation_request" text="Sent CCO %s request to the server."/>
-        <text name="cco_server_sync_open_again" text="Open CCO again once the server snapshot has been received, or use ccoReload to request the server rules again."/>
-        <text name="cco_server_sync_remote_client" text="This is a remote multiplayer client. Local CCO config.xml and savegame?.xml files are not used in this session."/>
-        <text name="cco_settings_synced_server" text="CCO settings synced from server."/>
-        <text name="cco_shown_matching_rules" text="Shown %d-%d of %d matching rule(s)."/>
-        <text name="cco_shown_zero_matching_rules" text="Shown 0 of 0 matching rule(s)."/>
-        <text name="cco_stage_changes_info" text="Use the selector/value controls to stage changes, then APPLY."/>
-        <text name="cco_staged_changes_ready" text="Staged changes ready. Apply will save XML."/>
-        <text name="cco_status_actions_apply" text="APPLY / FORCE APPLY writes staged crop changes to this save only."/>
-        <text name="cco_status_actions_load_defaults" text="LOAD DEFAULTS imports template config.xml into this save and overwrites the active per-save rules."/>
-        <text name="cco_status_actions_save_defaults" text="SAVE DEFAULTS exports the current save rules to template config.xml."/>
-        <text name="cco_status_allowed" text="ALLOWED"/>
-        <text name="cco_status_checked_fields" text="Checked fields:         %d"/>
-        <text name="cco_status_cleanup_dryrun" text="Use RESET BLOCKED DRY-RUN first, then CONFIRM RESET if the result looks correct. Dry-run also reports a reseed candidate for future reseed mode."/>
-        <text name="cco_status_cleanup_scope" text="Use RESET SCOPE to choose ALL, CROP, or FIELD."/>
-        <text name="cco_status_config_hierarchy_apply" text="APPLY / FORCE APPLY writes the selected rule to the active per-save XML."/>
-        <text name="cco_status_config_hierarchy_per_save" text="Existing per-save XML files are not overwritten by SAVE DEFAULTS."/>
-        <text name="cco_status_config_hierarchy_save_defaults" text="SAVE DEFAULTS writes the full active rule set to config.xml for future/default use."/>
-        <text name="cco_status_configured_rules_count" text="Configured rules:       %d"/>
-        <text name="cco_status_disabled" text="DISABLED"/>
-        <text name="cco_status_disabled_crops_count" text="Disabled crops:         %d"/>
-        <text name="cco_status_loaded_rules_count" text="Loaded crop rules:      %d"/>
-        <text name="cco_status_navigation_help" text="Use the top tabs, or PREV TAB / NEXT TAB, to move between sections. Use BACK to close."/>
-        <text name="cco_status_not_loaded" text="NOT LOADED"/>
-        <text name="cco_status_not_loaded_count" text="Not loaded on map:      %d"/>
-        <text name="cco_status_npc_disabled" text="NPC DISABLED"/>
-        <text name="cco_status_npc_disabled_count" text="NPC-disabled crops:      %d"/>
-        <text name="cco_status_npc_fields" text="NPC fields:             %d"/>
-        <text name="cco_status_player_fields" text="Player fields:          %d"/>
-        <text name="cco_status_size_limited" text="SIZE LIMITED"/>
-        <text name="cco_status_size_limited_count" text="Size-limited crops:     %d"/>
-        <text name="cco_status_unknown" text="UNKNOWN"/>
-        <text name="cco_status_validation_status" text="Status:                 %s"/>
-        <text name="cco_tab_all_rules" text="ALL RULES"/>
-        <text name="cco_tab_disabled" text="DISABLED"/>
-        <text name="cco_tab_help" text="HELP"/>
-        <text name="cco_tab_npc_disabled" text="NPC DISABLED"/>
-        <text name="cco_tab_size_limited" text="SIZE LIMITED"/>
-        <text name="cco_tab_summary" text="SUMMARY"/>
-        <text name="cco_tab_validation" text="VALIDATION"/>
-        <text name="cco_template_config_updated" text="Template config updated."/>
-        <text name="cco_title" text="Crop Control Override"/>
-        <text name="cco_title_blocked_fields" text="Crop Control Override - Blocked Fields"/>
-        <text name="cco_title_blocked_rules" text="Crop Control Override - Blocked Rules"/>
-        <text name="cco_title_configured_rules" text="Crop Control Override - Configured Rules"/>
-        <text name="cco_title_dialog_test" text="Crop Control Override - Dialog Test"/>
-        <text name="cco_title_disabled_crops" text="Crop Control Override - Disabled Crops"/>
-        <text name="cco_title_gui_help" text="Crop Control Override - GUI Help"/>
-        <text name="cco_title_help" text="Crop Control Override - Help"/>
-        <text name="cco_title_npc_disabled_rules" text="Crop Control Override - NPC Disabled Rules"/>
-        <text name="cco_title_server_sync_upper" text="CROP CONTROL OVERRIDE - SERVER SYNC"/>
-        <text name="cco_title_size_limited_crops" text="Crop Control Override - Size-Limited Crops"/>
-        <text name="cco_title_summary" text="Crop Control Override - Summary"/>
-        <text name="cco_title_undiscovered_rules" text="Crop Control Override - Undiscovered Rules"/>
-        <text name="cco_title_upper" text="CROP CONTROL OVERRIDE"/>
-        <text name="cco_title_validation" text="Crop Control Override - Validation"/>
-        <text name="cco_title_waiting_server_rules" text="Crop Control Override - Waiting for Server Rules"/>
-        <text name="cco_unknown_topic" text="Unknown topic: %s"/>
-        <text name="cco_validation_failed_count" text="FAILED - %s offending NPC field(s)"/>
-        <text name="cco_validation_found_blocked" text="Validation found blocked NPC fields. Review the VALIDATION tab before using ccoResetBlocked dryrun."/>
-        <text name="cco_validation_found_blocked_count" text="Validation found %s blocked NPC field(s). Review the VALIDATION tab before using ccoResetBlocked dryrun."/>
-        <text name="cco_validation_line_failed" text="Validation:     FAILED"/>
-        <text name="cco_validation_line_pass" text="Validation:     PASS"/>
-        <text name="cco_validation_pass" text="PASS"/>
-        <text name="cco_value_map_default" text="Map Default"/>
-        <text name="cco_value_no" text="No"/>
-        <text name="cco_value_off" text="OFF"/>
-        <text name="cco_value_on" text="ON"/>
-        <text name="cco_value_yes" text="Yes"/>
-        <text name="cco_viewing_server_rules" text="Viewing server-side CCO rules. Remote clients cannot edit or write local XML in multiplayer."/>
-        <text name="cco_waiting_mp_connection_send" text="Waiting for multiplayer server connection before sending CCO %s request."/>
-        <text name="cco_waiting_mp_connection_sync" text="Waiting for multiplayer server connection before syncing CCO rules."/>
-        <text name="cco_waiting_server_rules" text="Waiting for server CCO rules."/>
-        <text name="input_CCO_OPEN_GUI" text="Open Crop Control Override"/>
-        <text name="cco_sowing_not_permitted" text="Crop Control Override: Die Aussaat von %s ist nicht erlaubt."/>
+        <text name="cco_apply_blocked_rule_not_saved" text="Anwenden blockiert. Regel wurde nicht gespeichert." />
+        <text name="cco_apply_failed" text="Anwenden fehlgeschlagen." />
+        <text name="cco_apply_failed_backend" text="Anwenden fehlgeschlagen: CCO-Backend nicht verfügbar." />
+        <text name="cco_backend_unavailable" text="Das CropControlOverride-Backend ist nicht verfügbar." />
+        <text name="cco_blocked_fields_header" text="Feld        Fruchtart        Größe ha   Kandidat         Grund" />
+        <text name="cco_blocked_npc_fields_count" text="Blockierte NPC-Felder: %d" />
+        <text name="cco_blocked_npc_fields_zero" text="Blockierte NPC-Felder: 0" />
+        <text name="cco_button_apply" text="ANWENDEN" />
+        <text name="cco_button_confirm_reset" text="ZURÜCKSETZEN BESTÄTIGEN" />
+        <text name="cco_button_discard" text="VERWERFEN" />
+        <text name="cco_button_force_apply" text="ERZWINGEN" />
+        <text name="cco_button_load_defaults" text="STANDARDWERTE LADEN" />
+        <text name="cco_button_next_tab" text="NÄCHSTER REITER" />
+        <text name="cco_button_prev_tab" text="VORHERIGER REITER" />
+        <text name="cco_button_reset_blocked_dryrun" text="BLOCKIERTE FELDER TESTWEISE ZURÜCKSETZEN" />
+        <text name="cco_button_save_defaults" text="STANDARDWERTE IN CONFIG.XML SPEICHERN" />
+        <text name="cco_checked_fields_line" text="Geprüfte Felder: %d" />
+        <text name="cco_cleanup_console_alternatives" text="Konsolenalternativen bleiben verfügbar: ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked." />
+        <text name="cco_cleanup_step_1" text="1. Mit ZURÜCKSETZBEREICH ALLE, eine Fruchtart oder ein einzelnes Feld auswählen." />
+        <text name="cco_cleanup_step_2" text="2. Vor einer Änderung des Spielstands BLOCKIERTE FELDER TESTWEISE ZURÜCKSETZEN ausführen." />
+        <text name="cco_cleanup_step_3" text="3. ZURÜCKSETZEN BESTÄTIGEN erst verwenden, wenn das Ergebnis des Testlaufs korrekt aussieht." />
+        <text name="cco_column_crop" text="Fruchtart" />
+        <text name="cco_column_crop_type" text="Fruchtart" />
+        <text name="cco_column_loaded" text="Geladen" />
+        <text name="cco_column_max_field" text="Max. Feld" />
+        <text name="cco_column_npc" text="NPC" />
+        <text name="cco_column_player" text="Spieler" />
+        <text name="cco_column_status" text="Status" />
+        <text name="cco_confirm_reset_available" text="ZURÜCKSETZEN BESTÄTIGEN ist jetzt verfügbar für Bereich=%s Rücksetzmodus=%s. Der ausgewählte Rücksetzmodus wird angewendet." />
+        <text name="cco_defaults_readonly_admin" text="CCO-Standardwerte sind für entfernte Multiplayer-Clients schreibgeschützt. Als Serveradministrator/Master User anmelden, um sie zu ändern." />
+        <text name="cco_defaults_readonly_remote" text="CCO-Standardwerte sind für entfernte Multiplayer-Clients schreibgeschützt." />
+        <text name="cco_dialog_test_body" text="Wenn dieser Text lesbar ist, wird der benutzerdefinierte CCO-GUI-Bildschirm korrekt dargestellt. Dieser Bildschirm ersetzt den experimentellen InfoDialog-Ansatz aus alpha.11-alpha.13." />
+        <text name="cco_dryrun_complete" text="Testlauf abgeschlossen." />
+        <text name="cco_dryrun_failed" text="Testlauf fehlgeschlagen: %s" />
+        <text name="cco_dryrun_result_heading" text="ERGEBNIS DES TESTLAUFS" />
+        <text name="cco_edit_rejected_not_admin" text="CCO-Bearbeitung abgelehnt: Dieser Spieler ist nicht als Serveradministrator/Master User angemeldet." />
+        <text name="cco_empty_blockedrules" text="Derzeit sind keine Fruchtarten für die NPC-Nutzung deaktiviert." />
+        <text name="cco_empty_disabled" text="Für diesen Spielstand sind keine deaktivierten Fruchtarten konfiguriert." />
+        <text name="cco_empty_limited" text="Für diesen Spielstand sind keine größenbegrenzten Fruchtarten konfiguriert." />
+        <text name="cco_empty_matching_rules" text="Keine passenden Fruchtarten-Regeln." />
+        <text name="cco_empty_rules" text="Keine konfigurierten Fruchtarten-Regeln entsprechen dieser Ansicht." />
+        <text name="cco_empty_undiscovered" text="Alle konfigurierten Fruchtarten sind derzeit auf dieser Karte/in diesem Spielstand geladen." />
+        <text name="cco_failed_template_backup" text="Sicherung der Vorlage konnte nicht erstellt werden; config.xml wurde nicht geändert." />
+        <text name="cco_failed_to_save_rule" text="Regel konnte nicht gespeichert werden." />
+        <text name="cco_failed_write_defaults_per_save" text="Vorlagen-Standardwerte konnten nicht in die aktive Spielstand-XML geschrieben werden." />
+        <text name="cco_failed_write_template" text="Vorlagen-config.xml konnte nicht geschrieben werden." />
+        <text name="cco_force_apply_hint" text="Auf ERZWINGEN klicken, um trotzdem zu speichern." />
+        <text name="cco_gui_subtitle" text="Fruchtarten-Regelverwaltung | Anwenden schreibt in die Spielstand-XML | Standardwerte laden importiert config.xml" />
+        <text name="cco_heading_actions" text="AKTIONEN" />
+        <text name="cco_heading_active_config" text="AKTIVE KONFIGURATION" />
+        <text name="cco_heading_blocked_npc_field_details" text="DETAILS BLOCKIERTER NPC-FELDER" />
+        <text name="cco_heading_config_files" text="KONFIGURATIONSDATEIEN" />
+        <text name="cco_heading_config_hierarchy" text="KONFIGURATIONSHIERARCHIE" />
+        <text name="cco_heading_crop_rules" text="FRUCHTARTEN-REGELN" />
+        <text name="cco_heading_editing" text="BEARBEITUNG" />
+        <text name="cco_heading_gui_cleanup" text="GUI-BEREINIGUNG" />
+        <text name="cco_heading_navigation" text="NAVIGATION" />
+        <text name="cco_heading_notice" text="HINWEIS" />
+        <text name="cco_heading_policy_summary" text="REGELÜBERSICHT" />
+        <text name="cco_heading_policy_terms" text="REGELBEGRIFFE" />
+        <text name="cco_heading_save_validation" text="SPIELSTAND-VALIDIERUNG" />
+        <text name="cco_heading_table_columns" text="TABELLENSPALTEN" />
+        <text name="cco_heading_validation_cleanup" text="VALIDIERUNGSBEREINIGUNG" />
+        <text name="cco_help_cleanup_console" text="Konsolenalternativen bleiben verfügbar: ccoScanBlocked und ccoResetBlocked dryrun." />
+        <text name="cco_help_cleanup_dryrun" text="Zuerst BLOCKIERTE FELDER TESTWEISE ZURÜCKSETZEN ausführen. Der Spielstand wird dabei nicht verändert." />
+        <text name="cco_help_cleanup_scope" text="Mit ZURÜCKSETZBEREICH zwischen den Bereinigungszielen ALLE, FRUCHTART und FELD wechseln." />
+        <text name="cco_help_column_loaded" text="Geladen: Gibt an, ob die Fruchtart auf der aktiven Karte/im aktiven Spielstand vorhanden ist." />
+        <text name="cco_help_column_max_field" text="Max. Feld: Maximale tatsächliche NPC-Feldgröße. Werte werden in Hektar gespeichert; Acres werden als Referenz angezeigt." />
+        <text name="cco_help_column_npc" text="NPC erlaubt: Gibt an, ob NPCs die Fruchtart anbauen dürfen oder ob die Kartenvorgabe verwendet wird." />
+        <text name="cco_help_column_player" text="Spieler erlaubt: Gibt an, ob die Fruchtart gemäß den aktiven Regeln verfügbar ist." />
+        <text name="cco_help_config_load_defaults" text="STANDARDWERTE LADEN importiert config.xml in diesen Spielstand und überschreibt die aktive Spielstand-XML." />
+        <text name="cco_help_config_save_defaults" text="STANDARDWERTE SPEICHERN exportiert alle aktiven Spielstandsregeln nach config.xml und erstellt eine Sicherung." />
+        <text name="cco_help_config_savegame" text="saves/savegameX.xml ist die aktive Regeldatei für den aktuellen Spielstand." />
+        <text name="cco_help_config_template" text="config.xml ist die Vorlagen-/Standardregeldatei." />
+        <text name="cco_help_editing_all_rules" text="Unter ALLE REGELN eine Fruchtart auswählen und Änderungen im rechten Bereich vorbereiten." />
+        <text name="cco_help_editing_apply" text="ANWENDEN schreibt sichere Änderungen in die aktive Spielstand-XML." />
+        <text name="cco_help_editing_discard" text="VERWERFEN setzt die vorbereiteten Werte der ausgewählten Fruchtart zurück." />
+        <text name="cco_help_editing_force_apply" text="ERZWINGEN speichert bewusst eine Regel, durch die blockierte NPC-Felder entstehen." />
+        <text name="cco_help_navigation_back" text="Mit ZURÜCK oder ESC den CCO-Bildschirm schließen." />
+        <text name="cco_help_navigation_tabs" text="Über die Reiterüberschriften oder VORHERIGER REITER / NÄCHSTER REITER zwischen den Bereichen wechseln." />
+        <text name="cco_help_term_blocked" text="Blockierte NPC-Felder: Bestehende NPC-Felder, die gegen die aktiven Regeln verstoßen." />
+        <text name="cco_help_term_disabled" text="Deaktiviert: Die Fruchtart ist gemäß den aktiven Regeln nicht verfügbar." />
+        <text name="cco_help_term_not_loaded" text="Nicht geladen: Die Regel bleibt erhalten, aber die Fruchtart ist auf dieser Karte/in diesem Spielstand nicht vorhanden." />
+        <text name="cco_help_term_npc_disabled" text="NPC deaktiviert: NPCs sollen diese Fruchtart nicht anbauen. Global deaktivierte Fruchtarten gelten ebenfalls als NPC-deaktiviert." />
+        <text name="cco_help_term_size_limited" text="Größenbegrenzt: NPCs dürfen die Fruchtart nur unterhalb der konfigurierten Hektargrenze anbauen." />
+        <text name="cco_help_title" text="HILFE ZU CROP CONTROL OVERRIDE" />
+        <text name="cco_label_loaded_on_map" text="Auf Karte geladen" />
+        <text name="cco_label_max_field_ha" text="Max. Feld (ha) 1 ha = 2,47 ac" />
+        <text name="cco_label_npc_permitted" text="NPC erlaubt" />
+        <text name="cco_label_player_permitted" text="Spieler erlaubt" />
+        <text name="cco_label_reset_npc_fields" text="NPC-Felder zurücksetzen" />
+        <text name="cco_label_rule_status" text="Regelstatus" />
+        <text name="cco_load_defaults_failed" text="Standardwerte konnten nicht geladen werden." />
+        <text name="cco_load_defaults_failed_detail" text="Standardwerte konnten nicht geladen werden: %s" />
+        <text name="cco_loaded_template_into_save" text="Vorlagen-config.xml in aktive Spielstandkonfiguration geladen: %s" />
+        <text name="cco_loaded_template_no_save" text="Vorlagen-config.xml geladen. Da kein Spielstandkontext verfügbar war, wurde keine Spielstand-XML geschrieben." />
+        <text name="cco_mode_title_blockedrules" text="Für NPCs deaktivierte Fruchtarten-Regeln" />
+        <text name="cco_mode_title_disabled" text="Deaktivierte Fruchtarten-Regeln" />
+        <text name="cco_mode_title_limited" text="Größenbegrenzte NPC-Fruchtarten-Regeln" />
+        <text name="cco_mode_title_rules" text="Alle konfigurierten Fruchtarten-Regeln" />
+        <text name="cco_mode_title_undiscovered" text="Konfiguriert, aber auf dieser Karte nicht geladen" />
+        <text name="cco_more_blocked_fields" text="... %d weitere blockierte NPC-Feld(er). Mit ccoScanBlocked wird die vollständige Liste in der Konsole angezeigt." />
+        <text name="cco_mp_event_failed" text="CCO-Multiplayer-Ereignis fehlgeschlagen: %s" />
+        <text name="cco_no_blocked_npc_fields" text="Unter den aktuellen Fruchtarten-Regeln wurden keine blockierten NPC-Felder erkannt." />
+        <text name="cco_no_crop_selected" text="Keine Fruchtart ausgewählt." />
+        <text name="cco_no_crop_selected_short" text="Keine Fruchtart ausgewählt" />
+        <text name="cco_no_staged_changes" text="Keine vorbereiteten Änderungen." />
+        <text name="cco_no_staged_rule_selected" text="Keine vorbereitete Regel ausgewählt." />
+        <text name="cco_none" text="KEINE" />
+        <text name="cco_not_loaded_hidden" text="NICHT GELADEN: AUSGEBLENDET" />
+        <text name="cco_not_loaded_lower" text="nicht geladen" />
+        <text name="cco_not_loaded_shown" text="NICHT GELADEN: ANGEZEIGT" />
+        <text name="cco_npc_fields_line" text="NPC-Felder:      %d" />
+        <text name="cco_page_end_hint" text="Seite %d/%d. Ende der Liste." />
+        <text name="cco_page_next_hint" text="Seite %d/%d. Für die nächste Seite ccoGui %s %d verwenden." />
+        <text name="cco_panel_selected_crop" text="AUSGEWÄHLTE FRUCHTART" />
+        <text name="cco_panel_staged_rule_values" text="VORBEREITETE REGELWERTE" />
+        <text name="cco_player_fields_line" text="Spielerfelder:   %d" />
+        <text name="cco_read_only" text="Schreibgeschützt" />
+        <text name="cco_readonly_server_rules" text="Schreibgeschützte Serverregeln. Nur Server/Host kann CCO-Einstellungen ändern." />
+        <text name="cco_remote_reset_readonly" text="Entfernte Multiplayer-Clients sind schreibgeschützt. Rücksetzaktionen können nur vom Server/Host ausgeführt werden." />
+        <text name="cco_requested_rules_from_server" text="CCO-Regeln vom Server angefordert." />
+        <text name="cco_reset_complete" text="Zurücksetzen abgeschlossen." />
+        <text name="cco_reset_failed" text="Zurücksetzen fehlgeschlagen: %s" />
+        <text name="cco_reset_mode_cultivated" text="KULTIVIERT" />
+        <text name="cco_reset_mode_cultivated_button" text="RÜCKSETZMODUS: KULTIVIERT" />
+        <text name="cco_reset_mode_prefix" text="RÜCKSETZMODUS: %s" />
+        <text name="cco_reset_mode_reseed_seasonal" text="SAISONAL NEU EINSÄEN" />
+        <text name="cco_reset_readonly_admin" text="CCO-Zurücksetzen ist für entfernte Multiplayer-Clients schreibgeschützt. Als Serveradministrator/Master User anmelden, um Felder zu ändern." />
+        <text name="cco_reset_readonly_remote" text="CCO-Zurücksetzen ist für entfernte Multiplayer-Clients schreibgeschützt." />
+        <text name="cco_reset_result_heading" text="ERGEBNIS DES ZURÜCKSETZENS" />
+        <text name="cco_reset_scope_all" text="ZURÜCKSETZBEREICH: ALLE" />
+        <text name="cco_reset_scope_prefix" text="ZURÜCKSETZBEREICH: %s" />
+        <text name="cco_rule_saved_info" text="Die ausgewählte Fruchtarten-Regel wurde in der aktiven CCO-XML gespeichert und die Regeln wurden erneut angewendet." />
+        <text name="cco_rule_saved_validation_passed" text="Regel gespeichert. Validierung erfolgreich." />
+        <text name="cco_rule_saved_validation_warning" text="Regel gespeichert. Validierungswarnung." />
+        <text name="cco_rules_readonly_admin" text="CCO-Regeln sind für entfernte Multiplayer-Clients schreibgeschützt. Als Serveradministrator/Master User anmelden, um sie zu ändern." />
+        <text name="cco_rules_readonly_remote" text="CCO-Regeln sind für entfernte Multiplayer-Clients schreibgeschützt." />
+        <text name="cco_save_defaults_failed" text="Standardwerte konnten nicht gespeichert werden." />
+        <text name="cco_saved_defaults" text="Standardwerte gespeichert." />
+        <text name="cco_saved_rules_to_template" text="Aktive Regeln in Vorlagen-config.xml gespeichert. Bestehende Spielstand-XML-Dateien wurden nicht überschrieben" />
+        <text name="cco_scope_all" text="ALLE" />
+        <text name="cco_scope_crop_prefix" text="FRUCHTART: %s" />
+        <text name="cco_select_crop_info" text="Eine Fruchtartenzeile auswählen und anschließend mit den Auswahl-/Wertesteuerungen Änderungen vorbereiten." />
+        <text name="cco_sent_operation_request" text="CCO-Anfrage %s an den Server gesendet." />
+        <text name="cco_server_sync_open_again" text="CCO erneut öffnen, sobald der Server-Snapshot empfangen wurde, oder mit ccoReload die Serverregeln erneut anfordern." />
+        <text name="cco_server_sync_remote_client" text="Dies ist ein entfernter Multiplayer-Client. Lokale CCO-Dateien config.xml und savegame?.xml werden in dieser Sitzung nicht verwendet." />
+        <text name="cco_settings_synced_server" text="CCO-Einstellungen vom Server synchronisiert." />
+        <text name="cco_shown_matching_rules" text="%d-%d von %d passenden Regel(n) angezeigt." />
+        <text name="cco_shown_zero_matching_rules" text="0 von 0 passenden Regeln angezeigt." />
+        <text name="cco_stage_changes_info" text="Mit den Auswahl-/Wertesteuerungen Änderungen vorbereiten und anschließend ANWENDEN wählen." />
+        <text name="cco_staged_changes_ready" text="Vorbereitete Änderungen sind bereit. Anwenden speichert die XML." />
+        <text name="cco_status_actions_apply" text="ANWENDEN / ERZWINGEN schreibt vorbereitete Fruchtartenänderungen nur in diesen Spielstand." />
+        <text name="cco_status_actions_load_defaults" text="STANDARDWERTE LADEN importiert die Vorlagen-config.xml in diesen Spielstand und überschreibt die aktiven Spielstandsregeln." />
+        <text name="cco_status_actions_save_defaults" text="STANDARDWERTE SPEICHERN exportiert die aktuellen Spielstandsregeln in die Vorlagen-config.xml." />
+        <text name="cco_status_allowed" text="ERLAUBT" />
+        <text name="cco_status_checked_fields" text="Geprüfte Felder:        %d" />
+        <text name="cco_status_cleanup_dryrun" text="Zuerst BLOCKIERTE FELDER TESTWEISE ZURÜCKSETZEN verwenden und anschließend ZURÜCKSETZEN BESTÄTIGEN, wenn das Ergebnis korrekt aussieht. Der Testlauf meldet außerdem einen Nachsaatkandidaten für den späteren Nachsaatmodus." />
+        <text name="cco_status_cleanup_scope" text="Mit ZURÜCKSETZBEREICH ALLE, FRUCHTART oder FELD auswählen." />
+        <text name="cco_status_config_hierarchy_apply" text="ANWENDEN / ERZWINGEN schreibt die ausgewählte Regel in die aktive Spielstand-XML." />
+        <text name="cco_status_config_hierarchy_per_save" text="Bestehende Spielstand-XML-Dateien werden durch STANDARDWERTE SPEICHERN nicht überschrieben." />
+        <text name="cco_status_config_hierarchy_save_defaults" text="STANDARDWERTE SPEICHERN schreibt den vollständigen aktiven Regelsatz zur künftigen/standardmäßigen Verwendung in config.xml." />
+        <text name="cco_status_configured_rules_count" text="Konfigurierte Regeln:    %d" />
+        <text name="cco_status_disabled" text="DEAKTIVIERT" />
+        <text name="cco_status_disabled_crops_count" text="Deaktivierte Fruchtarten:%d" />
+        <text name="cco_status_loaded_rules_count" text="Geladene Fruchtregeln:   %d" />
+        <text name="cco_status_navigation_help" text="Über die oberen Reiter oder VORHERIGER REITER / NÄCHSTER REITER zwischen den Bereichen wechseln. Mit ZURÜCK schließen." />
+        <text name="cco_status_not_loaded" text="NICHT GELADEN" />
+        <text name="cco_status_not_loaded_count" text="Nicht auf Karte geladen: %d" />
+        <text name="cco_status_npc_disabled" text="NPC DEAKTIVIERT" />
+        <text name="cco_status_npc_disabled_count" text="NPC-deaktivierte Arten: %d" />
+        <text name="cco_status_npc_fields" text="NPC-Felder:              %d" />
+        <text name="cco_status_player_fields" text="Spielerfelder:           %d" />
+        <text name="cco_status_size_limited" text="GRÖSSENBEGRENZT" />
+        <text name="cco_status_size_limited_count" text="Größenbegrenzte Arten:  %d" />
+        <text name="cco_status_unknown" text="UNBEKANNT" />
+        <text name="cco_status_validation_status" text="Status:                  %s" />
+        <text name="cco_tab_all_rules" text="ALLE REGELN" />
+        <text name="cco_tab_disabled" text="DEAKTIVIERT" />
+        <text name="cco_tab_help" text="HILFE" />
+        <text name="cco_tab_npc_disabled" text="NPC DEAKTIVIERT" />
+        <text name="cco_tab_size_limited" text="GRÖSSENBEGRENZT" />
+        <text name="cco_tab_summary" text="ÜBERSICHT" />
+        <text name="cco_tab_validation" text="VALIDIERUNG" />
+        <text name="cco_template_config_updated" text="Vorlagenkonfiguration aktualisiert." />
+        <text name="cco_title" text="Crop Control Override" />
+        <text name="cco_title_blocked_fields" text="Crop Control Override – Blockierte Felder" />
+        <text name="cco_title_blocked_rules" text="Crop Control Override – Blockierte Regeln" />
+        <text name="cco_title_configured_rules" text="Crop Control Override – Konfigurierte Regeln" />
+        <text name="cco_title_dialog_test" text="Crop Control Override – Dialogtest" />
+        <text name="cco_title_disabled_crops" text="Crop Control Override – Deaktivierte Fruchtarten" />
+        <text name="cco_title_gui_help" text="Crop Control Override – GUI-Hilfe" />
+        <text name="cco_title_help" text="Crop Control Override – Hilfe" />
+        <text name="cco_title_npc_disabled_rules" text="Crop Control Override – NPC-deaktivierte Regeln" />
+        <text name="cco_title_server_sync_upper" text="CROP CONTROL OVERRIDE – SERVER-SYNCHRONISIERUNG" />
+        <text name="cco_title_size_limited_crops" text="Crop Control Override – Größenbegrenzte Fruchtarten" />
+        <text name="cco_title_summary" text="Crop Control Override – Übersicht" />
+        <text name="cco_title_undiscovered_rules" text="Crop Control Override – Nicht geladene Regeln" />
+        <text name="cco_title_upper" text="CROP CONTROL OVERRIDE" />
+        <text name="cco_title_validation" text="Crop Control Override – Validierung" />
+        <text name="cco_title_waiting_server_rules" text="Crop Control Override – Warten auf Serverregeln" />
+        <text name="cco_unknown_topic" text="Unbekanntes Thema: %s" />
+        <text name="cco_validation_failed_count" text="FEHLGESCHLAGEN – %s betroffene(s) NPC-Feld(er)" />
+        <text name="cco_validation_found_blocked" text="Bei der Validierung wurden blockierte NPC-Felder gefunden. Vor ccoResetBlocked dryrun den Reiter VALIDIERUNG prüfen." />
+        <text name="cco_validation_found_blocked_count" text="Bei der Validierung wurden %s blockierte NPC-Feld(er) gefunden. Vor ccoResetBlocked dryrun den Reiter VALIDIERUNG prüfen." />
+        <text name="cco_validation_line_failed" text="Validierung:     FEHLGESCHLAGEN" />
+        <text name="cco_validation_line_pass" text="Validierung:     ERFOLGREICH" />
+        <text name="cco_validation_pass" text="ERFOLGREICH" />
+        <text name="cco_value_map_default" text="Kartenvorgabe" />
+        <text name="cco_value_no" text="Nein" />
+        <text name="cco_value_off" text="AUS" />
+        <text name="cco_value_on" text="EIN" />
+        <text name="cco_value_yes" text="Ja" />
+        <text name="cco_viewing_server_rules" text="Serverseitige CCO-Regeln werden angezeigt. Entfernte Clients können im Multiplayer keine lokale XML bearbeiten oder schreiben." />
+        <text name="cco_waiting_mp_connection_send" text="Warten auf die Multiplayer-Serververbindung, bevor die CCO-Anfrage %s gesendet wird." />
+        <text name="cco_waiting_mp_connection_sync" text="Warten auf die Multiplayer-Serververbindung, bevor CCO-Regeln synchronisiert werden." />
+        <text name="cco_waiting_server_rules" text="Warten auf CCO-Regeln vom Server." />
+        <text name="input_CCO_OPEN_GUI" text="Crop Control Override öffnen" />
+        <text name="cco_label_reseed_weight" text="Nachsaatgewichtung (0–5)" />
+        <text name="cco_sowing_not_permitted" text="Crop Control Override: Die Aussaat von %s ist nicht erlaubt." />
     </texts>
 </l10n>

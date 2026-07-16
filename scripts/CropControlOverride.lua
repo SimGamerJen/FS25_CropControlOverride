@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.0.3.4",
+    VERSION = "2.0.3.5",
 
     _origFlags = {},
     _rules = {},
@@ -45,35 +45,25 @@ local CONFIG_ROOT = "cropControl"
 local SETTINGS_FOLDER = "FS25_CropControlOverride"
 
 local DEFAULT_RESEED_WEIGHTS = {
-    seasonalMission = 5,
-    seasonalLifecycle = 5,
     leaveCultivated = 1,
 }
+
+local DEFAULT_FRUIT_RESEED_WEIGHT = 5
 
 local function clampWeight(value, defaultValue)
     local n = tonumber(value)
     if n == nil then n = tonumber(defaultValue or 0) or 0 end
     n = math.floor(n)
     if n < 0 then n = 0 end
-    if n > 20 then n = 20 end
+    if n > 5 then n = 5 end
     return n
 end
 
 local function normalizeReseedWeights(weights)
     weights = weights or {}
-    local result = {
-        seasonalMission = clampWeight(weights.seasonalMission, DEFAULT_RESEED_WEIGHTS.seasonalMission),
-        seasonalLifecycle = clampWeight(weights.seasonalLifecycle, DEFAULT_RESEED_WEIGHTS.seasonalLifecycle),
+    return {
         leaveCultivated = clampWeight(weights.leaveCultivated, DEFAULT_RESEED_WEIGHTS.leaveCultivated),
     }
-
-    if result.seasonalMission == 0 and result.seasonalLifecycle == 0 and result.leaveCultivated == 0 then
-        result.seasonalMission = DEFAULT_RESEED_WEIGHTS.seasonalMission
-        result.seasonalLifecycle = DEFAULT_RESEED_WEIGHTS.seasonalLifecycle
-        result.leaveCultivated = 0
-    end
-
-    return result
 end
 
 local FRUIT_FLAG_FIELDS = {
@@ -502,6 +492,7 @@ local function normalizeRule(name, rule)
         npcAllowed = npcAllowed,
         npcMaxHa = npcMaxHa,
         resetNpcFields = resetNpcFields ~= false,
+        reseedWeight = clampWeight(rule.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT),
     }
 end
 
@@ -511,6 +502,7 @@ local function defaultRuleForFruit(ft)
         npcAllowed = nil,
         npcMaxHa = 0,
         resetNpcFields = true,
+        reseedWeight = DEFAULT_FRUIT_RESEED_WEIGHT,
     })
 end
 
@@ -613,8 +605,6 @@ local function readConfig(path)
     local weightsKey = CONFIG_ROOT .. ".settings.reseedCandidateWeights"
     if xml:hasProperty(weightsKey) then
         settings.reseedWeights = normalizeReseedWeights({
-            seasonalMission = xml:getInt(weightsKey .. "#seasonalMission", DEFAULT_RESEED_WEIGHTS.seasonalMission),
-            seasonalLifecycle = xml:getInt(weightsKey .. "#seasonalLifecycle", DEFAULT_RESEED_WEIGHTS.seasonalLifecycle),
             leaveCultivated = xml:getInt(weightsKey .. "#leaveCultivated", DEFAULT_RESEED_WEIGHTS.leaveCultivated),
         })
     end
@@ -643,6 +633,7 @@ local function readConfig(path)
                 npcAllowed = npcAllowed,
                 npcMaxHa = npcMaxHa,
                 resetNpcFields = resetNpcFields,
+                reseedWeight = xml:getInt(k .. "#reseedWeight", DEFAULT_FRUIT_RESEED_WEIGHT),
             })
             if rule ~= nil then
                 rules[rule.name] = rule
@@ -670,6 +661,7 @@ local function readConfig(path)
                     npcAllowed = npcAllowed,
                     npcMaxHa = xml:getFloat(k .. "#npcMaxHa", xml:getFloat(k .. "#maxHa", 0)),
                     resetNpcFields = xml:getBool(k .. "#resetNpcFields", true),
+                    reseedWeight = xml:getInt(k .. "#reseedWeight", DEFAULT_FRUIT_RESEED_WEIGHT),
                 })
                 if rule ~= nil then rules[rule.name] = rule end
             end
@@ -738,6 +730,7 @@ local function inspectConfigNormalization(path)
             if not xml:hasProperty(k .. "#npcAllowed") then meta.missingAttrs = meta.missingAttrs + 1 end
             if not xml:hasProperty(k .. "#npcMaxHa") and not xml:hasProperty(k .. "#maxHa") then meta.missingAttrs = meta.missingAttrs + 1 end
             if not xml:hasProperty(k .. "#resetNpcFields") then meta.missingAttrs = meta.missingAttrs + 1 end
+            if not xml:hasProperty(k .. "#reseedWeight") then meta.missingAttrs = meta.missingAttrs + 1 end
         end
     end
 
@@ -824,8 +817,6 @@ local function writeConfig(path, rules, settings)
 
     local reseedWeights = normalizeReseedWeights(settings ~= nil and settings.reseedWeights or nil)
     local weightsKey = CONFIG_ROOT .. ".settings.reseedCandidateWeights"
-    xml:setInt(weightsKey .. "#seasonalMission", reseedWeights.seasonalMission)
-    xml:setInt(weightsKey .. "#seasonalLifecycle", reseedWeights.seasonalLifecycle)
     xml:setInt(weightsKey .. "#leaveCultivated", reseedWeights.leaveCultivated)
 
     local names = {}
@@ -846,6 +837,7 @@ local function writeConfig(path, rules, settings)
             end
             xml:setFloat(k .. "#npcMaxHa", rule.npcMaxHa or 0)
             xml:setBool(k .. "#resetNpcFields", rule.resetNpcFields ~= false)
+            xml:setInt(k .. "#reseedWeight", rule.reseedWeight)
             i = i + 1
         end
     end
@@ -869,7 +861,7 @@ end
 local function serializeRulesForMultiplayer(rules, settings)
     local lines = {}
     local weights = normalizeReseedWeights(settings ~= nil and settings.reseedWeights or nil)
-    table.insert(lines, ("@weights|%d|%d|%d"):format(weights.seasonalMission, weights.seasonalLifecycle, weights.leaveCultivated))
+    table.insert(lines, ("@weights|%d"):format(weights.leaveCultivated))
 
     local names = {}
     for nameU, _ in pairs(rules or {}) do table.insert(names, nameU) end
@@ -886,6 +878,7 @@ local function serializeRulesForMultiplayer(rules, settings)
                 npc,
                 tostring(tonumber(rule.npcMaxHa or 0) or 0),
                 rule.resetNpcFields ~= false and "1" or "0",
+                tostring(rule.reseedWeight),
             }, "|"))
         end
     end
@@ -906,11 +899,11 @@ local function deserializeRulesFromMultiplayer(payload)
             end
 
             if parts[1] == "@weights" then
-                settings.reseedWeights = normalizeReseedWeights({
-                    seasonalMission = tonumber(parts[2]),
-                    seasonalLifecycle = tonumber(parts[3]),
-                    leaveCultivated = tonumber(parts[4]),
-                })
+                -- New payloads store leaveCultivated as the only global weight.
+                -- Legacy payloads used mission|lifecycle|leaveCultivated.
+                local leaveValue = tonumber(parts[2])
+                if parts[4] ~= nil and parts[4] ~= "" then leaveValue = tonumber(parts[4]) end
+                settings.reseedWeights = normalizeReseedWeights({ leaveCultivated = leaveValue })
             else
                 local nameU = upper(parts[1] or "")
                 if nameU ~= "" then
@@ -921,6 +914,7 @@ local function deserializeRulesFromMultiplayer(payload)
                         npcAllowed = npcAllowed,
                         npcMaxHa = tonumber(parts[4] or 0) or 0,
                         resetNpcFields = parts[5] ~= "0",
+                        reseedWeight = tonumber(parts[6]),
                     })
                 end
             end
@@ -1268,12 +1262,8 @@ function CCO:buildWeightedReseedPool(candidates)
 
     for _, c in ipairs(candidates or {}) do
         if c ~= nil and c.ok == true and c.seasonalOk == true then
-            local weight = 0
-            if c.category == "mission" then
-                weight = weights.seasonalMission
-            elseif c.category == "lifecycle" then
-                weight = weights.seasonalLifecycle
-            end
+            local rule = self._rules ~= nil and self._rules[c.cropName] or nil
+            local weight = clampWeight(rule ~= nil and rule.reseedWeight or nil, DEFAULT_FRUIT_RESEED_WEIGHT)
 
             for _ = 1, weight do
                 table.insert(pool, c)
@@ -1318,8 +1308,7 @@ function CCO:findReplacementNpcCropForField(field, blockedCropName)
         local picked = weightedPool[pickIndex]
         if picked ~= nil then
             if picked.category == "leaveCultivated" then
-                return nil, ("weighted leave cultivated (weights mission=%d lifecycle=%d leaveCultivated=%d)"):format(
-                    weights.seasonalMission, weights.seasonalLifecycle, weights.leaveCultivated)
+                return nil, ("weighted leave cultivated (leaveCultivated=%d)"):format(weights.leaveCultivated)
             end
 
             local seasonText = "seasonal-unverified"
@@ -1330,26 +1319,7 @@ function CCO:findReplacementNpcCropForField(field, blockedCropName)
         end
     end
 
-    -- Fallback to the older priority pool if no weighted seasonal pool can be built.
-    local bestPriority = filtered[1].priority
-    local pool = {}
-    for _, c in ipairs(filtered) do
-        if c.priority == bestPriority then
-            table.insert(pool, c)
-        end
-    end
-    if #pool == 0 then pool = filtered end
-
-    local pickIndex = ((fieldIdNum - 1) % #pool) + 1
-    local picked = pool[pickIndex]
-    if picked ~= nil then
-        local seasonText = "seasonal-unverified"
-        if picked.seasonalKnown == true then
-            seasonText = picked.seasonalOk and "seasonal" or "out-of-season"
-        end
-        return picked.fruit, "replacement selected fallback (" .. seasonText .. ", " .. tostring(picked.category or "unknown") .. ")"
-    end
-    return nil, "no replacement selected"
+    return nil, "no weighted seasonal reseed candidate; field remains cultivated"
 end
 
 function CCO:getReseedCandidateTextForField(field, blockedCropName)
@@ -2684,6 +2654,7 @@ function CCO:getGuiRuleRows(mode)
                 npcValue = npcValue,
                 maxHa = tonumber(r.npcMaxHa or 0) or 0,
                 maxHaDisplay = formatHaAcCompact(r.npcMaxHa or 0),
+                reseedWeight = clampWeight(r.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT),
                 loaded = loadedBool and "Yes" or "No",
                 loadedBool = loadedBool,
                 status = self:ruleStatusText(nameU, r),
@@ -2915,6 +2886,7 @@ local function cloneRulesForGuiApply(rules)
             npcAllowed = rule.npcAllowed,
             npcMaxHa = tonumber(rule.npcMaxHa or 0) or 0,
             resetNpcFields = rule.resetNpcFields ~= false,
+            reseedWeight = clampWeight(rule.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT),
         }
     end
     return cloned
@@ -3410,8 +3382,9 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
                 npc = tostring(args[3] or "mapDefault"),
                 maxHa = tonumber(args[4] or 0) or 0,
                 resetNpcFields = boolFromStringOrBool(args[5], true) ~= false,
+                reseedWeight = tonumber(args[6]),
             }
-            local forceApply = boolFromStringOrBool(args[6], false) == true
+            local forceApply = boolFromStringOrBool(args[7], false) == true
             return self:_applyGuiStagedRuleLocal(staged, forceApply)
         elseif operation == "saveDefaults" then
             return self:_saveCurrentRulesToTemplateConfigLocal()
@@ -3469,6 +3442,7 @@ function CCO:applyGuiStagedRule(staged, forceApply)
             tostring(npc or "mapDefault"),
             tostring(staged ~= nil and staged.maxHa or 0),
             tostring(staged == nil or staged.resetNpcFields ~= false),
+            tostring(staged ~= nil and staged.reseedWeight or DEFAULT_FRUIT_RESEED_WEIGHT),
             tostring(forceApply == true)
         )
     end
@@ -3493,6 +3467,7 @@ function CCO:_applyGuiStagedRuleLocal(staged, forceApply)
     end
     local npcMaxHa = math.max(0, tonumber(staged.maxHa or 0) or 0)
     local resetNpcFields = staged.resetNpcFields ~= false
+    local reseedWeight = clampWeight(staged.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT)
 
     self._rules = self._rules or buildDefaultRules()
 
@@ -3502,6 +3477,7 @@ function CCO:_applyGuiStagedRuleLocal(staged, forceApply)
         npcAllowed = npcAllowed,
         npcMaxHa = npcMaxHa,
         resetNpcFields = resetNpcFields,
+        reseedWeight = reseedWeight,
     })
 
     local preflight = self:buildFieldSummaryWithRules(proposedRules, nameU)
@@ -3792,8 +3768,8 @@ function CCO:consoleListConfigured(name)
         if target == nil or target == nameU then
             local r = self._rules[nameU]
             local ft = getFruitByName(nameU)
-            print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s discovered=%s"):format(
-                nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields), tostring(ft ~= nil)))
+            print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s reseedWeight=%d discovered=%s"):format(
+                nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields), clampWeight(r.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT), tostring(ft ~= nil)))
             printed = printed + 1
         end
     end
@@ -3814,8 +3790,8 @@ function CCO:consoleListUndiscovered()
     print("CCO: configured but undiscovered crop rules")
     for _, nameU in ipairs(names) do
         local r = self._rules[nameU]
-        print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s"):format(
-            nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields)))
+        print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s reseedWeight=%d"):format(
+            nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields), clampWeight(r.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT)))
     end
     print(("CCO: undiscovered crop list complete. count=%d"):format(#names))
 end
@@ -4652,8 +4628,7 @@ function CCO:consoleStatus()
     print(("CCO: fields checked=%d npcFields=%d playerFields=%d offendingNpcFields=%d"):format(
         tonumber(summary.total or 0), tonumber(summary.npcTotal or 0), tonumber(summary.playerTotal or 0), tonumber(summary.offending or 0)))
     local weights = self:getReseedWeights()
-    print(("CCO: reseedWeights seasonalMission=%d seasonalLifecycle=%d leaveCultivated=%d"):format(
-        weights.seasonalMission, weights.seasonalLifecycle, weights.leaveCultivated))
+    print(("CCO: reseedWeights perCrop=0-5 leaveCultivated=%d"):format(weights.leaveCultivated))
     if summary.offending ~= nil and summary.offending > 0 then
         print("CCO: status=ATTENTION run ccoScanBlocked, then ccoResetBlocked dryrun if cleanup is intended")
     else
@@ -4688,7 +4663,7 @@ function CCO:consoleHelp(topic)
         print("CCO:   ccoSeasonProbe [CROP]")
         print("CCO:   ccoGrowthProbe [CROP]")
         print("CCO:   Seasonal reseed candidates use growthDataSeasonal.periods[currentPeriod].plantingAllowed.")
-        print("CCO:   Reseed weights are read from <settings><reseedCandidateWeights seasonalMission='5' seasonalLifecycle='5' leaveCultivated='1'/>.")
+        print("CCO:   Each <fruit> has reseedWeight='0-5'; leaveCultivated remains under <settings><reseedCandidateWeights leaveCultivated='0-5'/>.")
         print("CCO:   ccoFieldSizeProbe <FIELD_ID>")
     end
     if t == "reset" or t == "cleanup" or t == "" then

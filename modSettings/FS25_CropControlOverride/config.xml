@@ -1,34 +1,34 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<cropControl version="2" modVersion="2.0.0-beta.2">
+<?xml version='1.0' encoding='utf-8'?>
+<cropControl version="2" modVersion="2.0.3.5">
     <settings>
-        <reseedCandidateWeights seasonalMission="5" seasonalLifecycle="5" leaveCultivated="1"/>
+        <reseedCandidateWeights leaveCultivated="1" />
     </settings>
     <fruits>
-        <fruit name="BARLEY" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="BEETROOT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="CANOLA" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="CARROT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="COTTON" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="GRAPE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="GRASS" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="GREENBEAN" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="MAIZE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="MEADOW" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="OAT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="OILSEEDRADISH" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="OLIVE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="PARSNIP" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="PEA" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="POPLAR" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="POTATO" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="RICE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="RICELONGGRAIN" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="SORGHUM" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="SOYBEAN" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="SPINACH" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="SUGARBEET" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="SUGARCANE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="SUNFLOWER" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
-        <fruit name="WHEAT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true"/>
+        <fruit name="BARLEY" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="BEETROOT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="CANOLA" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="CARROT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="COTTON" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="GRAPE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="GRASS" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="GREENBEAN" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="MAIZE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="MEADOW" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="OAT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="OILSEEDRADISH" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="OLIVE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="PARSNIP" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="PEA" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="POPLAR" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="POTATO" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="RICE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="RICELONGGRAIN" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="SORGHUM" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="SOYBEAN" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="SPINACH" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="SUGARBEET" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="SUGARCANE" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="SUNFLOWER" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
+        <fruit name="WHEAT" enabled="true" npcAllowed="mapDefault" npcMaxHa="0.000000" resetNpcFields="true" reseedWeight="5" />
     </fruits>
 </cropControl>

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<modDesc descVersion="109">
+<modDesc descVersion="110">
     <author>SimGamerJen, Hyper138</author>
-    <version>2.0.3.4</version>
+    <version>2.0.3.5</version>
     <title>
         <en>Crop Control Override</en>
-        <de>Crop Control Override</de>
-        <fr>Crop Control Override</fr>
+        <de>Crop Control Override Öffnen</de>
+        <fr>Ouvrir Crop Control Override</fr>
     </title>
     <description>
         <en><![CDATA[
@@ -31,9 +31,37 @@ Configuration:
 - RESET BLOCKED DRY-RUN does not change the save state. CONFIRM RESET performs the actual blocked-field reset after review.
 - VALIDATION includes RESET MODE: CULTIVATED or RESEED SEASONAL.
 - RESEED SEASONAL uses the current seasonal planting window and CCO policy rules to choose a replacement crop for blocked NPC fields.
-- GRASS may be used as a lifecycle reseed candidate when seasonal and policy checks allow it.
-- Reseed candidate weighting can be tuned in XML with reseedCandidateWeights using seasonalMission, seasonalLifecycle, and leaveCultivated weights.
-- Weighted reseed can produce CULTIVATED_VARIETY, leaving some reset fields cultivated instead of reseeding them.
+- Each crop has an individual reseed weight from 0 to 5, editable in the GUI and stored as reseedWeight on its fruit rule.
+- A crop weight of 0 excludes that crop from NPC-field reseeding without disabling it for the player.
+- The global leaveCultivated weight remains available, allowing weighted resets to leave some fields cultivated instead of reseeding them.
+
+Changelog 2.0.3.5:
+- Replaced the seasonalMission and seasonalLifecycle category weights with an individual 0-5 reseed weight for every crop.
+- Added GUI controls for editing the reseed weight of the selected crop.
+- A crop weight of 0 now excludes that crop from NPC-field reseeding while leaving the crop otherwise enabled.
+- Retained the global leaveCultivated weighting.
+- Added automatic migration of existing per-save XML files, assigning the default weight of 5 where reseedWeight is missing and removing obsolete category weights when files are normalised.
+- Added multiplayer synchronisation for per-crop reseed weights.
+
+Changelog 2.0.3.4:
+- Disabled player crops are now removed immediately from the selectable seed list of loaded, newly purchased, and newly loaded sowing machines.
+- Re-enabling a crop restores it to compatible seeders without requiring a savegame reload.
+- Added server-authoritative sowing and direct-sowing safeguards so stale selections, helpers, multiplayer clients, and compatible third-party worker systems cannot plant prohibited crops.
+- Active AI fieldwork is stopped when a disabled crop is selected, the sowing implement is switched off, and a centre-screen Crop Control Override warning explains why seeding is not permitted.
+- Improved multiplayer crop-rule delivery with a server push after client loading, client retry handling, and deferred client-side policy application until the authoritative server snapshot arrives.
+- Added and completed French localisation support.
+
+Changelog 2.0.1.9:
+- Expanded external l10n support so GUI and gameplay text can be translated through language files.
+- Added German and French language-file support and prepared the mod for community-contributed translations.
+
+Changelog 2.0.1.8:
+- Rebuilt cached sowing-machine seed lists whenever crop rules change, so disabled crops disappear from seed selectors immediately.
+- Added a live sowing guard and filtering for newly loaded or purchased seeders.
+- Improved dedicated-server rule synchronisation with a server-side push and client retry process.
+- Prevented remote clients from applying temporary all-enabled placeholder rules while waiting for the server snapshot.
+- Reset multiplayer and original fruit-state data fully when leaving a mission.
+- Fixed config normalisation and template-backup handling for custom reseed settings.
 
 Changelog 2.0.1.7:
 - Fixed the permission-hook installer load order so the admin-permission build loads cleanly before installing Farm Management admin listeners.
@@ -101,6 +129,38 @@ Konfiguration:
 - STANDARD SPEICHERN IN CONFIG.XML erstellt zuerst eine Sicherung der bestehenden Vorlagenkonfiguration und schreibt anschließend den aktuellen vollständigen Regelsatz in config.xml.
 - Bestehende XML-Dateien einzelner Spielstände werden durch Standard Speichern nicht überschrieben.
 - RESET BLOCKED DRY-RUN ändert den Spielstand nicht. CONFIRM RESET führt das tatsächliche Zurücksetzen blockierter Felder nach der Prüfung aus.
+- Im Modus RESEED SEASONAL wird anhand des aktuellen Saatkalenders und der CCO-Regeln eine Ersatzfrucht für blockierte NPC-Felder gewählt.
+- Jede Fruchtart besitzt eine individuelle Nachsaatgewichtung von 0 bis 5, die in der GUI bearbeitet und als reseedWeight in ihrer Fruchtarten-Regel gespeichert wird.
+- Eine Gewichtung von 0 schließt die Fruchtart von der Nachsaat auf NPC-Feldern aus, ohne sie für den Spieler zu deaktivieren.
+- Die globale Gewichtung leaveCultivated bleibt erhalten, sodass ein gewichteter Reset einige Felder im kultivierten Zustand belassen kann.
+
+Änderungen 2.0.3.5:
+- Die Kategoriegewichtungen seasonalMission und seasonalLifecycle wurden durch eine individuelle Nachsaatgewichtung von 0 bis 5 für jede Fruchtart ersetzt.
+- GUI-Steuerelemente zum Bearbeiten der Nachsaatgewichtung der ausgewählten Fruchtart hinzugefügt.
+- Eine Fruchtart mit Gewichtung 0 wird nun von der Nachsaat auf NPC-Feldern ausgeschlossen, bleibt aber ansonsten aktiviert.
+- Die globale Gewichtung leaveCultivated wurde beibehalten.
+- Bestehende Spielstand-XML-Dateien werden automatisch migriert: Fehlt reseedWeight, wird der Standardwert 5 gesetzt; veraltete Kategoriegewichtungen werden bei der Normalisierung entfernt.
+- Multiplayer-Synchronisation für individuelle Nachsaatgewichtungen hinzugefügt.
+
+Änderungen 2.0.3.4:
+- Für Spieler deaktivierte Fruchtarten werden nun sofort aus der auswählbaren Saatgutliste bereits geladener, neu gekaufter und neu geladener Sämaschinen entfernt.
+- Wird eine Fruchtart wieder aktiviert, erscheint sie ohne Neuladen des Spielstands erneut in kompatiblen Sämaschinen.
+- Serverseitig verbindliche Schutzprüfungen für normale und direkte Aussaat verhindern, dass veraltete Auswahlen, Helfer, Multiplayer-Clients oder kompatible Drittanbieter-Helfersysteme gesperrte Fruchtarten säen.
+- Aktive KI-Feldarbeit wird beendet, wenn eine deaktivierte Fruchtart ausgewählt ist; die Sämaschine wird ausgeschaltet und eine zentrale Crop-Control-Override-Warnung erklärt, warum die Aussaat nicht erlaubt ist.
+- Die Übertragung der Multiplayer-Regeln wurde durch einen Server-Push nach dem Client-Ladevorgang, Wiederholungsversuche des Clients und eine verzögerte clientseitige Anwendung bis zum Eingang des verbindlichen Server-Snapshots verbessert.
+- Französische Lokalisierung hinzugefügt und vervollständigt.
+
+Änderungen 2.0.1.9:
+- Die externe l10n-Unterstützung wurde erweitert, damit GUI- und Spieltexte über Sprachdateien übersetzt werden können.
+- Unterstützung für deutsche und französische Sprachdateien hinzugefügt und der Mod für Community-Übersetzungen vorbereitet.
+
+Änderungen 2.0.1.8:
+- Zwischengespeicherte Saatgutlisten von Sämaschinen werden bei Regeländerungen neu aufgebaut, sodass deaktivierte Fruchtarten sofort aus der Auswahl verschwinden.
+- Eine aktive Aussaat-Schutzprüfung sowie Filterung für neu geladene oder gekaufte Sämaschinen wurden hinzugefügt.
+- Die Regel-Synchronisation auf dedizierten Servern wurde durch Server-Push und Wiederholungsversuche des Clients verbessert.
+- Entfernte Clients wenden während des Wartens auf den Server-Snapshot keine vorübergehend vollständig aktivierten Platzhalterregeln mehr an.
+- Multiplayer-Status und ursprüngliche Fruchtartenwerte werden beim Verlassen einer Mission vollständig zurückgesetzt.
+- Fehler bei der Konfigurationsnormalisierung und bei Vorlagen-Sicherungen für benutzerdefinierte Nachsaat-Einstellungen wurden behoben.
 
 Änderungen 2.0.1.7:
 - Die Lade-Reihenfolge des Berechtigungs-Hook-Installers korrigiert, damit der Admin-Berechtigungs-Build sauber lädt, bevor Listener für Farmverwaltungs-Administratoren installiert werden.
@@ -168,6 +228,38 @@ Configuration :
 - ENREGISTRER LES VALEURS PAR DÉFAUT DANS CONFIG.XML sauvegarde d’abord la configuration modèle existante, puis écrit l’ensemble complet des règles actives dans config.xml.
 - Les fichiers XML des sauvegardes existantes ne sont pas écrasés par cette action.
 - RESET BLOCKED DRY-RUN ne modifie pas la sauvegarde. CONFIRM RESET effectue la réinitialisation réelle des champs bloqués après vérification.
+- Le mode RESEMIS SAISONNIER utilise le calendrier de semis actuel et les règles CCO pour choisir une culture de remplacement pour les champs PNJ bloqués.
+- Chaque culture possède une pondération de ressemis individuelle de 0 à 5, modifiable dans l’interface et enregistrée comme reseedWeight dans sa règle de culture.
+- Une pondération de 0 exclut la culture du ressemis des champs PNJ sans la désactiver pour le joueur.
+- La pondération globale leaveCultivated est conservée, ce qui permet à une réinitialisation pondérée de laisser certains champs cultivés sans les ressemer.
+
+Journal des modifications 2.0.3.5 :
+- Remplacement des pondérations de catégorie seasonalMission et seasonalLifecycle par une pondération de ressemis individuelle de 0 à 5 pour chaque culture.
+- Ajout de commandes dans l’interface pour modifier la pondération de ressemis de la culture sélectionnée.
+- Une culture avec une pondération de 0 est désormais exclue du ressemis des champs PNJ tout en restant activée pour les autres usages.
+- Conservation de la pondération globale leaveCultivated.
+- Migration automatique des fichiers XML de sauvegarde existants : la valeur par défaut 5 est attribuée lorsque reseedWeight est absent et les anciennes pondérations de catégorie sont supprimées lors de la normalisation.
+- Ajout de la synchronisation multijoueur des pondérations de ressemis par culture.
+
+Journal des modifications 2.0.3.4 :
+- Les cultures désactivées pour le joueur sont désormais retirées immédiatement de la liste de semences des semoirs déjà chargés, nouvellement achetés ou nouvellement chargés.
+- Lorsqu’une culture est réactivée, elle réapparaît dans les semoirs compatibles sans nécessiter le rechargement de la sauvegarde.
+- Des protections autoritaires côté serveur pour le semis normal et le semis direct empêchent les anciennes sélections, les ouvriers, les clients multijoueurs et les systèmes d’ouvriers tiers compatibles de semer des cultures interdites.
+- Le travail de champ d’un ouvrier IA est arrêté lorsqu’une culture désactivée est sélectionnée, le semoir est éteint et un avertissement central Crop Control Override explique pourquoi le semis n’est pas autorisé.
+- La synchronisation multijoueur des règles a été améliorée grâce à un envoi serveur après le chargement du client, à des tentatives répétées côté client et au report de l’application locale jusqu’à la réception de l’instantané serveur faisant autorité.
+- Ajout et finalisation de la localisation française.
+
+Journal des modifications 2.0.1.9 :
+- Extension de la prise en charge l10n externe afin que les textes de l’interface et du jeu puissent être traduits via des fichiers de langue.
+- Ajout de la prise en charge des fichiers allemands et français et préparation du mod aux traductions fournies par la communauté.
+
+Journal des modifications 2.0.1.8 :
+- Reconstruction des listes de semences mises en cache par les semoirs à chaque modification des règles, afin que les cultures désactivées disparaissent immédiatement du sélecteur.
+- Ajout d’une protection active pendant le semis et du filtrage des semoirs nouvellement chargés ou achetés.
+- Amélioration de la synchronisation des règles sur serveur dédié avec un envoi serveur et des tentatives répétées côté client.
+- Les clients distants n’appliquent plus de règles temporaires entièrement activées en attendant l’instantané serveur.
+- Réinitialisation complète de l’état multijoueur et des valeurs d’origine des cultures à la sortie d’une mission.
+- Correction de la normalisation de la configuration et de la sauvegarde des modèles pour les paramètres personnalisés de réensemencement.
 
 Journal des modifications 2.0.1.7 :
 - Correction de l’ordre de chargement de l’installation des hooks de permissions afin que la version avec permissions administrateur se charge correctement avant d’installer les écouteurs d’administration de la gestion de ferme.

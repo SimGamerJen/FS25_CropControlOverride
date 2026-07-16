@@ -219,6 +219,7 @@
         <text name="cco_waiting_mp_connection_sync" text="En attente de la connexion au serveur multijoueur avant de synchroniser les règles CCO."/>
         <text name="cco_waiting_server_rules" text="En attente des règles CCO du serveur."/>
         <text name="input_CCO_OPEN_GUI" text="Ouvrir Crop Control Override"/>
+        <text name="cco_label_reseed_weight" text="Poids de ressemis (0-5)"/>
         <text name="cco_sowing_not_permitted" text="Crop Control Override : Le semis de %s n’est pas autorisé."/>
     </texts>
 </l10n>

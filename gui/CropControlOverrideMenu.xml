@@ -98,22 +98,27 @@
                     <Text profile="ccoDetailsLabel" position="20px -278px" size="170px 28px" text="Reset NPC Fields"/>
                     <MultiTextOption profile="ccoSelectorOption" id="editResetOption" position="210px -278px" texts="-" onClick="onClickResetOption" wrap="false"/>
 
-                    <ThreePartBitmap profile="fs25_contractsContentSeparator" position="20px -320px" size="380px 2px"/>
+                    <Text profile="ccoDetailsLabel" position="20px -318px" size="180px 28px" text="$l10n_cco_label_reseed_weight"/>
+                    <Button profile="ccoEditButton" id="editReseedDownButton" position="210px -318px" size="54px 28px" text="-1" onClick="onClickReseedDown"/>
+                    <Text profile="ccoDetailsValue" id="editReseedWeightText" position="276px -318px" size="70px 28px" text="-"/>
+                    <Button profile="ccoEditButton" id="editReseedUpButton" position="350px -318px" size="54px 28px" text="+1" onClick="onClickReseedUp"/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -342px" size="170px 28px" text="Loaded on Map"/>
-                    <Text profile="ccoDetailsValue" id="selectedLoadedText" position="210px -342px" size="180px 28px" text="-"/>
+                    <ThreePartBitmap profile="fs25_contractsContentSeparator" position="20px -354px" size="380px 2px"/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -378px" size="170px 28px" text="Rule Status"/>
-                    <Text profile="ccoDetailsValue" id="selectedStatusText" position="210px -378px" size="180px 28px" text="-"/>
+                    <Text profile="ccoDetailsLabel" position="20px -370px" size="170px 28px" text="Loaded on Map"/>
+                    <Text profile="ccoDetailsValue" id="selectedLoadedText" position="210px -370px" size="180px 28px" text="-"/>
 
-                    <Text profile="ccoDetailsDirty" id="selectedDirtyText" position="20px -418px" size="380px 40px" text="No staged changes."/>
+                    <Text profile="ccoDetailsLabel" position="20px -402px" size="170px 28px" text="Rule Status"/>
+                    <Text profile="ccoDetailsValue" id="selectedStatusText" position="210px -402px" size="180px 28px" text="-"/>
 
-                    <Button profile="ccoApplyActionButton" id="editApplyButton" position="20px -442px" size="180px 34px" text="APPLY" onClick="onClickApplyDryRun"/>
-                    <Button profile="ccoDiscardActionButton" id="editDiscardButton" position="210px -442px" size="180px 34px" text="DISCARD" onClick="onClickDiscardStaged"/>
+                    <Text profile="ccoDetailsDirty" id="selectedDirtyText" position="20px -434px" size="380px 34px" text="No staged changes."/>
 
-                    <Button profile="ccoSaveDefaultsPanelButton" id="saveDefaultsButton" position="20px -486px" size="370px 38px" text="SAVE DEFAULTS TO CONFIG.XML" onClick="onClickSaveDefaults"/>
+                    <Button profile="ccoApplyActionButton" id="editApplyButton" position="20px -464px" size="180px 34px" text="APPLY" onClick="onClickApplyDryRun"/>
+                    <Button profile="ccoDiscardActionButton" id="editDiscardButton" position="210px -464px" size="180px 34px" text="DISCARD" onClick="onClickDiscardStaged"/>
 
-                    <Text profile="ccoDetailsInfo" id="selectedInfoText" position="20px -532px" size="380px 42px" text="Use the selector/value controls to stage changes, then APPLY."/>
+                    <Button profile="ccoSaveDefaultsPanelButton" id="saveDefaultsButton" position="20px -506px" size="370px 38px" text="SAVE DEFAULTS TO CONFIG.XML" onClick="onClickSaveDefaults"/>
+
+                    <Text profile="ccoDetailsInfo" id="selectedInfoText" position="20px -548px" size="380px 32px" text="Use the selector/value controls to stage changes, then APPLY."/>
                 </GuiElement>
                 <Text id="emptyStateText" profile="ccoEmptyStateText" position="220px -220px" text="No matching crop rules." visible="false"/>
             </GuiElement>

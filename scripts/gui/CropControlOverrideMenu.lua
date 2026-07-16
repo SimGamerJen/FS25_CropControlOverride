@@ -650,6 +650,7 @@ function CropControlOverrideMenu:createStagedRuleFromRow(row)
         npc = row.npcValue ~= nil and row.npcValue or ccoNpcToStage(row.npc),
         maxHa = tonumber(row.maxHa or 0) or numericFromHaAc(row.maxHaDisplay),
         resetNpcFields = self.defaultResetNpcFields ~= false,
+        reseedWeight = math.max(0, math.min(5, math.floor(tonumber(row.reseedWeight or 5) or 5))),
     }
     self.stagedDirty = false
     self.forceApplyArmed = false
@@ -682,6 +683,9 @@ function CropControlOverrideMenu:updateStagedButtons()
         setButton(self.editMaxDownButton, "-1", true)
         setButton(self.editMaxUpButton, "+1", true)
         self:setResetSelectorState(false, true)
+        setButton(self.editReseedDownButton, "-1", true)
+        setButton(self.editReseedUpButton, "+1", true)
+        setText(self.editReseedWeightText, "-")
         setButton(self.editApplyButton, "APPLY", true)
         setButton(self.editDiscardButton, "DISCARD", true)
         setText(self.editMaxHaText, "-")
@@ -694,6 +698,9 @@ function CropControlOverrideMenu:updateStagedButtons()
     setButton(self.editMaxDownButton, "-1", readOnly)
     setButton(self.editMaxUpButton, "+1", readOnly)
     self:setResetSelectorState(staged.resetNpcFields == true, readOnly)
+    setButton(self.editReseedDownButton, "-1", readOnly)
+    setButton(self.editReseedUpButton, "+1", readOnly)
+    setText(self.editReseedWeightText, tostring(staged.reseedWeight or 5))
     setButton(self.editApplyButton, self.forceApplyArmed and "FORCE APPLY" or "APPLY", readOnly or not self.stagedDirty)
     setButton(self.editDiscardButton, "DISCARD", readOnly or not self.stagedDirty)
     setText(self.editMaxHaText, string.format("%.2f", tonumber(staged.maxHa or 0) or 0))
@@ -1091,6 +1098,26 @@ function CropControlOverrideMenu:onClickMaxUp()
     end
 end
 
+function CropControlOverrideMenu:onClickReseedDown()
+    if not ccoGuiCanEditRules() then return end
+    if self.stagedRule ~= nil then
+        self.stagedRule.reseedWeight = math.max(0, (tonumber(self.stagedRule.reseedWeight or 5) or 5) - 1)
+        self.stagedDirty = true
+        self.forceApplyArmed = false
+        self:updateStagedButtons()
+    end
+end
+
+function CropControlOverrideMenu:onClickReseedUp()
+    if not ccoGuiCanEditRules() then return end
+    if self.stagedRule ~= nil then
+        self.stagedRule.reseedWeight = math.min(5, (tonumber(self.stagedRule.reseedWeight or 5) or 5) + 1)
+        self.stagedDirty = true
+        self.forceApplyArmed = false
+        self:updateStagedButtons()
+    end
+end
+
 function CropControlOverrideMenu:onClickResetOption(state, optionElement)
     if not ccoGuiCanEditRules() then
         if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then self.selectedDirtyText:setText("Read-only") end
@@ -1140,12 +1167,13 @@ function CropControlOverrideMenu:buildStagedRuleText()
     end
 
     return string.format(
-        "crop=%s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s",
+        "crop=%s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s reseedWeight=%d",
         tostring(staged.crop or "-"),
         tostring(staged.enabled == true),
         tostring(ccoNpcStageText(staged.npc)),
         tonumber(staged.maxHa or 0) or 0,
-        tostring(staged.resetNpcFields == true)
+        tostring(staged.resetNpcFields == true),
+        math.max(0, math.min(5, math.floor(tonumber(staged.reseedWeight or 5) or 5)))
     )
 end
 
