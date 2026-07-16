@@ -1,6 +1,6 @@
 # FS25 Crop Control Override
 
-**Version:** 2.0.1.7  
+**Version:** 2.0.3.5  
 **Game:** Farming Simulator 25  
 **Status:** Stable release  
 **Author:** SimGamerJen, Hyper138
@@ -13,7 +13,7 @@ The mod is designed for players who want tighter control over crop realism, map-
 
 The current recommended release is:
 
-**v2.0.1.7** from the main branch.
+**v2.0.3.5** from the main branch.
 
 Older alpha and beta releases are retained for history only.
 
@@ -53,6 +53,7 @@ Crop Control Override gives each savegame its own crop policy file. For every cr
 | NPC Permitted | Whether NPC farmers may use the crop. |
 | Max Field Size | Optional maximum field size for NPC use of that crop. |
 | Reset NPC Fields | Whether blocked NPC fields of that crop may be reset by the cleanup tools. |
+| Reseed Weight | Relative `0–5` chance of this crop being selected during NPC-field reseeding. `0` excludes it from reseeding without disabling it. |
 
 This allows you to create map-specific or region-specific crop rules without editing the map directly.
 
@@ -68,7 +69,7 @@ Examples:
 
 ## Release highlights
 
-Version `2.0.1.7` builds on the stable 2.0.0 release with dedicated-server multiplayer support, server-authoritative rule synchronisation, admin/master-user edit permissions, external l10n support, and the NPC crop planning hook update introduced during the multiplayer hotfix cycle.
+Version `2.0.3.5` expands the NPC-field reseed system with per-crop weighting, retains deterministic reseed behaviour, completes the disabled-crop sowing safeguards introduced in 2.0.3.4, and improves German localisation coverage.
 
 Key features:
 
@@ -86,14 +87,17 @@ Key features:
   - `RESEED SEASONAL`
 - Seasonal reseed candidate detection using FS25 growth data.
 - GRASS lifecycle reseed support.
-- XML-configurable reseed candidate weights.
-- Weighted deterministic reseed variety.
+- Per-crop reseed weights from `0` to `5`.
+- A global `leaveCultivated` weight.
+- Deterministic weighted reseed selection.
 - Dry-run before confirm workflow.
 - Diagnostic console commands.
 - Multiplayer-aware settings flow for local host and dedicated servers.
 - Server-authoritative per-save XML handling for dedicated multiplayer.
 - Read-only rule viewing for normal dedicated-server clients.
 - Admin/master-user editing support for elevated multiplayer users.
+- Immediate removal of disabled crops from compatible sowing-machine selectors.
+- Server-authoritative sowing safeguards for players, helpers, and multiplayer clients.
 - External l10n file support for community translations.
 
 ---
@@ -258,6 +262,22 @@ OFF / ON
 Controls whether CCO cleanup tools may reset blocked NPC fields of this crop.
 
 If this is `OFF`, blocked fields of that crop are not reset by the reset workflow.
+
+### Reseed Weight
+
+Values:
+
+```text
+0 / 1 / 2 / 3 / 4 / 5
+```
+
+Controls how strongly the selected crop participates in weighted NPC-field reseeding.
+
+- `0` excludes the crop from CCO reseeding.
+- `1` gives the crop a very low relative chance.
+- `5` gives the crop the highest normal relative chance.
+- A crop with weight `0` can still remain enabled for players and NPC policy; only automatic CCO reseeding is excluded.
+- The setting is stored per crop in the active savegame XML and is synchronised in multiplayer.
 
 ---
 
@@ -460,71 +480,79 @@ These may require special handling and should not be injected into ordinary NPC 
 
 ## Reseed weighting XML
 
-CCO supports XML-configurable reseed weighting.
+CCO uses a per-crop weighting system for NPC-field reseeding.
 
-The default bundled config includes:
+The only global reseed candidate setting is:
 
 ```xml
 <settings>
-    <reseedCandidateWeights seasonalMission="5" seasonalLifecycle="5" leaveCultivated="1"/>
+    <reseedCandidateWeights leaveCultivated="1"/>
 </settings>
 ```
 
-Meaning:
-
-| Attribute | Purpose |
-|---|---|
-| seasonalMission | Weight for normal seasonal mission crops, such as CANOLA. |
-| seasonalLifecycle | Weight for lifecycle crops, currently GRASS. |
-| leaveCultivated | Weight for leaving a reset field cultivated instead of reseeding it. |
-
-Values are clamped from `0` to `20`.
-
-Weighted selection is deterministic by field ID. This means the dry-run result should match the confirmed reset result.
-
-### Default weighting
+Each crop rule stores its own reseed weight:
 
 ```xml
-<reseedCandidateWeights seasonalMission="5" seasonalLifecycle="5" leaveCultivated="1"/>
+<fruits>
+    <fruit name="BARLEY"
+           enabled="true"
+           npcAllowed="mapDefault"
+           npcMaxHa="0"
+           resetNpcFields="true"
+           reseedWeight="5"/>
+</fruits>
 ```
 
-With CANOLA and GRASS both valid, the weighted pool is effectively:
+### Per-crop weights
+
+| Value | Behaviour |
+|---|---|
+| `0` | Never selected by CCO reseeding. The crop itself is not disabled. |
+| `1` | Very low relative chance. |
+| `2` | Low relative chance. |
+| `3` | Medium relative chance. |
+| `4` | High relative chance. |
+| `5` | Highest normal relative chance. |
+
+Weights are relative. A crop at `5` is five times as likely to be selected as a crop at `1`, provided both crops pass all seasonal, policy, field-size, and compatibility checks.
+
+### Leave cultivated weight
+
+`leaveCultivated` remains a global weighted pseudo-candidate. When selected, the reset field is left cultivated instead of being reseeded.
+
+Example:
+
+```xml
+<reseedCandidateWeights leaveCultivated="1"/>
+```
+
+With three valid crops weighted `5`, `3`, and `1`, the weighted pool is effectively:
 
 ```text
-CANOLA x5
-GRASS x5
+CROP_A x5
+CROP_B x3
+CROP_C x1
 LEAVE_CULTIVATED x1
 ```
 
-This creates a mostly reseeded map while occasionally leaving a field cultivated.
+Set `leaveCultivated="0"` to prevent weighted reseed variety from intentionally leaving a field cultivated when valid crop candidates exist.
 
-### Clean map preset
+### Migration from earlier configs
 
-Always reseed where possible:
+Existing per-save XML files are migrated automatically when loaded:
 
-```xml
-<reseedCandidateWeights seasonalMission="5" seasonalLifecycle="5" leaveCultivated="0"/>
+- missing per-crop `reseedWeight` values default to `5`;
+- obsolete `seasonalMission` and `seasonalLifecycle` settings are removed;
+- the existing `leaveCultivated` value is retained;
+- existing crop permissions and field-size rules are preserved.
+
+The migrated active configuration can be reloaded from disk without restarting FS25 by running:
+
+```text
+ccoReload
 ```
 
-### Rougher map preset
-
-Leave more fields cultivated after reset:
-
-```xml
-<reseedCandidateWeights seasonalMission="4" seasonalLifecycle="4" leaveCultivated="2"/>
-```
-
-### Prefer arable crops over grass
-
-```xml
-<reseedCandidateWeights seasonalMission="6" seasonalLifecycle="2" leaveCultivated="1"/>
-```
-
-### Prefer grass/lifecycle recovery
-
-```xml
-<reseedCandidateWeights seasonalMission="3" seasonalLifecycle="6" leaveCultivated="1"/>
-```
+Do not save through the GUI between manually editing the XML and running `ccoReload`, because the currently loaded rules could overwrite the external edits.
 
 ---
 
@@ -776,21 +804,20 @@ Reasons may include:
 - Crop exceeds Max Field limit.
 - Crop is not seasonally plantable.
 - Crop is specially excluded.
+- Crop has `reseedWeight="0"`.
 - Crop is valid but loses deterministic weighted selection.
 
-### GRASS is valid but not always selected
+### A valid crop is not selected often
 
-This is expected.
+This is expected when several crops are eligible.
 
-GRASS is a lifecycle candidate. It participates in weighted deterministic selection alongside seasonal mission crops.
-
-Check the XML weights:
+Check the crop's per-save XML rule:
 
 ```xml
-<reseedCandidateWeights seasonalMission="5" seasonalLifecycle="5" leaveCultivated="1"/>
+<fruit name="GRASS" reseedWeight="5"/>
 ```
 
-Increase `seasonalLifecycle` if you want GRASS selected more often.
+Increase or decrease the crop's `reseedWeight` from `0` to `5` to adjust its relative chance. A value of `0` excludes it from CCO reseeding entirely.
 
 ### Dry-run and confirm do not match
 
@@ -812,9 +839,7 @@ Run dry-run again immediately before confirm.
 - `RESEED SEASONAL` only targets blocked NPC fields in the selected reset scope.
 - Player-owned fields are not reset by NPC cleanup.
 - Some crop types are excluded from automatic reseed because they may require special handling.
-- The GUI does not yet expose reseed weights directly; edit XML manually.
 - Console reset commands do not expose the full GUI reset-mode workflow.
-- Candidate weighting is category-based, not per-crop.
 - Seasonal logic depends on FS25 crop growth data being available for the loaded crop.
 - Modded crops may behave differently depending on how their fruit type data is defined.
 - Dedicated-server clients depend on the server-synchronised ruleset; if the server/client mod versions differ, GUI state may not match.
@@ -868,6 +893,30 @@ Use this pattern:
 ---
 
 ## Changelog
+
+### 2.0.3.5
+
+- Replaced category-based reseed weighting with an individual `0–5` weight for every configured crop.
+- Added the Reseed Weight control to the crop-rule details pane.
+- Defined `0` as an explicit reseed exclusion without disabling the crop itself.
+- Retained `leaveCultivated` as the global weighted option for leaving some reset fields cultivated.
+- Removed the obsolete `seasonalMission` and `seasonalLifecycle` weighting settings.
+- Added per-crop reseed-weight persistence to active savegame XML files.
+- Added multiplayer synchronisation for per-crop reseed weights.
+- Added automatic migration for existing configs, defaulting missing crop weights to `5`.
+- Prevented fallback reseed selection from bypassing crops configured with weight `0`.
+- Added and translated new reseed-weight UI text.
+- Completed a broader German localisation pass across the GUI and gameplay messages.
+
+### 2.0.3.4
+
+- Removed disabled player crops immediately from compatible sowing-machine seed selectors.
+- Restored re-enabled crops without requiring a savegame reload.
+- Added server-authoritative sowing and direct-sowing safeguards.
+- Prevented stale selections, helpers, multiplayer clients, and compatible third-party worker systems from planting disabled crops.
+- Stopped active AI fieldwork when a prohibited crop is selected and displayed a centre-screen warning.
+- Improved multiplayer rule delivery with server push, client retry handling, and deferred client policy application.
+- Added and completed French localisation support.
 
 ### 2.0.1.7
 
