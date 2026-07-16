@@ -21,6 +21,7 @@ function CropControlOverrideMenu.new(target, customMt)
     self.stagedDirty = false
     self.forceApplyArmed = false
     self.resetConfirmArmed = false
+    self.regenerationConfirmArmed = false
     self.resetMode = "cultivated"
     self.resetScopeIndex = 1
     self.resetScopes = {"ALL"}
@@ -637,6 +638,11 @@ local function ccoGuiCanEditRules()
     return true
 end
 
+local function ccoGuiCanRegenerateNpcFields()
+    if not ccoGuiCanEditRules() then return false end
+    return g_currentMission ~= nil and g_currentMission.getIsServer ~= nil and g_currentMission:getIsServer()
+end
+
 function CropControlOverrideMenu:createStagedRuleFromRow(row)
     if row == nil then
         self.stagedRule = nil
@@ -811,6 +817,23 @@ function CropControlOverrideMenu:updateContent()
     if self.confirmBlockedResetButton ~= nil then
         local showConfirmReset = showResetControls and self.resetConfirmArmed == true
         self.confirmBlockedResetButton:setVisible(showConfirmReset)
+    end
+
+    if self.regenerateNpcPreviewButton ~= nil then
+        self.regenerateNpcPreviewButton:setVisible(showResetControls)
+        if self.regenerateNpcPreviewButton.setDisabled ~= nil then
+            local busy = CropControlOverride ~= nil and CropControlOverride._npcMapRegenerationState ~= nil
+            self.regenerateNpcPreviewButton:setDisabled((not ccoGuiCanRegenerateNpcFields()) or busy)
+        end
+    end
+
+    if self.confirmNpcRegenerationButton ~= nil then
+        local showConfirmRegeneration = showResetControls and self.regenerationConfirmArmed == true
+        self.confirmNpcRegenerationButton:setVisible(showConfirmRegeneration)
+        if self.confirmNpcRegenerationButton.setDisabled ~= nil then
+            local busy = CropControlOverride ~= nil and CropControlOverride._npcMapRegenerationState ~= nil
+            self.confirmNpcRegenerationButton:setDisabled((not ccoGuiCanRegenerateNpcFields()) or busy)
+        end
     end
 
     if self.tableTopic then
@@ -1556,6 +1579,63 @@ function CropControlOverrideMenu:onClickConfirmBlockedReset()
 
     self.pendingTitle = "Crop Control Override - Validation"
     self.pendingBody = tostring(body or "") .. "\n\nRESET RESULT\n" .. msg
+    self.currentTopic = "blocked"
+    self.tableTopic = false
+    self:updateContent()
+end
+
+function CropControlOverrideMenu:onClickRegenerateNpcPreview()
+    if not ccoGuiCanRegenerateNpcFields() then
+        self.regenerationConfirmArmed = false
+        self.pendingTitle = "Crop Control Override - Validation"
+        self.pendingBody = tostring(self.pendingBody or "") .. "\n\nNPC MAP REGENERATION\nRemote multiplayer clients are read-only. Regeneration can only be run by the server/host."
+        self:updateContent()
+        return
+    end
+    if CropControlOverride == nil or CropControlOverride.regenerateNpcFieldsDryRunFromGui == nil then
+        return
+    end
+
+    local ok, result, planned, confirmAllowed = pcall(function()
+        return CropControlOverride:regenerateNpcFieldsDryRunFromGui()
+    end)
+    local msg = ok and tostring(result or "Preview complete.") or ("Preview failed: " .. tostring(result))
+    self.regenerationConfirmArmed = ok and confirmAllowed == true and (tonumber(planned or 0) or 0) > 0
+
+    local body = ""
+    if CropControlOverride.buildGuiBlockedText ~= nil then
+        body = CropControlOverride:buildGuiBlockedText()
+    end
+    local hint = self.regenerationConfirmArmed
+        and "\n\nCONFIRM NPC REGENERATION is now available. This will replace crops on every unowned field, remove available contracts, and rebuild the contract board."
+        or ""
+    self.pendingTitle = "Crop Control Override - Validation"
+    self.pendingBody = tostring(body or "") .. "\n\nNPC MAP REGENERATION PREVIEW\n" .. msg .. hint
+    self.currentTopic = "blocked"
+    self.tableTopic = false
+    self:updateContent()
+end
+
+function CropControlOverrideMenu:onClickConfirmNpcRegeneration()
+    if not ccoGuiCanRegenerateNpcFields() or self.regenerationConfirmArmed ~= true then
+        return
+    end
+    if CropControlOverride == nil or CropControlOverride.regenerateNpcFieldsFromGui == nil then
+        return
+    end
+
+    local ok, result = pcall(function()
+        return CropControlOverride:regenerateNpcFieldsFromGui()
+    end)
+    local msg = ok and tostring(result or "Regeneration queued.") or ("Regeneration failed: " .. tostring(result))
+    self.regenerationConfirmArmed = false
+
+    local body = ""
+    if CropControlOverride.buildGuiBlockedText ~= nil then
+        body = CropControlOverride:buildGuiBlockedText()
+    end
+    self.pendingTitle = "Crop Control Override - Validation"
+    self.pendingBody = tostring(body or "") .. "\n\nNPC MAP REGENERATION RESULT\n" .. msg
     self.currentTopic = "blocked"
     self.tableTopic = false
     self:updateContent()

@@ -16,6 +16,9 @@
         <text name="cco_button_next_tab" text="ONGLET SUIVANT"/>
         <text name="cco_button_prev_tab" text="ONGLET PRÉCÉDENT"/>
         <text name="cco_button_reset_blocked_dryrun" text="RÉINIT. BLOQUÉ (TEST)"/>
+        <text name="cco_button_regenerate_npc_preview" text="PRÉVISUALISER LA RÉGÉNÉRATION PNJ"/>
+        <text name="cco_button_confirm_npc_regeneration" text="CONFIRMER LA RÉGÉNÉRATION PNJ"/>
+        <text name="cco_regeneration_ui_help" text="Prévisualise et régénère tous les champs non possédés selon les règles de culture, les stades saisonniers et les pondérations de réensemencement."/>
         <text name="cco_button_save_defaults" text="ENREG. PARAMÈTRES PAR DÉFAUT DANS CONFIG.XML"/>
         <text name="cco_checked_fields_line" text="Parcelles vérifiées : %d"/>
         <text name="cco_cleanup_console_alternatives" text="Alternatives console disponibles : ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked."/>

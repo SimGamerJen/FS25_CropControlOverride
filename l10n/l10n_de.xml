@@ -16,6 +16,9 @@
         <text name="cco_button_next_tab" text="NÄCHSTER REITER" />
         <text name="cco_button_prev_tab" text="VORHERIGER REITER" />
         <text name="cco_button_reset_blocked_dryrun" text="BLOCKIERTE FELDER TESTWEISE ZURÜCKSETZEN" />
+        <text name="cco_button_regenerate_npc_preview" text="NPC-NEUERSTELLUNG PRÜFEN"/>
+        <text name="cco_button_confirm_npc_regeneration" text="NPC-NEUERSTELLUNG BESTÄTIGEN"/>
+        <text name="cco_regeneration_ui_help" text="Vorschau und Neuerstellung aller unbesitzten Felder anhand der aktuellen Fruchtregeln, saisonalen Wachstumsstufen und Neusaat-Gewichtungen."/>
         <text name="cco_button_save_defaults" text="STANDARDWERTE IN CONFIG.XML SPEICHERN" />
         <text name="cco_checked_fields_line" text="Geprüfte Felder: %d" />
         <text name="cco_cleanup_console_alternatives" text="Konsolenalternativen bleiben verfügbar: ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked." />

@@ -46,6 +46,9 @@
             <Button profile="ccoValidationActionButton" id="resetBlockedDryRunButton" position="1180px -92px" size="320px 34px" text="RESET BLOCKED DRY-RUN" onClick="onClickResetBlockedDryRun" visible="false"/>
             <Button profile="ccoValidationDangerButton" id="confirmBlockedResetButton" position="1180px -134px" size="320px 34px" text="CONFIRM RESET" onClick="onClickConfirmBlockedReset" visible="false"/>
 
+            <Button profile="ccoValidationActionButton" id="regenerateNpcPreviewButton" position="1180px -184px" size="320px 34px" text="$l10n_cco_button_regenerate_npc_preview" onClick="onClickRegenerateNpcPreview" visible="false"/>
+            <Button profile="ccoValidationDangerButton" id="confirmNpcRegenerationButton" position="1180px -226px" size="320px 34px" text="$l10n_cco_button_confirm_npc_regeneration" onClick="onClickConfirmNpcRegeneration" visible="false"/>
+
             <Text id="bodyTextElement" text="" position="40px 150px" size="1480px 585px" textSize="16px" textColor="0.88 0.90 0.86 1" textVerticalAlignment="top" textAlignment="left" textMaxNumLines="36"/>
 
             <GuiElement id="ruleTableContainer" visible="false" position="0px 260px" size="1520px 520px">

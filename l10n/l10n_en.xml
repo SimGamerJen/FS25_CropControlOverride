@@ -16,6 +16,9 @@
         <text name="cco_button_next_tab" text="NEXT TAB"/>
         <text name="cco_button_prev_tab" text="PREV TAB"/>
         <text name="cco_button_reset_blocked_dryrun" text="RESET BLOCKED DRY-RUN"/>
+        <text name="cco_button_regenerate_npc_preview" text="PREVIEW NPC REGENERATION"/>
+        <text name="cco_button_confirm_npc_regeneration" text="CONFIRM NPC REGENERATION"/>
+        <text name="cco_regeneration_ui_help" text="Preview and regenerate all unowned fields using current crop rules, seasonal growth states, and reseed weights."/>
         <text name="cco_button_save_defaults" text="SAVE DEFAULTS TO CONFIG.XML"/>
         <text name="cco_checked_fields_line" text="Checked fields: %d"/>
         <text name="cco_cleanup_console_alternatives" text="Console alternatives remain available: ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked."/>

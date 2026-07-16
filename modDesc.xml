@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modDesc descVersion="110">
     <author>SimGamerJen, Hyper138</author>
-    <version>2.0.3.5</version>
+    <version>2.1.0.0</version>
     <title>
         <en>Crop Control Override</en>
         <de>Crop Control Override Öffnen</de>
@@ -34,6 +34,94 @@ Configuration:
 - Each crop has an individual reseed weight from 0 to 5, editable in the GUI and stored as reseedWeight on its fruit rule.
 - A crop weight of 0 excludes that crop from NPC-field reseeding without disabling it for the player.
 - The global leaveCultivated weight remains available, allowing weighted resets to leave some fields cultivated instead of reseeding them.
+
+Changelog 2.1.0.0 Alpha 10:
+- Added preview and confirmation controls for full NPC map regeneration to the Validation tab.
+- Added permission-aware UI gating and concise regeneration plan summaries.
+- Kept console commands and DEBUG mission auditing available.
+
+Changelog 2.1.0.0 Alpha 9.6:
+- Cleans the validated Alpha 9.5 build into a quieter test baseline.
+- Keeps the mission audit summary at INFO level and moves detailed mission, field and crop audit lines to DEBUG.
+- No intended regeneration or contract-generation behaviour changes.
+
+Changelog 2.1.0.0 Alpha 9.5:
+- Corrects mission-field resolution in the post-refill audit across numeric, nested, object and getter-based mission layouts.
+- Logs each mission class, crop, resolved field ID, resolution source and discovered field-related members.
+- Diagnostic only; regeneration and contract generation are unchanged.
+
+Changelog 2.1.0.0 Alpha 9.4:
+- Adds a post-refill audit matching regenerated harvest-ready fields to generated contracts.
+- Reports field, crop, state source, mission presence, mission type and mission crop.
+- Adds per-crop and overall ready-field versus contract totals without changing generation behaviour.
+
+Changelog 2.1.0.0 Alpha 9.2:
+- Preserves valid multi-period harvest outcomes when the final state remains in the current harvest range.
+- Prevents peas, spinach and similar crops from unnecessarily using the harvest-window fallback.
+
+Changelog 2.1.0.0 Alpha 9.1:
+- Preserves valid natural seasonal growth-mapping outcomes before using the harvest-window fallback.
+- Adds origin diagnostics and a better-mixed deterministic field picker.
+
+Changelog 2.1.0.0 Alpha 9:
+- Adds an authoritative harvest-window fallback when seasonal mapping replay cannot reproduce a valid harvest-ready standing crop.
+- The fallback requires an active harvest period and a valid harvesting-state range.
+
+Changelog 2.1.0.0 Alpha 8.2:
+- Cleaned and consolidated the validated Alpha 8.1 NPC map regeneration implementation.
+- No intended regeneration behaviour change from Alpha 8.1.
+
+Changelog 2.1.0.0 Alpha 8.1:
+- Applies the planting period's own seasonal growth mapping before replaying later periods.
+- Fixes year-crossing crops remaining stuck in their initial growth state.
+
+Changelog 2.1.0.0 Alpha 8:
+- Requires harvest-period regeneration outcomes to be inside each crop's authoritative harvesting state range.
+- Rejects expired planting origins that have already passed harvest readiness or wrapped back to early growth states.
+- Excludes crops with no plausible standing state for the current calendar period.
+
+Changelog 2.1.0.0 Alpha 7:
+- Replaced inferred growth stages with authoritative seasonal growthMapping replay.
+- Uses isHarvestable and each crop's actual harvesting-state range.
+- Evaluates all valid planting origins and prefers harvest-ready outcomes during harvest periods.
+- Rejects withered or out-of-season harvest states and retains the confirmation safety gate.
+
+Changelog 2.1.0.0 Alpha 6:
+- Converted full-map regeneration into a guarded diagnostic build while seasonal harvest data is investigated.
+- Expanded ccoGrowthProbe to dump harvesting metadata, growth-state names, and all 12 raw seasonal period entries for a selected crop.
+- Dry-run entries now identify whether each selected growth state is authoritative or unverified.
+- Confirmation is blocked whenever any planned crop uses an inferred or fallback growth state.
+- Regrowing crops such as grass are resolved before ordinary planting-window logic, preventing plantingAllowed from forcing newly seeded state 1.
+
+Changelog 2.1.0.0 Alpha 5:
+- Reworked full-map crop growth-state selection around each fruit type's authoritative harvesting-state range.
+- Crops in their current harvest period now use minHarvestingGrowthState so harvest missions and equipment recognise them correctly.
+- Intermediate calendar periods remain below the harvesting range instead of advancing by one raw foliage state per period.
+- Regrowing crops now use an established usable state rather than newly seeded state 1.
+- Refreshes every regenerated field's cached FieldState after density-map tasks settle and before contract generation begins.
+- Retains stale-contract removal and the staged native contract-board refill.
+
+Changelog 2.1.0.0 Alpha 3:
+- Fixed the delayed regeneration state machine not receiving update ticks.
+- Mission generation now starts reliably after the field-update settling delay.
+
+Changelog 2.1.0.0 Alpha 2:
+- Full-map regeneration is now refused while any accepted or active contract exists.
+- Available contracts are deleted before NPC fields are changed, preventing stale mission records from being saved.
+- Automatic mission generation is suspended while asynchronous field updates are applied.
+- Fresh mission generation starts after a five-second field-update settling period.
+- Added staged contract-removal and mission-regeneration logging.
+
+Changelog 2.1.0.0 Alpha 1:
+- Added an experimental console-first workflow to regenerate every NPC-owned field, not only fields blocked by active CCO rules.
+- Added ccoRegenerateNpcFields dryrun, confirm, and clear commands.
+- Full-map regeneration uses enabled NPC crops, field-size restrictions, per-crop reseed weights, and the leaveCultivated weight.
+- Added deterministic weighted selection so the dry-run and confirmed operation use the same field plan.
+- Added calendar-derived growth-state selection using runtime seasonal data where available, with a conservative planting-window progression fallback.
+- Crops without a plausible current growth state are excluded rather than being planted at an arbitrary stage.
+- Regeneration plans expire when the seasonal period or year changes.
+- Crop ground type is now resolved from the selected fruit growth state where supported by the engine.
+- This alpha keeps the existing blocked-field reset workflow unchanged.
 
 Changelog 2.0.3.5:
 - Replaced the seasonalMission and seasonalLifecycle category weights with an individual 0-5 reseed weight for every crop.
@@ -134,6 +222,95 @@ Konfiguration:
 - Eine Gewichtung von 0 schließt die Fruchtart von der Nachsaat auf NPC-Feldern aus, ohne sie für den Spieler zu deaktivieren.
 - Die globale Gewichtung leaveCultivated bleibt erhalten, sodass ein gewichteter Reset einige Felder im kultivierten Zustand belassen kann.
 
+Änderungen 2.1.0.0 Alpha 10:
+- Vorschau- und Bestätigungssteuerung für die vollständige NPC-Kartenneuerstellung im Reiter VALIDIERUNG hinzugefügt.
+- Berechtigungsabhängige UI-Sperren und kompakte Zusammenfassungen des Neuerstellungsplans hinzugefügt.
+- Konsolenbefehle und DEBUG-Missionsprüfung bleiben verfügbar.
+
+Änderungen 2.1.0.0 Alpha 9.6:
+- Bereinigt den validierten Alpha-9.5-Build zu einer ruhigeren Testbasis.
+- Behält die Zusammenfassung der Missionsprüfung auf INFO und verschiebt detaillierte Missions-, Feld- und Fruchtzeilen auf DEBUG.
+- Keine beabsichtigten Änderungen am Regenerations- oder Vertragsverhalten.
+
+Änderungen 2.1.0.0 Alpha 9.5:
+- Korrigiert die Feldauflösung der Missionsprüfung für numerische, verschachtelte, objektbasierte und getterbasierte Missionsstrukturen.
+- Protokolliert Missionsklasse, Frucht, aufgelöste Feld-ID, Auflösungsquelle und gefundene feldbezogene Einträge.
+- Nur Diagnose; Regenerierung und Vertragserzeugung bleiben unverändert.
+
+Änderungen 2.1.0.0 Alpha 9.4:
+- Fügt nach dem Auffüllen eine Diagnose hinzu, die erntereife regenerierte Felder den erzeugten Aufträgen zuordnet.
+- Meldet Feld, Frucht, Zustandsquelle, Auftragsstatus, Auftragstyp und Auftragsfrucht.
+- Ändert weder Feldregeneration noch Auftragsgenerierung.
+- Beendet die Vertragsauffüllung erst nach fünf aufeinanderfolgenden leeren Generierungszyklen.
+- Setzt die Leerzyklus-Serie zurück, sobald ein neuer Vertrag erzeugt wird.
+- Ergänzt Diagnoseausgaben zur Leerzyklus-Serie, ohne die Feld- oder Wachstumslogik zu ändern.
+
+Änderungen 2.1.0.0 Alpha 9.2:
+- Behält gültige Erntezustände über mehrere Perioden bei, wenn der Endzustand weiterhin im aktuellen Erntebereich liegt.
+- Verhindert, dass Erbsen, Spinat und ähnliche Kulturen unnötig auf den Erntefenster-Fallback zurückgreifen.
+
+Änderungen 2.1.0.0 Alpha 9.1:
+- Gültige natürliche saisonale Wachstumszuordnungen haben Vorrang vor dem Erntefenster-Fallback.
+- Fügt Herkunftsdiagnosen und eine besser gemischte deterministische Feldauswahl hinzu.
+
+Änderungen 2.1.0.0 Alpha 9:
+- Fügt einen autoritativen Erntefenster-Fallback hinzu, wenn die saisonale Zuordnung keinen gültigen erntereifen Feldbestand erzeugen kann.
+- Der Fallback erfordert einen aktiven Erntezeitraum und einen gültigen Erntezustandsbereich.
+
+Änderungen 2.1.0.0 Alpha 8.2:
+- Die validierte NPC-Kartenregenerierung aus Alpha 8.1 wurde bereinigt und konsolidiert.
+- Keine beabsichtigte Verhaltensänderung gegenüber Alpha 8.1.
+
+Änderungen 2.1.0.0 Alpha 8.1:
+- Wendet die saisonale Wachstumszuordnung der Pflanzperiode an, bevor spätere Perioden abgespielt werden.
+- Behebt, dass jahresübergreifende Feldfrüchte im anfänglichen Wachstumsstadium stecken bleiben.
+
+Änderungen 2.1.0.0 Alpha 8:
+- Ergebnisse in Erntezeiträumen müssen im maßgeblichen Ernte-Wachstumsbereich der Frucht liegen.
+- Abgelaufene Aussaatursprünge werden verworfen, wenn sie die Erntereife bereits passiert haben oder auf frühe Stadien zurückgesprungen sind.
+- Früchte ohne plausiblen aktuellen Feldbestand werden ausgeschlossen.
+
+Änderungen 2.1.0.0 Alpha 7:
+- Abgeleitete Wachstumsstufen wurden durch die verbindliche Wiedergabe der saisonalen growthMapping-Übergänge ersetzt.
+- Verwendet isHarvestable und den tatsächlichen Erntezustandsbereich jeder Frucht.
+- Bewertet alle gültigen Aussaatursprünge und bevorzugt in Ernteperioden erntereife Ergebnisse.
+- Verwirft verwelkte oder außerhalb der Saison liegende Erntezustände und behält die Bestätigungssperre bei.
+
+Änderungen 2.1.0.0 Alpha 6:
+- Die vollständige NPC-Kartenregeneration wurde während der Untersuchung der saisonalen Erntedaten in einen geschützten Diagnosemodus umgewandelt.
+- ccoGrowthProbe gibt nun Erntezustands-Metadaten, Namen der Wachstumsstufen und alle 12 unverarbeiteten Saisonperioden einer ausgewählten Fruchtart aus.
+- Der Testlauf kennzeichnet jeden gewählten Wachstumszustand als verifiziert oder nicht verifiziert.
+- Die Bestätigung wird blockiert, sobald ein geplanter Zustand nur geschätzt oder abgeleitet wurde.
+- Mehrjährige und nachwachsende Fruchtarten wie Gras werden vor der normalen Saatfensterlogik verarbeitet.
+
+Änderungen 2.1.0.0 Alpha 5:
+- Updated calendar-aware growth-state selection to use authoritative harvest-state ranges.
+- Harvest-period crops now use minHarvestingGrowthState.
+- Regrowing crops use an established state.
+- Refreshed cached field state before rebuilding contracts.
+
+Änderungen 2.1.0.0 Alpha 3:
+- Behoben, dass die verzögerte Regenerierungs-Zustandsmaschine keine Aktualisierungstakte erhielt.
+- Die Auftragserzeugung startet nun zuverlässig nach der Wartezeit für Feldaktualisierungen.
+
+Änderungen 2.1.0.0 Alpha 2:
+- Die vollständige Kartenregeneration wird verweigert, solange angenommene oder aktive Aufträge vorhanden sind.
+- Verfügbare Aufträge werden vor der Änderung der NPC-Felder gelöscht, damit keine veralteten Auftragsdaten gespeichert werden.
+- Die automatische Auftragserzeugung wird während der asynchronen Feldaktualisierung ausgesetzt.
+- Neue Aufträge werden nach einer Wartezeit von fünf Sekunden auf Basis der regenerierten Felder erzeugt.
+- Erweiterte Protokollierung für Auftragslöschung und Neuerzeugung.
+
+Änderungen 2.1.0.0 Alpha 1:
+- Einen experimentellen, konsolenbasierten Ablauf zum Neugenerieren aller NPC-Felder hinzugefügt, nicht nur der durch aktive CCO-Regeln blockierten Felder.
+- Die Befehle ccoRegenerateNpcFields dryrun, confirm und clear hinzugefügt.
+- Die vollständige Kartengenerierung berücksichtigt aktivierte NPC-Fruchtarten, Feldgrößenbegrenzungen, individuelle Nachsaatgewichtungen und die Gewichtung leaveCultivated.
+- Eine deterministische gewichtete Auswahl stellt sicher, dass Trockenlauf und Bestätigung denselben Feldplan verwenden.
+- Kalenderabhängige Wachstumsstufen verwenden verfügbare saisonale Laufzeitdaten und andernfalls eine vorsichtige Ableitung aus dem Saatfenster.
+- Fruchtarten ohne plausible aktuelle Wachstumsstufe werden ausgeschlossen, statt mit einer willkürlichen Stufe gesetzt zu werden.
+- Regenerierungspläne verfallen bei einem Wechsel der Saisonperiode oder des Jahres.
+- Der Bodentyp wird, sofern unterstützt, aus der gewählten Wachstumsstufe der Fruchtart ermittelt.
+- Der bestehende Ablauf zum Zurücksetzen blockierter Felder bleibt unverändert.
+
 Änderungen 2.0.3.5:
 - Die Kategoriegewichtungen seasonalMission und seasonalLifecycle wurden durch eine individuelle Nachsaatgewichtung von 0 bis 5 für jede Fruchtart ersetzt.
 - GUI-Steuerelemente zum Bearbeiten der Nachsaatgewichtung der ausgewählten Fruchtart hinzugefügt.
@@ -232,6 +409,95 @@ Configuration :
 - Chaque culture possède une pondération de ressemis individuelle de 0 à 5, modifiable dans l’interface et enregistrée comme reseedWeight dans sa règle de culture.
 - Une pondération de 0 exclut la culture du ressemis des champs PNJ sans la désactiver pour le joueur.
 - La pondération globale leaveCultivated est conservée, ce qui permet à une réinitialisation pondérée de laisser certains champs cultivés sans les ressemer.
+
+Journal des modifications 2.1.0.0 Alpha 10 :
+- Ajout des commandes de prévisualisation et de confirmation de la régénération complète des champs PNJ dans l’onglet VALIDATION.
+- Ajout du contrôle des autorisations dans l’interface et de résumés concis du plan.
+- Les commandes console et l’audit des missions en mode DEBUG restent disponibles.
+
+Journal des modifications 2.1.0.0 Alpha 9.6 :
+- Nettoie la version Alpha 9.5 validée pour créer une base de test moins verbeuse.
+- Conserve le résumé de l’audit des missions au niveau INFO et déplace les détails mission, champ et culture au niveau DEBUG.
+- Aucun changement prévu du comportement de régénération ou de génération des contrats.
+
+Journal des modifications 2.1.0.0 Alpha 9.5 :
+- Corrige la résolution des champs dans l’audit des missions pour les structures numériques, imbriquées, objet et basées sur des accesseurs.
+- Journalise la classe de mission, la culture, l’identifiant de champ résolu, la source de résolution et les membres liés au champ détectés.
+- Diagnostic uniquement ; la régénération et la génération des contrats restent inchangées.
+
+Journal des modifications 2.1.0.0 Alpha 9.4 :
+- Ajoute un audit après remplissage qui associe les champs régénérés prêts à récolter aux contrats créés.
+- Indique le champ, la culture, la source de l’état, la présence du contrat, son type et sa culture.
+- Ne modifie ni la régénération des champs ni la génération des contrats.
+- Termine le remplissage des contrats seulement après cinq cycles de génération vides consécutifs.
+- Réinitialise la série de cycles vides dès qu’un nouveau contrat est généré.
+- Ajoute des diagnostics sur les cycles vides sans modifier la régénération des champs ou des états de culture.
+
+Journal des modifications 2.1.0.0 Alpha 9.2 :
+- Conserve les résultats valides sur plusieurs périodes lorsque l’état final reste dans la plage de récolte actuelle.
+- Évite que les pois, les épinards et les cultures similaires utilisent inutilement la solution de repli de fenêtre de récolte.
+
+Journal des modifications 2.1.0.0 Alpha 9.1 :
+- Préserve les résultats saisonniers naturels valides avant le repli sur la fenêtre de récolte.
+- Ajoute des diagnostics d’origine et une sélection déterministe des champs mieux mélangée.
+
+Journal des modifications 2.1.0.0 Alpha 9 :
+- Ajoute un repli autoritatif de fenêtre de récolte lorsque la relecture saisonnière ne peut pas produire une culture sur pied prête à récolter.
+- Le repli exige une période de récolte active et une plage d’états de récolte valide.
+
+Journal des modifications 2.1.0.0 Alpha 8.2 :
+- Nettoyage et consolidation de la régénération validée des champs PNJ d’Alpha 8.1.
+- Aucun changement de comportement prévu par rapport à Alpha 8.1.
+
+Journal des modifications 2.1.0.0 Alpha 8.1 :
+- Applique la transition saisonnière de la période de semis avant de rejouer les périodes suivantes.
+- Corrige les cultures traversant l’année qui restaient bloquées à leur état initial.
+
+Journal des modifications 2.1.0.0 Alpha 8 :
+- En période de récolte, les résultats doivent se situer dans la plage officielle des états récoltables de la culture.
+- Rejette les origines de semis expirées ayant déjà dépassé la maturité ou rebouclé vers un stade précoce.
+- Exclut les cultures sans état sur pied plausible pour la période actuelle.
+
+Journal des modifications 2.1.0.0 Alpha 7 :
+- Remplacement des stades de croissance estimés par la relecture autoritative des transitions saisonnières growthMapping.
+- Utilisation de isHarvestable et de la plage réelle des états de récolte de chaque culture.
+- Évaluation de toutes les périodes de semis valides avec priorité aux cultures prêtes à récolter pendant la période de récolte.
+- Rejet des états fanés ou récoltables hors saison, tout en conservant le verrouillage de confirmation.
+
+Journal des modifications 2.1.0.0 Alpha 6 :
+- La régénération complète des champs PNJ passe en mode diagnostic protégé pendant l’analyse des données saisonnières de récolte.
+- ccoGrowthProbe affiche désormais les métadonnées de récolte, les noms des états de croissance et les 12 périodes saisonnières brutes d’une culture sélectionnée.
+- Le test à blanc indique si chaque état choisi est fiable ou non vérifié.
+- La confirmation est bloquée dès qu’un état de croissance repose sur une estimation ou une solution de repli.
+- Les cultures pérennes et repoussantes comme l’herbe sont traitées avant la logique ordinaire des périodes de semis.
+
+Journal des modifications 2.1.0.0 Alpha 5 :
+- Updated calendar-aware growth-state selection to use authoritative harvest-state ranges.
+- Harvest-period crops now use minHarvestingGrowthState.
+- Regrowing crops use an established state.
+- Refreshed cached field state before rebuilding contracts.
+
+Journal des modifications 2.1.0.0 Alpha 3 :
+- Correction de la machine d’état différée qui ne recevait aucun cycle de mise à jour.
+- La génération des contrats démarre désormais correctement après le délai d’application des champs.
+
+Journal des modifications 2.1.0.0 Alpha 2 :
+- La régénération complète de la carte est refusée lorsqu'un contrat accepté ou actif existe.
+- Les contrats disponibles sont supprimés avant la modification des champs PNJ afin d'éviter la sauvegarde de contrats obsolètes.
+- La génération automatique des contrats est suspendue pendant l'application asynchrone des mises à jour de champs.
+- La génération de nouveaux contrats démarre après un délai de cinq secondes.
+- Ajout de journaux détaillés pour la suppression et la régénération des contrats.
+
+Journal des modifications 2.1.0.0 Alpha 1 :
+- Ajout d’un flux expérimental piloté par la console pour régénérer tous les champs PNJ, et pas seulement ceux bloqués par les règles CCO actives.
+- Ajout des commandes ccoRegenerateNpcFields dryrun, confirm et clear.
+- La régénération complète utilise les cultures PNJ autorisées, les limites de taille de champ, les pondérations par culture et la pondération leaveCultivated.
+- La sélection pondérée déterministe garantit que l’aperçu et la confirmation utilisent exactement le même plan.
+- Ajout d’une sélection de stade de croissance adaptée au calendrier à partir des données saisonnières disponibles, avec une méthode de repli prudente basée sur la fenêtre de semis.
+- Les cultures sans stade actuel plausible sont exclues au lieu d’être placées à un stade arbitraire.
+- Les plans expirent lorsque la période saisonnière ou l’année change.
+- Le type de sol est désormais dérivé du stade de croissance choisi lorsque le moteur le permet.
+- Le flux existant de réinitialisation des champs bloqués reste inchangé.
 
 Journal des modifications 2.0.3.5 :
 - Remplacement des pondérations de catégorie seasonalMission et seasonalLifecycle par une pondération de ressemis individuelle de 0 à 5 pour chaque culture.

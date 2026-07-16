@@ -1,6 +1,6 @@
 # FS25 Crop Control Override
 
-**Version:** 2.0.3.5  
+**Version:** 2.1.0.0 Alpha 10  
 **Game:** Farming Simulator 25  
 **Status:** Stable release  
 **Author:** SimGamerJen, Hyper138
@@ -13,7 +13,7 @@ The mod is designed for players who want tighter control over crop realism, map-
 
 The current recommended release is:
 
-**v2.0.3.5** from the main branch.
+**v2.1.0.0 Alpha 10** from the `feature/npc-map-regeneration` branch.
 
 Older alpha and beta releases are retained for history only.
 
@@ -893,6 +893,140 @@ Use this pattern:
 ---
 
 ## Changelog
+
+### 2.1.0.0 Alpha 10
+
+- Added the full NPC map regeneration workflow to the Validation tab.
+- Added preview-first confirmation controls for destructive regeneration.
+- UI preview reports planned fields, exclusions, authoritative-state status, and crop distribution.
+- Regeneration controls are disabled for read-only multiplayer clients and while regeneration is already running.
+- Console regeneration commands remain available for diagnostics.
+
+### 2.1.0.0 Alpha 9.6
+
+- Cleans the validated Alpha 9.5 build into a quieter test baseline.
+- Keeps the mission audit summary visible at INFO level.
+- Moves per-mission, per-field, and per-crop audit detail to DEBUG level (`ccoLogLevel DEBUG`).
+- No intended changes to regeneration, seasonal state resolution, crop selection, field cache refresh, or contract generation.
+
+### 2.1.0.0 Alpha 9.5
+
+- Corrects the diagnostic mission audit so it can resolve field identifiers from numeric fields, nested mission data, field objects, getter methods, and other mission-class layouts.
+- Adds one `mission inspect` line per generated mission with mission class, crop, resolved field ID, resolution source, and discovered field-related members.
+- Retains Alpha 9.4 regeneration, state resolution, selection, and contract-generation behaviour unchanged.
+
+### 2.1.0.0 Alpha 9.4
+
+- Adds a post-refill mission audit for every regenerated harvest-ready NPC field.
+- Reports whether each ready field received a mission, including mission type, mission crop, and natural-versus-fallback state source.
+- Adds per-crop and overall totals for ready fields, matched contracts, unmatched ready fields, natural states, and fallback states.
+- Diagnostic only: no changes to field regeneration, crop-state resolution, deterministic selection, or mission generation.
+
+### 2.1.0.0 Alpha 9.2
+
+- Preserves planting origins that reached harvest readiness in an earlier period when their final current state remains inside the active harvest range.
+- Prevents multi-period harvest crops such as peas and spinach from unnecessarily falling through to the harvest-window fallback.
+- Retains Alpha 9.1 origin diagnostics and deterministic hash mixing.
+
+### 2.1.0.0 Alpha 9.1
+
+- Preserves valid natural seasonal `growthMapping` outcomes before considering the harvest-window fallback.
+- Adds dry-run diagnostics for natural, replayed, and rejected planting origins and records whether fallback was used.
+- Replaces the field-ID-correlated weighted picker with a deterministic rolling hash that better mixes neighbouring field IDs.
+
+### 2.1.0.0 Alpha 9
+
+- Adds an authoritative harvest-window fallback for anomaly crops whose valid planting-origin replays cannot reproduce a standing harvest-ready state.
+- The fallback is used only when the current seasonal period is explicitly harvestable and the fruit type provides a valid harvesting-state range.
+- Restores eligible crops such as wheat, oats, canola and potatoes to the regeneration pool without reintroducing speculative monthly growth-state estimates.
+
+### 2.1.0.0 Alpha 8.2
+
+- Cleaned and consolidated the validated Alpha 8.1 full-map NPC regeneration implementation.
+- Retains authoritative seasonal `growthMapping` replay, planting-period boundary handling, strict harvest-range validation, contract cleanup, field-state refresh and contract-board refill.
+- No intended regeneration behaviour change from Alpha 8.1.
+
+
+### 2.1.0.0 Alpha 8.1
+
+- Applies the selected planting period's own seasonal `growthMapping` before replaying later periods.
+- Fixes year-crossing crops such as wheat, barley and canola remaining stuck in their initial state.
+- Retains Alpha 8 harvest-range and expired-lifecycle validation.
+
+### 2.1.0.0 Alpha 8
+
+- Tightens seasonal planting-origin validation for full-map NPC regeneration.
+- During an active harvest period, only outcomes inside the crop's authoritative harvesting growth-state range are accepted.
+- Rejects planting origins that already passed a harvest-ready period and later wrapped back to an early growth state.
+- Rejects suspicious long year-crossing lifecycles that return to state 1 or 2 outside a valid planting period.
+- Crops with no plausible current standing state are excluded from the regeneration candidate pool.
+- Retains the authoritative-state confirmation gate, stale-contract purge, field-state refresh, and contract-board refill.
+
+### 2.1.0.0 Alpha 7
+
+- Replaced elapsed-period growth guesses with authoritative replay of each crop's seasonal `growthMapping` transitions.
+- Uses the runtime `isHarvestable` period flag and validates mapped states against each fruit type's harvesting range.
+- Evaluates every valid planting origin and selects the most advanced valid current state, preferring harvest-ready outcomes during harvest periods.
+- Rejects withered states and harvest states outside the active harvest period.
+- Applies authoritative lifecycle handling to grass and other regrowing crops.
+- Keeps confirmation blocked only when a selected crop has no complete authoritative mapping path.
+
+### 2.1.0.0 Alpha 6
+
+- Converted full-map NPC regeneration into a guarded diagnostic build while the authoritative seasonal harvest-state source is identified.
+- `ccoGrowthProbe CROP` now reports harvest-state metadata, growth-state names and every raw seasonal period entry for the selected crop.
+- Dry-run output labels every proposed field action with `authoritative=true|false`.
+- `ccoRegenerateNpcFields confirm` is blocked whenever any selected crop state is unverified.
+- Grass and other lifecycle crops are resolved before normal planting-period logic.
+
+Diagnostic workflow:
+
+```text
+ccoRegenerateNpcFields dryrun
+ccoGrowthProbe WHEAT
+ccoGrowthProbe OAT
+ccoGrowthProbe PEA
+ccoGrowthProbe CANOLA
+ccoGrowthProbe GRASS
+```
+
+Upload the probe sections from `log.txt`. Do not use `confirm` unless the dry-run reports `confirmAllowed=true`.
+
+### 2.1.0.0 Alpha 5
+
+- Uses each fruit type's authoritative `minHarvestingGrowthState` and `maxHarvestingGrowthState` when the current calendar period is harvestable.
+- Keeps crops in intermediate calendar periods below the harvesting range rather than advancing one raw foliage state per month.
+- Places permanent/regrowing crops such as grass at an established usable state instead of growth state 1.
+- Refreshes regenerated `FieldState` caches after field tasks settle and before rebuilding contracts.
+- Retains stale-contract removal and repeated native contract-board refill from Alpha 4.
+
+### 2.1.0.0 Alpha 3
+
+- Refuses full-map regeneration while any accepted or active contract exists.
+- Deletes all unaccepted/generated contracts before changing NPC fields so stale mission records cannot survive into the savegame.
+- Suspends automatic contract generation while the asynchronous field update tasks are being applied.
+- Waits five seconds after queueing the field tasks before starting fresh mission generation against the regenerated field states.
+- Adds staged log output for stale-contract removal, field-task queueing, and fresh mission generation.
+- Keeps the Alpha 1 crop-selection and growth-state logic unchanged for focused contract-lifecycle testing.
+
+
+### 2.1.0.0 Alpha 1
+
+This alpha introduces an experimental, console-first full-map NPC field regeneration workflow. It is intentionally separate from the existing blocked-field repair feature.
+
+Commands:
+
+```text
+ccoRegenerateNpcFields dryrun
+ccoRegenerateNpcFields confirm
+ccoRegenerateNpcFields clear
+```
+
+The dry-run builds and arms an exact field-by-field plan using enabled NPC crops, field-size rules, each crop's `reseedWeight`, and the global `leaveCultivated` weight. Selection is deterministic, so confirmation applies the same plan that was previewed. The plan expires if the seasonal period or year changes.
+
+For each crop, CCO first looks for an explicit growth state in the runtime seasonal data. If none is exposed, it derives a conservative state from the most recent planting window and the crop's available harvesting/foliage states. Crops without a plausible current state are excluded rather than being placed at growth state 1 outside their normal lifecycle.
+
+This is an alpha feature and should be tested on a backed-up save. The existing `RESET BLOCKED` workflow remains unchanged.
 
 ### 2.0.3.5
 
