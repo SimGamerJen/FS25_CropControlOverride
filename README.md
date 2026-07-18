@@ -954,3 +954,10 @@ Use this pattern:
 
 Use a backup save when making significant crop policy changes, resetting blocked NPC fields, or using reseed workflows. CCO changes active save configuration and can alter NPC field states when reset tools are confirmed.
 
+---
+
+## Licence and Permissions
+
+Copyright © 2026 SimGamerJen. All rights reserved.
+
+You may download and use this mod for personal use. You may not modify, redistribute, re-upload, or publish this mod, in whole or in part, or any derivative version without prior written permission from SimGamerJen.
