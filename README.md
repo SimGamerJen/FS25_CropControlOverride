@@ -1,6 +1,6 @@
 # FS25 Crop Control Override
 
-**Version:** 2.1.0.0 Alpha 10.2  
+**Version:** 2.1.0.0 Alpha 10.3  
 **Game:** Farming Simulator 25  
 **Status:** Alpha test build  
 **Author:** SimGamerJen, Hyper138
@@ -13,7 +13,7 @@ The mod is designed for players who want tighter control over crop realism, map-
 
 The current recommended release is:
 
-**v2.1.0.0 Alpha 10.2** from the `feature/npc-map-regeneration` branch.
+**v2.1.0.0 Alpha 10.3** from the `feature/npc-map-regeneration` branch.
 
 Older alpha and beta releases are retained for history only.
 
@@ -69,7 +69,7 @@ Examples:
 
 ## Release highlights
 
-Version `2.1.0.0 Alpha 10.2` completes the dedicated-server validation and blocked-field cleanup workflow while retaining Alpha 10's NPC-map regeneration features.
+Version `2.1.0.0 Alpha 10.3` prevents invalid sow contracts during NPC crop planning and safely rebuilds contracts after field cleanup, while retaining the dedicated-server validation fixes and Alpha 10 NPC-map regeneration features.
 
 Key features:
 
@@ -903,6 +903,16 @@ Use this pattern:
 ---
 
 ## Changelog
+
+### 2.1.0.0 Alpha 10.3
+
+- Prevents CCO's NPC crop-planning hooks from returning `nil` when a blocked crop has no selectable replacement or the weighted cleanup outcome is `leave cultivated`.
+- Keeps the engine's valid proposed fruit index until `SowMission.isAvailableForField` can reject a prohibited contract cleanly.
+- Excludes the non-fruit `leave cultivated` outcome from mission-specific replacement selection while preserving it for field cleanup and map regeneration.
+- Removes stale available contracts before blocked-field cleanup and refuses cleanup while an accepted or active contract exists.
+- Waits five seconds for asynchronous field tasks to settle, refreshes the affected `FieldState` caches, and only then starts fresh contract generation.
+- Adds a narrow recovery guard that marks an already-invalid sow contract for deletion when it would otherwise repeat the `getIsPlantableInPeriod` nil-reference error.
+- Retains Alpha 10.2 dedicated-server validation synchronisation, authoritative cleanup, and localization fixes.
 
 ### 2.1.0.0 Alpha 10.2
 

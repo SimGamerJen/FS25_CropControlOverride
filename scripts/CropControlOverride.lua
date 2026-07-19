@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.1.0.0-alpha.10.2",
+    VERSION = "2.1.0.0-alpha.10.3",
 
     _origFlags = {},
     _rules = {},
@@ -38,8 +38,10 @@ CropControlOverride = {
     _serverValidationSummary = nil,
     _serverBlockedFieldRows = nil,
     _pendingValidationSyncTimer = nil,
+    _pendingBlockedResetMissionRefresh = nil,
     _npcMapRegenerationPlan = nil,
     _npcMapRegenerationState = nil,
+    _sowUpdateGuardApplied = false,
 }
 
 local CCO = CropControlOverride
@@ -1263,7 +1265,7 @@ function CCO:getReseedWeights()
     return normalizeReseedWeights(settings.reseedWeights)
 end
 
-function CCO:buildWeightedReseedPool(candidates)
+function CCO:buildWeightedReseedPool(candidates, includeLeaveCultivated)
     local weights = self:getReseedWeights()
     local pool = {}
 
@@ -1278,24 +1280,26 @@ function CCO:buildWeightedReseedPool(candidates)
         end
     end
 
-    for _ = 1, weights.leaveCultivated do
-        table.insert(pool, {
-            cropName = "NONE",
-            category = "leaveCultivated",
-            ok = true,
-            seasonalOk = true,
-            seasonalKnown = true,
-            priority = 30,
-            fruit = nil,
-            reason = "authoritative weighted leave cultivated", authoritative = true,
-        })
+    if includeLeaveCultivated ~= false then
+        for _ = 1, weights.leaveCultivated do
+            table.insert(pool, {
+                cropName = "NONE",
+                category = "leaveCultivated",
+                ok = true,
+                seasonalOk = true,
+                seasonalKnown = true,
+                priority = 30,
+                fruit = nil,
+                reason = "authoritative weighted leave cultivated", authoritative = true,
+            })
+        end
     end
 
     return pool, weights
 end
 
 
-function CCO:findReplacementNpcCropForField(field, blockedCropName)
+function CCO:findReplacementNpcCropForField(field, blockedCropName, allowLeaveCultivated)
     local candidates = self:buildNpcCandidatesForField(field, false)
     if #candidates == 0 then return nil, "no valid NPC candidates" end
 
@@ -1307,7 +1311,7 @@ function CCO:findReplacementNpcCropForField(field, blockedCropName)
     end
     if #filtered == 0 then filtered = candidates end
 
-    local weightedPool, weights = self:buildWeightedReseedPool(filtered)
+    local weightedPool, weights = self:buildWeightedReseedPool(filtered, allowLeaveCultivated ~= false)
     local fieldIdNum = tonumber(getFieldId(field)) or 1
 
     if #weightedPool > 0 then
@@ -1633,6 +1637,9 @@ function CCO:resetNpcFields(filterCrop, dryRun, resetMode)
     local target = filterCrop ~= nil and filterCrop ~= "" and upper(filterCrop) or nil
     local queued, skipped = 0, 0
     local wouldQueue = 0
+    local removedMissions = nil
+    local changedFields = {}
+    local purgeRefused = false
 
     for idx, field in pairs(g_fieldManager:getFields()) do
         local ft = getFieldFruit(field)
@@ -1647,9 +1654,21 @@ function CCO:resetNpcFields(filterCrop, dryRun, resetMode)
                         print(("CCO: dry-run would reset field=%s crop=%s size=%.2fha reason=%s resetMode=%s action=%s reseedCandidate=%s candidateReason=%s"):format(
                             tostring(getFieldId(field, idx)), cropName, getFieldSizeHa(field), tostring(reason), select(2, self:normaliseResetMode(resetMode)), tostring(action), tostring(candidateCrop), tostring(candidateReason)))
                     else
+                        if removedMissions == nil then
+                            local purgeReason
+                            removedMissions, purgeReason = self:purgeAvailableContractsForRegeneration()
+                            if purgeReason ~= "ok" then
+                                warn("NPC field reset refused: " .. tostring(purgeReason))
+                                removedMissions = 0
+                                purgeRefused = true
+                                skipped = skipped + 1
+                                break
+                            end
+                        end
                         local ok = self:applyResetActionToField(field, cropName, reason, resetMode)
                         if ok then
                             queued = queued + 1
+                            table.insert(changedFields, field)
                         else
                             skipped = skipped + 1
                         end
@@ -1665,13 +1684,14 @@ function CCO:resetNpcFields(filterCrop, dryRun, resetMode)
         return wouldQueue, skipped
     end
 
-    if queued > 0 and g_missionManager ~= nil then
-        info("triggering mission generation after field reset")
-        if g_missionManager.generationTimer ~= nil then g_missionManager.generationTimer = 0 end
-        if g_missionManager.startMissionGeneration ~= nil then g_missionManager:startMissionGeneration() end
+    if queued > 0 then
+        self:scheduleBlockedResetMissionRefresh(changedFields, removedMissions)
     end
 
     local msg = ("CCO: NPC field reset complete. queued=%d skipped=%d"):format(queued, skipped)
+    if purgeRefused then
+        msg = msg .. " Cleanup was refused because an accepted/active contract exists."
+    end
     print(msg)
     if g_currentMission ~= nil and g_currentMission.addIngameNotification ~= nil then
         g_currentMission:addIngameNotification(FSBaseMission.INGAME_NOTIFICATION_OK, msg)
@@ -1687,7 +1707,9 @@ function CCO:generatePlannedFruitForField(superFunc, fieldManager, field)
 
     if not ok then
         warn("generatePlannedFruitForField original call failed: " .. tostring(proposedFruit))
-        return nil
+        -- Do not convert an engine planning failure into a nil fruit value that
+        -- can be stored on a mission and crash repeatedly during update.
+        error(proposedFruit, 0)
     end
 
     local ok2, selectedFruit = pcall(function()
@@ -1711,16 +1733,23 @@ function CCO:generatePlannedFruitForField(superFunc, fieldManager, field)
             return proposedFruit
         end
 
-        local replacement, replacementReason = self:findReplacementNpcCropForField(field, cropName)
+        -- Mission planning must always return a registered fruit index. The
+        -- weighted "leave cultivated" outcome is valid for cleanup/regeneration,
+        -- but returning nil here creates a SowMission whose update later
+        -- dereferences a missing fruit descriptor.
+        local replacement, replacementReason = self:findReplacementNpcCropForField(field, cropName, false)
         if replacement ~= nil and replacement.index ~= nil then
             debug(("planned fruit replacement for field %s: %s -> %s (%.2f ha): %s"):format(
                 tostring(getFieldId(field)), cropName, upper(replacement.name), fieldHa, tostring(reason)))
             return replacement.index
         end
 
-        debug(("planned fruit blocked for field %s: %s (%.2f ha): %s; no replacement selected (%s)"):format(
-            tostring(getFieldId(field)), cropName, fieldHa, tostring(reason), tostring(replacementReason)))
-        return nil
+        warn(("planned fruit replacement unavailable for field %s: %s (%.2f ha): %s; retaining engine fruit index %s so SowMission remains valid (%s)"):format(
+            tostring(getFieldId(field)), cropName, fieldHa, tostring(reason), tostring(proposedFruit), tostring(replacementReason)))
+        -- SowMission.isAvailableForField applies the policy rejection later.
+        -- Keeping the engine's valid proposal is safer than injecting nil into
+        -- the base-game mission lifecycle.
+        return proposedFruit
     end)
 
     if not ok2 then
@@ -2223,6 +2252,7 @@ end
 
 function CCO:update(dt)
     self:scanAndStopBlockedSowingWorkers(dt)
+    self:updateBlockedResetMissionRefresh(dt)
     self:updateNpcMapRegeneration(dt)
 end
 
@@ -2286,21 +2316,57 @@ function CCO:applyRuntimeHooks()
             local fieldHa = getFieldSizeHa(field)
             local allowed, reason = CCO:isNpcCropAllowedForField(fieldHa, cropName)
             if not allowed then
-                local replacement, replacementReason = CCO:findReplacementNpcCropForField(field, cropName)
+                local replacement, replacementReason = CCO:findReplacementNpcCropForField(field, cropName, false)
                 if replacement ~= nil and replacement.index ~= nil then
                     debug(("replaced blocked NPC crop choice %s with %s on field %s (%.2f ha): %s"):format(
                         cropName, upper(replacement.name), tostring(getFieldId(field)), fieldHa, tostring(reason)))
                     return replacement.index
                 end
 
-                debug(("blocked NPC crop choice %s on field %s (%.2f ha): %s; %s"):format(
-                    cropName, tostring(getFieldId(field)), fieldHa, tostring(reason), tostring(replacementReason)))
-                return nil
+                warn(("blocked NPC crop choice %s on field %s (%.2f ha): %s; retaining engine fruit index %s so mission data remains valid (%s)"):format(
+                    cropName, tostring(getFieldId(field)), fieldHa, tostring(reason), tostring(fruitIndex), tostring(replacementReason)))
+                return fruitIndex
             end
 
             return fruitIndex
         end
         debug("hooked FieldManager.getFruitIndexForField")
+    end
+end
+
+local function getSowMissionCropName(mission)
+    if mission == nil or g_fruitTypeManager == nil then return nil end
+
+    local fruit = mission.fruitType
+    if type(fruit) == "table" then
+        return fruit.name
+    end
+
+    local fruitIndex = tonumber(mission.fruitTypeIndex or mission.fruitIndex or fruit)
+    if fruitIndex == nil or fruitIndex == FruitType.UNKNOWN then return nil end
+    local descriptor = g_fruitTypeManager:getFruitTypeByIndex(fruitIndex)
+    return descriptor ~= nil and descriptor.name or nil
+end
+
+function CCO:discardInvalidSowMission(mission, failure)
+    if mission == nil then return end
+    if mission._ccoInvalidFruitQueued ~= true then
+        mission._ccoInvalidFruitQueued = true
+        local field = mission.field
+        warn(("discarding invalid SowMission before repeated update failure field=%s fruitType=%s fruitTypeIndex=%s error=%s"):format(
+            tostring(field ~= nil and getFieldId(field) or "UNKNOWN"),
+            tostring(mission.fruitType), tostring(mission.fruitTypeIndex or mission.fruitIndex), tostring(failure)))
+    end
+
+    if g_missionManager ~= nil and g_missionManager.markMissionForDeletion ~= nil then
+        g_missionManager:markMissionForDeletion(mission)
+    elseif mission.delete ~= nil then
+        local ok, deleteError = pcall(mission.delete, mission)
+        if not ok then warn("failed deleting invalid SowMission: " .. tostring(deleteError)) end
+    end
+
+    if g_missionManager ~= nil and g_missionManager.generationTimer ~= nil then
+        g_missionManager.generationTimer = 0
     end
 end
 
@@ -2312,15 +2378,7 @@ function CCO:applyLateHooks()
             local result = originalSowIsAvailable(field, mission, ...)
             if not result then return false end
 
-            local cropName = nil
-            if mission ~= nil then
-                if mission.fruitType ~= nil then
-                    cropName = mission.fruitType.name
-                elseif mission.fruitTypeIndex ~= nil and g_fruitTypeManager ~= nil then
-                    local ft = g_fruitTypeManager:getFruitTypeByIndex(mission.fruitTypeIndex)
-                    if ft ~= nil then cropName = ft.name end
-                end
-            end
+            local cropName = getSowMissionCropName(mission)
 
             if cropName == nil then return result end
 
@@ -2334,6 +2392,24 @@ function CCO:applyLateHooks()
             return result
         end
         debug("hooked SowMission.isAvailableForField")
+    end
+
+    if SowMission ~= nil and SowMission.update ~= nil and not self._sowUpdateGuardApplied then
+        self._sowUpdateGuardApplied = true
+        SowMission.update = Utils.overwrittenFunction(SowMission.update, function(mission, superFunc, dt)
+            local ok, result = pcall(superFunc, mission, dt)
+            if ok then return result end
+
+            local failure = tostring(result)
+            if failure:find("attempt to index nil", 1, true) ~= nil
+                and failure:find("getIsPlantableInPeriod", 1, true) ~= nil then
+                CCO:discardInvalidSowMission(mission, failure)
+                return
+            end
+
+            error(result, 0)
+        end)
+        debug("hooked SowMission.update (invalid fruit recovery guard)")
     end
 end
 
@@ -4646,6 +4722,42 @@ function CCO:getDryRunResetActionForField(field, cropName, mode)
     return "CULTIVATED", "NONE", "reset mode cultivated"
 end
 
+function CCO:scheduleBlockedResetMissionRefresh(fields, removedMissions)
+    self._pendingBlockedResetMissionRefresh = {
+        elapsedMs = 0,
+        fields = fields or {},
+        removedMissions = tonumber(removedMissions or 0) or 0,
+    }
+    info(("blocked-field cleanup queued; waiting for field tasks before refreshing states and contracts removedContracts=%d fields=%d"):format(
+        self._pendingBlockedResetMissionRefresh.removedMissions, #self._pendingBlockedResetMissionRefresh.fields))
+end
+
+function CCO:updateBlockedResetMissionRefresh(dt)
+    local state = self._pendingBlockedResetMissionRefresh
+    if state == nil then return end
+
+    state.elapsedMs = (state.elapsedMs or 0) + (tonumber(dt) or 0)
+    if state.elapsedMs < 5000 then return end
+    self._pendingBlockedResetMissionRefresh = nil
+
+    self:refreshRegeneratedFieldStates(state)
+    if g_missionManager == nil then
+        warn("blocked-field cleanup contract refresh skipped: mission manager unavailable")
+        return
+    end
+
+    if g_missionManager.generationTimer ~= nil then g_missionManager.generationTimer = 0 end
+    if g_missionManager.missionGenerationInProgress == true then
+        info("blocked-field cleanup contract refresh deferred to active native generation cycle")
+        return
+    end
+    if g_missionManager.startMissionGeneration ~= nil then
+        g_missionManager:startMissionGeneration()
+        info(("blocked-field cleanup field states settled; fresh contract generation started removedContracts=%d"):format(
+            tonumber(state.removedMissions or 0)))
+    end
+end
+
 
 function CCO:resetBlockedFieldById(fieldId, dryRun, resetMode)
     local wanted = tostring(fieldId or "")
@@ -4673,13 +4785,14 @@ function CCO:resetBlockedFieldById(fieldId, dryRun, resetMode)
                             tostring(getFieldId(field, idx)), cropName, getFieldSizeHa(field), tostring(reason), select(2, self:normaliseResetMode(resetMode)), tostring(action), tostring(candidateCrop), tostring(candidateReason)))
                         return 1, 0
                     else
+                        local removedMissions, purgeReason = self:purgeAvailableContractsForRegeneration()
+                        if purgeReason ~= "ok" then
+                            warn("field reset refused: " .. tostring(purgeReason))
+                            return 0, 1
+                        end
                         local ok = self:applyResetActionToField(field, cropName, reason, resetMode)
                         if ok then
-                            if g_missionManager ~= nil then
-                                info("triggering mission generation after field reset")
-                                if g_missionManager.generationTimer ~= nil then g_missionManager.generationTimer = 0 end
-                                if g_missionManager.startMissionGeneration ~= nil then g_missionManager:startMissionGeneration() end
-                            end
+                            self:scheduleBlockedResetMissionRefresh({field}, removedMissions)
                             return 1, 0
                         else
                             return 0, 1

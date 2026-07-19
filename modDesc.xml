@@ -35,6 +35,11 @@ Configuration:
 - A crop weight of 0 excludes that crop from NPC-field reseeding without disabling it for the player.
 - The global leaveCultivated weight remains available, allowing weighted resets to leave some fields cultivated instead of reseeding them.
 
+Changelog 2.1.0.0 Alpha 10.3:
+- Prevents NPC crop-planning hooks from returning an invalid fruit index when a replacement cannot be selected.
+- Delays contract rebuilding until asynchronous blocked-field cleanup has settled and refreshes the affected field states first.
+- Safely removes legacy sow contracts that already contain an invalid fruit reference instead of allowing repeated SowMission update errors.
+
 Changelog 2.1.0.0 Alpha 10.2:
 - Synchronises server-authoritative validation totals and blocked NPC field details to dedicated-server clients.
 - Routes validation dry-runs and confirmed blocked-field cleanup through the server.
@@ -231,6 +236,11 @@ Konfiguration:
 - Jede Fruchtart besitzt eine individuelle Nachsaatgewichtung von 0 bis 5, die in der GUI bearbeitet und als reseedWeight in ihrer Fruchtarten-Regel gespeichert wird.
 - Eine Gewichtung von 0 schließt die Fruchtart von der Nachsaat auf NPC-Feldern aus, ohne sie für den Spieler zu deaktivieren.
 - Die globale Gewichtung leaveCultivated bleibt erhalten, sodass ein gewichteter Reset einige Felder im kultivierten Zustand belassen kann.
+
+Änderungen 2.1.0.0 Alpha 10.3:
+- Verhindert, dass die NPC-Fruchtplanung einen ungültigen Fruchtindex zurückgibt, wenn keine Ersatzfrucht ausgewählt werden kann.
+- Erstellt Aufträge erst neu, nachdem die asynchrone Bereinigung blockierter Felder abgeschlossen und deren Feldstatus aktualisiert wurde.
+- Entfernt bereits vorhandene Saat-Aufträge mit ungültigem Fruchtverweis sicher, statt wiederholte SowMission-Aktualisierungsfehler zuzulassen.
 
 Änderungen 2.1.0.0 Alpha 10.2:
 - Synchronisiert serverseitig verbindliche Validierungssummen und Details blockierter NPC-Felder mit Clients dedizierter Server.
@@ -429,6 +439,11 @@ Configuration :
 - Chaque culture possède une pondération de ressemis individuelle de 0 à 5, modifiable dans l’interface et enregistrée comme reseedWeight dans sa règle de culture.
 - Une pondération de 0 exclut la culture du ressemis des champs PNJ sans la désactiver pour le joueur.
 - La pondération globale leaveCultivated est conservée, ce qui permet à une réinitialisation pondérée de laisser certains champs cultivés sans les ressemer.
+
+Journal des modifications 2.1.0.0 Alpha 10.3 :
+- Empêche la planification des cultures PNJ de renvoyer un indice de culture invalide lorsqu’aucune culture de remplacement ne peut être choisie.
+- Attend la fin du nettoyage asynchrone des parcelles bloquées, puis actualise leur état avant de recréer les contrats.
+- Supprime en toute sécurité les anciens contrats de semis contenant déjà une référence de culture invalide au lieu de laisser l’erreur SowMission se répéter.
 
 Journal des modifications 2.1.0.0 Alpha 10.2 :
 - Synchronise les totaux de validation faisant autorité sur le serveur et les détails des parcelles NPC bloquées vers les clients du serveur dédié.
