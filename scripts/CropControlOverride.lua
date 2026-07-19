@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.1.0.0-alpha.10",
+    VERSION = "2.1.0.0-alpha.10.2",
 
     _origFlags = {},
     _rules = {},
@@ -35,6 +35,9 @@ CropControlOverride = {
     _seedGuardHooksApplied = false,
     _serverSettingsRetryTimer = 0,
     _serverSettingsRetryCount = 0,
+    _serverValidationSummary = nil,
+    _serverBlockedFieldRows = nil,
+    _pendingValidationSyncTimer = nil,
     _npcMapRegenerationPlan = nil,
     _npcMapRegenerationState = nil,
 }
@@ -936,6 +939,8 @@ function CCO:loadRulesForMission(missionInfo)
         self._awaitingServerSettings = true
         self._serverSettingsSynced = false
         self._serverCanEditRules = false
+        self._serverValidationSummary = nil
+        self._serverBlockedFieldRows = nil
         self._serverSaveId = getSaveIdFromMissionInfo(missionInfo)
         self._configPath = "server:pending"
         self._rules = mergeMissingDiscoveredFruits(buildDefaultRules())
@@ -1580,7 +1585,7 @@ function CCO:printFieldSummary(filterCrop)
 end
 
 function CCO:validateSave()
-    local summary = self:buildFieldSummary(nil)
+    local summary = self:getGuiValidationSummary()
     if summary.offending == 0 then
         print(("CCO: validation passed. checked=%d npcFields=%d playerFields=%d offendingNpcFields=0"):format(
             summary.total, summary.npcTotal, summary.playerTotal))
@@ -2460,6 +2465,9 @@ FSBaseMission.delete = Utils.appendedFunction(FSBaseMission.delete, function()
     CCO._clientReportedMasterUser = false
     CCO._serverSettingsRetryTimer = 0
     CCO._serverSettingsRetryCount = 0
+    CCO._serverValidationSummary = nil
+    CCO._serverBlockedFieldRows = nil
+    CCO._pendingValidationSyncTimer = nil
     CCO._npcMapRegenerationPlan = nil
     CCO._npcMapRegenerationState = nil
 end)
@@ -2503,10 +2511,27 @@ function CCO:updateServerSettingsRetry(dt)
     self:requestServerSettings("retry")
 end
 
+function CCO:updatePendingValidationSync(dt)
+    if g_server == nil or self._pendingValidationSyncTimer == nil then return end
+    self._pendingValidationSyncTimer = self._pendingValidationSyncTimer - (tonumber(dt) or 0)
+    if self._pendingValidationSyncTimer > 0 then return end
+
+    self._pendingValidationSyncTimer = nil
+    local ok, e = pcall(function()
+        self:sendSettingsSnapshotToClient(nil, "validationRefresh")
+    end)
+    if not ok then
+        warn("failed to refresh dedicated-server validation snapshot after field cleanup: " .. tostring(e))
+    end
+end
+
 if FSBaseMission ~= nil and FSBaseMission.update ~= nil then
     FSBaseMission.update = Utils.appendedFunction(FSBaseMission.update, function(mission, dt)
         if CCO ~= nil and CCO.updateServerSettingsRetry ~= nil then
             CCO:updateServerSettingsRetry(dt)
+        end
+        if CCO ~= nil and CCO.updatePendingValidationSync ~= nil then
+            CCO:updatePendingValidationSync(dt)
         end
         -- CCO is not installed as a ModEventListener, so its CCO:update(dt)
         -- method is not called automatically. Service the staged NPC map
@@ -2563,7 +2588,7 @@ function CCO:buildGuiStatusText()
         if tonumber(r.npcMaxHa or 0) > 0 then limited = limited + 1 end
     end
 
-    local summary = self:buildFieldSummary(nil)
+    local summary = self:getGuiValidationSummary()
     local validation = (summary.offending or 0) == 0 and "PASS" or ("FAILED - " .. tostring(summary.offending or 0) .. " offending NPC field(s)")
 
     local lines = {}
@@ -2732,8 +2757,15 @@ function CCO:buildGuiRuleListText(mode, pageArg)
     return table.concat(lines, "\n")
 end
 
+function CCO:getGuiValidationSummary()
+    if isClientOnlyMultiplayer() and self._serverSettingsSynced == true and self._serverValidationSummary ~= nil then
+        return self._serverValidationSummary
+    end
+    return self:buildFieldSummary(nil)
+end
+
 function CCO:buildGuiBlockedText()
-    local summary = self:buildFieldSummary(nil)
+    local summary = self:getGuiValidationSummary()
     if (summary.offending or 0) == 0 then
         return table.concat({
             "SAVE VALIDATION",
@@ -2758,36 +2790,8 @@ function CCO:buildGuiBlockedText()
         "--------------------------------------------------------------------------",
     }
 
-    if g_fieldManager ~= nil and g_fieldManager.getFields ~= nil then
-        local fields = g_fieldManager:getFields()
-        local rows = {}
-
-        for i, field in pairs(fields or {}) do
-            local ft = getFieldFruit(field)
-            if ft ~= nil then
-                local cropName = upper(ft.name)
-                local blocked, reason = self:shouldResetNpcField(field, cropName)
-                if blocked then
-                    local candidateCrop, candidateReason = self:getReseedCandidateTextForField(field, cropName)
-                    table.insert(rows, {
-                        fieldId = tostring(getFieldId(field, i)),
-                        cropName = cropName,
-                        sizeHa = getFieldSizeHa(field),
-                        candidateCrop = candidateCrop,
-                        candidateReason = candidateReason,
-                        reason = tostring(reason or "blocked"),
-                    })
-                end
-            end
-        end
-
-        table.sort(rows, function(a, b)
-            local an = tonumber(a.fieldId)
-            local bn = tonumber(b.fieldId)
-            if an ~= nil and bn ~= nil then return an < bn end
-            return tostring(a.fieldId) < tostring(b.fieldId)
-        end)
-
+    do
+        local rows = self:getBlockedFieldRows()
         local maxRows = 12
         for i, row in ipairs(rows) do
             if i > maxRows then
@@ -2795,11 +2799,16 @@ function CCO:buildGuiBlockedText()
                 break
             end
 
+            local candidateCrop = row.candidateCrop
+            if (candidateCrop == nil or candidateCrop == "") and row.field ~= nil then
+                candidateCrop = self:getReseedCandidateTextForField(row.field, row.cropName)
+            end
+
             table.insert(lines, ("%-11s %-16s %7.2f   %-16s %s"):format(
                 row.fieldId,
                 row.cropName,
                 tonumber(row.sizeHa or 0) or 0,
-                tostring(row.candidateCrop or "NONE"),
+                tostring(candidateCrop or "NONE"),
                 row.reason
             ))
         end
@@ -3230,8 +3239,109 @@ function CCO:requestServerSettings(reason)
     return true, self._guiNotice
 end
 
-function CCO:applyServerSettingsPayload(payload, configPath, saveId, canEdit)
+local function encodeMultiplayerFieldValue(value)
+    return tostring(value or "")
+        :gsub("%%", "%%25")
+        :gsub("|", "%%7C")
+        :gsub("\r", "%%0D")
+        :gsub("\n", "%%0A")
+end
+
+local function decodeMultiplayerFieldValue(value)
+    return tostring(value or "")
+        :gsub("%%0D", "\r")
+        :gsub("%%0A", "\n")
+        :gsub("%%7C", "|")
+        :gsub("%%25", "%%")
+end
+
+function CCO:buildServerValidationPayload()
+    local summary = self:buildFieldSummary(nil)
+    local lines = {
+        table.concat({
+            "@summary",
+            tostring(tonumber(summary.total or 0) or 0),
+            tostring(tonumber(summary.npcTotal or 0) or 0),
+            tostring(tonumber(summary.playerTotal or 0) or 0),
+            tostring(tonumber(summary.offending or 0) or 0),
+        }, "|")
+    }
+
+    for _, row in ipairs(self:getBlockedFieldRows()) do
+        local candidateCrop, candidateReason = "NONE", "candidate unavailable"
+        local okCandidate, resolvedCrop, resolvedReason = pcall(function()
+            return self:getReseedCandidateTextForField(row.field, row.cropName)
+        end)
+        if okCandidate then
+            candidateCrop = resolvedCrop or "NONE"
+            candidateReason = resolvedReason or ""
+        end
+        table.insert(lines, table.concat({
+            "@field",
+            encodeMultiplayerFieldValue(row.fieldId),
+            encodeMultiplayerFieldValue(row.cropName),
+            tostring(tonumber(row.sizeHa or 0) or 0),
+            encodeMultiplayerFieldValue(row.reason),
+            encodeMultiplayerFieldValue(candidateCrop or "NONE"),
+            encodeMultiplayerFieldValue(candidateReason or ""),
+        }, "|"))
+    end
+
+    return table.concat(lines, "\n")
+end
+
+function CCO:parseServerValidationPayload(payload)
+    payload = tostring(payload or "")
+    if payload == "" then return nil, nil end
+
+    local summary = nil
+    local rows = {}
+    for line in (payload .. "\n"):gmatch("(.-)\n") do
+        if line ~= "" then
+            local parts = {}
+            for part in (line .. "|"):gmatch("(.-)|") do
+                table.insert(parts, part)
+            end
+            if parts[1] == "@summary" then
+                summary = {
+                    total = tonumber(parts[2] or 0) or 0,
+                    npcTotal = tonumber(parts[3] or 0) or 0,
+                    playerTotal = tonumber(parts[4] or 0) or 0,
+                    offending = tonumber(parts[5] or 0) or 0,
+                    crops = {},
+                }
+            elseif parts[1] == "@field" then
+                table.insert(rows, {
+                    field = nil,
+                    fieldId = decodeMultiplayerFieldValue(parts[2]),
+                    cropName = upper(decodeMultiplayerFieldValue(parts[3])),
+                    sizeHa = tonumber(parts[4] or 0) or 0,
+                    reason = decodeMultiplayerFieldValue(parts[5]),
+                    candidateCrop = decodeMultiplayerFieldValue(parts[6]),
+                    candidateReason = decodeMultiplayerFieldValue(parts[7]),
+                    serverAuthoritative = true,
+                })
+            end
+        end
+    end
+
+    table.sort(rows, function(a, b)
+        local an = tonumber(a.fieldId)
+        local bn = tonumber(b.fieldId)
+        if an ~= nil and bn ~= nil then return an < bn end
+        return tostring(a.fieldId) < tostring(b.fieldId)
+    end)
+
+    if summary == nil then
+        summary = { total = 0, npcTotal = 0, playerTotal = 0, offending = #rows, crops = {} }
+    end
+    summary.offending = math.max(tonumber(summary.offending or 0) or 0, #rows)
+    return summary, rows
+end
+
+function CCO:applyServerSettingsPayload(payload, configPath, saveId, canEdit, validationPayload)
     local rules, settings = deserializeRulesFromMultiplayer(payload)
+    local validationSummary, blockedRows = self:parseServerValidationPayload(validationPayload)
     self._rules = rules
     self._settings = settings or { reseedWeights = normalizeReseedWeights(nil) }
     self._configPath = "server:" .. tostring(saveId or "active")
@@ -3245,6 +3355,8 @@ function CCO:applyServerSettingsPayload(payload, configPath, saveId, canEdit)
     self._mpClientOnly = true
     self._serverSettingsRetryTimer = 0
     self._serverSettingsRetryCount = 0
+    self._serverValidationSummary = validationSummary
+    self._serverBlockedFieldRows = blockedRows or {}
     -- applyRules also rebuilds the seed lists of already-loaded sowing
     -- machines, so a snapshot that arrives after vehicles loaded still takes
     -- effect immediately.
@@ -3270,11 +3382,20 @@ function CCO:sendSettingsSnapshotToClient(connection, reason)
 
     local saveId = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo) or tostring(self._serverSaveId or "active")
     local payload = serializeRulesForMultiplayer(self._rules or buildDefaultRules(), self._settings)
+    local validationPayload = self:buildServerValidationPayload()
     local canEdit = ""
     if connection ~= nil then
         canEdit = tostring(self:getIsAdminConnection(connection) == true)
     end
-    local event = CropControlOverrideChangeSettingsEvent.new("syncSettings", payload, tostring(self._configPath or "server"), tostring(saveId or "active"), tostring(reason or "server"), canEdit)
+    local event = CropControlOverrideChangeSettingsEvent.new(
+        "syncSettings",
+        payload,
+        tostring(self._configPath or "server"),
+        tostring(saveId or "active"),
+        tostring(reason or "server"),
+        canEdit,
+        validationPayload
+    )
 
     if connection ~= nil and connection.sendEvent ~= nil then
         connection:sendEvent(event)
@@ -3287,6 +3408,27 @@ function CCO:sendSettingsSnapshotToClient(connection, reason)
     end
 
     return false, "No connection/server available for CCO settings sync."
+end
+
+function CCO:sendOperationResultToClient(connection, operation, success, message, canForce, value1, value2)
+    if CropControlOverrideChangeSettingsEvent == nil then
+        return false, "CCO multiplayer event is not available."
+    end
+    if connection == nil or connection.sendEvent == nil then
+        return false, "No client connection is available for the CCO operation result."
+    end
+
+    local event = CropControlOverrideChangeSettingsEvent.new(
+        "operationResult",
+        tostring(operation or ""),
+        tostring(success == true),
+        tostring(message or ""),
+        tostring(canForce == true),
+        tostring(value1 or ""),
+        tostring(value2 or "")
+    )
+    connection:sendEvent(event)
+    return true, "Sent CCO operation result to client."
 end
 
 function CCO:_shouldUseMultiplayerEvent()
@@ -3322,7 +3464,7 @@ function CCO:_sendMultiplayerEvent(operation, a, b, c, d, e, f, g)
             connection:sendEvent(event)
             local msg = "Sent CCO " .. tostring(operation) .. " request to the server."
             self._guiNotice = msg
-            return true, msg
+            return true, msg, false, true
         end
         local msg = "Waiting for multiplayer server connection before sending CCO " .. tostring(operation) .. " request."
         self._guiNotice = msg
@@ -3368,13 +3510,70 @@ function CCO:refreshOpenGuiAfterMultiplayerSync(operation, msg)
     end
 end
 
+function CCO:applyServerOperationResult(operation, success, msg, canForce, value1, value2)
+    operation = tostring(operation or "")
+    success = success == true
+    canForce = canForce == true
+    msg = tostring(msg or (success and "Server operation completed." or "Server operation failed."))
+    self._guiNotice = msg
+
+    local controller = nil
+    if CropControlOverrideMenu ~= nil then
+        controller = CropControlOverrideMenu.INSTANCE
+    end
+
+    if operation == "applyRule" and controller ~= nil and controller.onServerApplyResult ~= nil then
+        controller:onServerApplyResult(success, msg, canForce)
+    elseif operation == "resetBlockedDryRun" and controller ~= nil and controller.onServerResetDryRunResult ~= nil then
+        controller:onServerResetDryRunResult(success, msg, tonumber(value1 or 0) or 0, tonumber(value2 or 0) or 0)
+    elseif operation == "resetBlocked" and controller ~= nil and controller.onServerResetResult ~= nil then
+        controller:onServerResetResult(success, msg, tonumber(value1 or 0) or 0, tonumber(value2 or 0) or 0)
+    elseif controller ~= nil then
+        if controller.selectedDirtyText ~= nil and controller.selectedDirtyText.setText ~= nil then
+            controller.selectedDirtyText:setText(success and "Server action completed." or "Server action failed.")
+        end
+        if controller.selectedInfoText ~= nil and controller.selectedInfoText.setText ~= nil then
+            controller.selectedInfoText:setText(msg)
+        end
+    end
+
+    return success, msg, canForce, value1, value2
+end
+
+function CCO:parseMultiplayerResetScope(scopeArg)
+    local scope = scopeArg
+    if type(scopeArg) == "string" then
+        local mode, value = string.match(scopeArg, "^([^:]+):(.*)$")
+        if mode == "all" then
+            scope = { mode = "all", label = "ALL" }
+        elseif mode == "crop" then
+            scope = { mode = "crop", crop = upper(value or ""), label = "CROP: " .. upper(value or "") }
+        elseif mode == "field" then
+            scope = { mode = "field", fieldId = tonumber(value), label = "FIELD: " .. tostring(value) }
+        end
+    end
+    return self:normaliseGuiResetScope(scope)
+end
+
 function CCO:handleMultiplayerEvent(operation, args, connection)
     args = args or {}
     self._handlingMpEvent = true
 
-    local ok, r1, r2, r3 = pcall(function()
+    local ok, r1, r2, r3, r4 = pcall(function()
         if operation == "syncSettings" then
-            return self:applyServerSettingsPayload(args[1], args[2], args[3], args[5])
+            return self:applyServerSettingsPayload(args[1], args[2], args[3], args[5], args[6])
+        elseif operation == "operationResult" then
+            if g_server ~= nil then
+                return false, "CCO operation result ignored by server."
+            end
+            return self:applyServerOperationResult(
+                args[1],
+                boolFromStringOrBool(args[2], false) == true,
+                args[3],
+                boolFromStringOrBool(args[4], false) == true,
+                args[5],
+                args[6]
+            )
         elseif operation == "adminStatus" then
             if g_server ~= nil and connection ~= nil then
                 self:_setServerConnectionMasterUser(connection, boolFromStringOrBool(args[1], false) == true)
@@ -3408,20 +3607,17 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
             return self:_saveCurrentRulesToTemplateConfigLocal()
         elseif operation == "loadDefaults" then
             return self:_loadTemplateDefaultsIntoCurrentSaveLocal()
+        elseif operation == "resetBlockedDryRun" then
+            local scope = self:parseMultiplayerResetScope(args[1])
+            local msg, wouldQueue, skipped = self:_resetBlockedFieldsDryRunFromGuiLocal(scope, args[2])
+            return true, msg, wouldQueue, skipped
         elseif operation == "resetBlocked" then
-            local scopeArg = args[1]
-            local scope = scopeArg
-            if type(scopeArg) == "string" then
-                local mode, value = string.match(scopeArg, "^([^:]+):(.*)$")
-                if mode == "all" then
-                    scope = { mode = "all", label = "ALL" }
-                elseif mode == "crop" then
-                    scope = { mode = "crop", crop = upper(value or ""), label = upper(value or "") }
-                elseif mode == "field" then
-                    scope = { mode = "field", fieldId = tonumber(value), label = "FIELD " .. tostring(value) }
-                end
+            local scope = self:parseMultiplayerResetScope(args[1])
+            local msg, queued, skipped = self:_resetBlockedFieldsFromGuiLocal(scope, args[2])
+            if tonumber(queued or 0) > 0 then
+                self._pendingValidationSyncTimer = 5000
             end
-            return self:_resetBlockedFieldsFromGuiLocal(scope, args[2])
+            return true, msg, queued, skipped
         elseif operation == "consoleSetCrop" then
             return self:_consoleSetCropLocal(args[1], args[2], args[3], args[4])
         end
@@ -3437,11 +3633,11 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
         return false, msg
     end
 
-    if r1 == true and g_client ~= nil and self.refreshOpenGuiAfterMultiplayerSync ~= nil then
+    if r1 == true and operation ~= "syncSettings" and operation ~= "operationResult" and g_client ~= nil and self.refreshOpenGuiAfterMultiplayerSync ~= nil then
         self:refreshOpenGuiAfterMultiplayerSync(operation, r2)
     end
 
-    return r1, r2, r3
+    return r1, r2, r3, r4
 end
 
 function CCO:applyGuiStagedRule(staged, forceApply)
@@ -4342,6 +4538,10 @@ end
 
 
 function CCO:getBlockedFieldRows()
+    if isClientOnlyMultiplayer() and self._serverSettingsSynced == true and self._serverBlockedFieldRows ~= nil then
+        return self._serverBlockedFieldRows
+    end
+
     local rows = {}
 
     if g_fieldManager ~= nil and g_fieldManager.getFields ~= nil then
@@ -4524,7 +4724,7 @@ function CCO:getBlockedCountForGuiScope(scope)
     return count
 end
 
-function CCO:resetBlockedFieldsDryRunFromGui(scope, resetMode)
+function CCO:_resetBlockedFieldsDryRunFromGuiLocal(scope, resetMode)
     local s = self:normaliseGuiResetScope(scope)
     local wouldQueue, skipped = 0, 0
 
@@ -4551,6 +4751,36 @@ function CCO:resetBlockedFieldsDryRunFromGui(scope, resetMode)
     print("CCO GUI RESET DRY-RUN: " .. msg)
     self._guiNotice = msg
     return msg, tonumber(wouldQueue or 0) or 0, tonumber(skipped or 0) or 0
+end
+
+function CCO:multiplayerResetScopeArg(scope)
+    local s = self:normaliseGuiResetScope(scope)
+    if s.mode == "crop" then
+        return "crop:" .. tostring(upper(s.crop or ""))
+    elseif s.mode == "field" then
+        return "field:" .. tostring(s.fieldId or "")
+    end
+    return "all:"
+end
+
+function CCO:resetBlockedFieldsDryRunFromGui(scope, resetMode)
+    if not self:canEditRules() then
+        local msg = "CCO validation dry-run is read-only for remote multiplayer clients. Log in as server admin/master user to continue."
+        self._guiNotice = msg
+        return false, msg, 0, 0, false
+    end
+
+    if isClientOnlyMultiplayer() then
+        local sent, msg, _, pending = self:_sendMultiplayerEvent(
+            "resetBlockedDryRun",
+            self:multiplayerResetScopeArg(scope),
+            tostring(resetMode or "cultivated")
+        )
+        return sent, msg, 0, 0, pending == true
+    end
+
+    local msg, wouldQueue, skipped = self:_resetBlockedFieldsDryRunFromGuiLocal(scope, resetMode)
+    return true, msg, wouldQueue, skipped, false
 end
 
 function CCO:_resetBlockedFieldsFromGuiLocal(scope, resetMode)
@@ -4591,19 +4821,22 @@ function CCO:resetBlockedFieldsFromGui(scope, resetMode)
     if not self:canEditRules() then
         local msg = "CCO reset is read-only for remote multiplayer clients. Log in as server admin/master user to change fields."
         self._guiNotice = msg
-        return msg, 0, 0
+        return false, msg, 0, 0, false
     end
-    if self:_shouldUseMultiplayerEvent() then
-        local s = self:normaliseGuiResetScope(scope)
-        local scopeArg = "all:"
-        if s.mode == "crop" then
-            scopeArg = "crop:" .. tostring(upper(s.crop or ""))
-        elseif s.mode == "field" then
-            scopeArg = "field:" .. tostring(s.fieldId or "")
-        end
-        return self:_sendMultiplayerEvent("resetBlocked", scopeArg, tostring(resetMode or "cultivated"))
+    if isClientOnlyMultiplayer() then
+        local sent, msg, _, pending = self:_sendMultiplayerEvent(
+            "resetBlocked",
+            self:multiplayerResetScopeArg(scope),
+            tostring(resetMode or "cultivated")
+        )
+        return sent, msg, 0, 0, pending == true
     end
-    return self:_resetBlockedFieldsFromGuiLocal(scope, resetMode)
+    local msg, queued, skipped = self:_resetBlockedFieldsFromGuiLocal(scope, resetMode)
+    if g_server ~= nil and tonumber(queued or 0) > 0 then
+        self:sendSettingsSnapshotToClient(nil, "resetBlocked")
+        self._pendingValidationSyncTimer = 5000
+    end
+    return true, msg, queued, skipped, false
 end
 
 function CCO:consoleResetNpcFields(cropNameArg, modeArg)

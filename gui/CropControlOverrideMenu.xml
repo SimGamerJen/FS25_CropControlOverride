@@ -98,7 +98,7 @@
                     <Text profile="ccoDetailsValue" id="editMaxHaText" position="276px -238px" size="70px 28px" text="-"/>
                     <Button profile="ccoEditButton" id="editMaxUpButton" position="350px -238px" size="54px 28px" text="+1" onClick="onClickMaxUp"/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -278px" size="170px 28px" text="Reset NPC Fields"/>
+                    <Text profile="ccoDetailsLabel" position="20px -278px" size="180px 28px" text="$l10n_cco_label_reset_npc_fields"/>
                     <MultiTextOption profile="ccoSelectorOption" id="editResetOption" position="210px -278px" texts="-" onClick="onClickResetOption" wrap="false"/>
 
                     <Text profile="ccoDetailsLabel" position="20px -318px" size="180px 28px" text="$l10n_cco_label_reseed_weight"/>

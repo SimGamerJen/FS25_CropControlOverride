@@ -94,7 +94,7 @@
         <text name="cco_label_max_field_ha" text="Max Field (ha) 1 ha = 2.47 ac"/>
         <text name="cco_label_npc_permitted" text="NPC Permitted"/>
         <text name="cco_label_player_permitted" text="Player Permitted"/>
-        <text name="cco_label_reset_npc_fields" text="Reset NPC Fields"/>
+        <text name="cco_label_reset_npc_fields" text="Existing Field Cleanup"/>
         <text name="cco_label_rule_status" text="Rule Status"/>
         <text name="cco_load_defaults_failed" text="Load Defaults failed."/>
         <text name="cco_load_defaults_failed_detail" text="Load Defaults failed: %s"/>
@@ -140,6 +140,9 @@
         <text name="cco_rule_saved_info" text="The selected crop rule was saved to the active CCO XML and rules were reapplied."/>
         <text name="cco_rule_saved_validation_passed" text="Rule saved. Validation passed."/>
         <text name="cco_rule_saved_validation_warning" text="Rule saved. Validation warning."/>
+        <text name="cco_rule_rejected_server" text="Server rejected the rule."/>
+        <text name="cco_rule_saved_server" text="Rule saved by server."/>
+        <text name="cco_rule_sent_server_validation" text="The rule was sent to the dedicated server for validation. The staged change will be kept until the server replies."/>
         <text name="cco_rules_readonly_admin" text="CCO rules are read-only for remote multiplayer clients. Log in as server admin/master user to change them."/>
         <text name="cco_rules_readonly_remote" text="CCO rules are read-only for remote multiplayer clients."/>
         <text name="cco_save_defaults_failed" text="Save defaults failed."/>
@@ -220,6 +223,9 @@
         <text name="cco_viewing_server_rules" text="Viewing server-side CCO rules. Remote clients cannot edit or write local XML in multiplayer."/>
         <text name="cco_waiting_mp_connection_send" text="Waiting for multiplayer server connection before sending CCO %s request."/>
         <text name="cco_waiting_mp_connection_sync" text="Waiting for multiplayer server connection before syncing CCO rules."/>
+        <text name="cco_waiting_server_apply" text="Waiting for server confirmation..."/>
+        <text name="cco_waiting_server_reset" text="Waiting for dedicated-server confirmation..."/>
+        <text name="cco_waiting_server_validation" text="Waiting for dedicated-server validation..."/>
         <text name="cco_waiting_server_rules" text="Waiting for server CCO rules."/>
         <text name="input_CCO_OPEN_GUI" text="Open Crop Control Override"/>
         <text name="cco_label_reseed_weight" text="Reseed Weight (0-5)"/>

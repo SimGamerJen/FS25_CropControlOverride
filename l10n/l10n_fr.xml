@@ -94,7 +94,7 @@
         <text name="cco_label_max_field_ha" text="Max parcelle (ha) 1 ha = 2,47 ac"/>
         <text name="cco_label_npc_permitted" text="NPC autorisé"/>
         <text name="cco_label_player_permitted" text="Joueur autorisé"/>
-        <text name="cco_label_reset_npc_fields" text="Réinitialiser les parcelles NPC"/>
+        <text name="cco_label_reset_npc_fields" text="Nettoyage des parcelles existantes"/>
         <text name="cco_label_rule_status" text="Statut de la règle"/>
         <text name="cco_load_defaults_failed" text="Échec du chargement des paramètres par défaut."/>
         <text name="cco_load_defaults_failed_detail" text="Échec du chargement des paramètres par défaut : %s"/>
@@ -140,6 +140,9 @@
         <text name="cco_rule_saved_info" text="La règle de culture sélectionnée a été enregistrée dans le XML CCO actif et les règles ont été réappliquées."/>
         <text name="cco_rule_saved_validation_passed" text="Règle enregistrée. Validation réussie."/>
         <text name="cco_rule_saved_validation_warning" text="Règle enregistrée. Avertissement de validation."/>
+        <text name="cco_rule_rejected_server" text="Le serveur a rejeté la règle."/>
+        <text name="cco_rule_saved_server" text="Règle enregistrée par le serveur."/>
+        <text name="cco_rule_sent_server_validation" text="La règle a été envoyée au serveur dédié pour validation. La modification préparée sera conservée jusqu'à la réponse du serveur."/>
         <text name="cco_rules_readonly_admin" text="Les règles CCO sont en lecture seule pour les clients distants en multijoueur. Connectez-vous en tant qu'admin/master du serveur pour les modifier."/>
         <text name="cco_rules_readonly_remote" text="Les règles CCO sont en lecture seule pour les clients distants en multijoueur."/>
         <text name="cco_save_defaults_failed" text="Échec de l'enregistrement des paramètres par défaut."/>
@@ -220,6 +223,9 @@
         <text name="cco_viewing_server_rules" text="Affichage des règles CCO côté serveur. Les clients distants ne peuvent pas modifier ou écrire de XML local en multijoueur."/>
         <text name="cco_waiting_mp_connection_send" text="En attente de la connexion au serveur multijoueur avant d'envoyer la requête CCO %s."/>
         <text name="cco_waiting_mp_connection_sync" text="En attente de la connexion au serveur multijoueur avant de synchroniser les règles CCO."/>
+        <text name="cco_waiting_server_apply" text="En attente de la confirmation du serveur..."/>
+        <text name="cco_waiting_server_reset" text="En attente de la confirmation du serveur dédié..."/>
+        <text name="cco_waiting_server_validation" text="En attente de la validation du serveur dédié..."/>
         <text name="cco_waiting_server_rules" text="En attente des règles CCO du serveur."/>
         <text name="input_CCO_OPEN_GUI" text="Ouvrir Crop Control Override"/>
         <text name="cco_label_reseed_weight" text="Poids de ressemis (0-5)"/>

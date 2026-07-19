@@ -3,6 +3,17 @@
 
 local CCO_GUI_MOD_DIRECTORY = g_currentModDirectory or ""
 
+local function ccoGuiText(key, fallback)
+    if g_i18n ~= nil and g_i18n.getText ~= nil then
+        local ok, value = pcall(function() return g_i18n:getText(key) end)
+        local valueText = tostring(value or "")
+        if ok and valueText ~= "" and valueText ~= key and valueText:find("^Missing '") == nil then
+            return value
+        end
+    end
+    return tostring(fallback or key or "")
+end
+
 CropControlOverrideMenu = {}
 
 local CropControlOverrideMenu_mt = Class(CropControlOverrideMenu, ScreenElement)
@@ -20,6 +31,10 @@ function CropControlOverrideMenu.new(target, customMt)
     self.stagedRule = nil
     self.stagedDirty = false
     self.forceApplyArmed = false
+    self.serverApplyPending = false
+    self.serverResetDryRunPending = false
+    self.serverResetPending = false
+    self.pendingResetScopeText = nil
     self.resetConfirmArmed = false
     self.regenerationConfirmArmed = false
     self.resetMode = "cultivated"
@@ -584,6 +599,7 @@ function CropControlOverrideMenu:setContent(title, body, topic)
     self.stagedRule = nil
     self.stagedDirty = false
     self.forceApplyArmed = false
+    self.serverApplyPending = false
     self:updateContent()
 end
 
@@ -707,12 +723,14 @@ function CropControlOverrideMenu:updateStagedButtons()
     setButton(self.editReseedDownButton, "-1", readOnly)
     setButton(self.editReseedUpButton, "+1", readOnly)
     setText(self.editReseedWeightText, tostring(staged.reseedWeight or 5))
-    setButton(self.editApplyButton, self.forceApplyArmed and "FORCE APPLY" or "APPLY", readOnly or not self.stagedDirty)
+    setButton(self.editApplyButton, self.forceApplyArmed and "FORCE APPLY" or "APPLY", readOnly or not self.stagedDirty or self.serverApplyPending == true)
     setButton(self.editDiscardButton, "DISCARD", readOnly or not self.stagedDirty)
     setText(self.editMaxHaText, string.format("%.2f", tonumber(staged.maxHa or 0) or 0))
 
     if readOnly then
         setText(self.selectedDirtyText, "Read-only server rules. Only the server/host can change CCO settings.")
+    elseif self.serverApplyPending == true then
+        setText(self.selectedDirtyText, ccoGuiText("cco_waiting_server_apply", "Waiting for server confirmation..."))
     elseif self.stagedDirty then
         setText(self.selectedDirtyText, "Staged changes ready. Apply will save XML.")
     else
@@ -800,14 +818,16 @@ function CropControlOverrideMenu:updateContent()
     if self.resetBlockedDryRunButton ~= nil then
         self.resetBlockedDryRunButton:setVisible(showResetControls)
         if self.resetBlockedDryRunButton.setDisabled ~= nil then
-            local disabled = false
+            local disabled = not ccoGuiCanEditRules()
+                or self.serverResetDryRunPending == true
+                or self.serverResetPending == true
             if showResetControls and CropControlOverride ~= nil then
                 local scope = self:getCurrentResetScope()
                 if CropControlOverride.getBlockedCountForGuiScope ~= nil then
-                    disabled = (tonumber(CropControlOverride:getBlockedCountForGuiScope(scope) or 0) or 0) == 0
+                    disabled = disabled or (tonumber(CropControlOverride:getBlockedCountForGuiScope(scope) or 0) or 0) == 0
                 elseif CropControlOverride.buildFieldSummary ~= nil then
                     local summary = CropControlOverride:buildFieldSummary(nil)
-                    disabled = (tonumber(summary.offending or 0) or 0) == 0
+                    disabled = disabled or (tonumber(summary.offending or 0) or 0) == 0
                 end
             end
             self.resetBlockedDryRunButton:setDisabled(disabled)
@@ -817,6 +837,9 @@ function CropControlOverrideMenu:updateContent()
     if self.confirmBlockedResetButton ~= nil then
         local showConfirmReset = showResetControls and self.resetConfirmArmed == true
         self.confirmBlockedResetButton:setVisible(showConfirmReset)
+        if self.confirmBlockedResetButton.setDisabled ~= nil then
+            self.confirmBlockedResetButton:setDisabled(self.serverResetDryRunPending == true or self.serverResetPending == true)
+        end
     end
 
     if self.regenerateNpcPreviewButton ~= nil then
@@ -1218,10 +1241,19 @@ function CropControlOverrideMenu:onClickApplyDryRun()
     end
 
     local cropName = tostring(self.stagedRule.crop or "")
-    local ok, msg, canForce = CropControlOverride:applyGuiStagedRule(self.stagedRule, self.forceApplyArmed == true)
+    local ok, msg, canForce, serverPending = CropControlOverride:applyGuiStagedRule(self.stagedRule, self.forceApplyArmed == true)
     local resultText = tostring(msg or "")
 
-    if ok then
+    if ok and serverPending == true then
+        self.serverApplyPending = true
+        self:updateStagedButtons()
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
+            self.selectedDirtyText:setText(ccoGuiText("cco_waiting_server_apply", "Waiting for server confirmation..."))
+        end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
+            self.selectedInfoText:setText(ccoGuiText("cco_rule_sent_server_validation", "The rule was sent to the dedicated server for validation. The staged change will be kept until the server replies."))
+        end
+    elseif ok then
         self.stagedDirty = false
         self.forceApplyArmed = false
 
@@ -1281,6 +1313,41 @@ function CropControlOverrideMenu:onClickApplyDryRun()
                 self.selectedInfoText:setText(message)
             end
         end
+    end
+end
+
+function CropControlOverrideMenu:onServerApplyResult(success, msg, canForce)
+    self.serverApplyPending = false
+    local message = tostring(msg or (success
+        and ccoGuiText("cco_rule_saved_server", "Rule saved by server.")
+        or ccoGuiText("cco_rule_rejected_server", "Server rejected the rule.")))
+
+    if success == true then
+        self.stagedDirty = false
+        self.forceApplyArmed = false
+        self:updateStagedButtons()
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
+            self.selectedDirtyText:setText(ccoGuiText("cco_rule_saved_server", "Rule saved by server."))
+        end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
+            self.selectedInfoText:setText(message)
+        end
+        return
+    end
+
+    -- Keep the proposed values exactly as staged. When the server's preflight
+    -- reports blocked NPC fields, the same button now becomes FORCE APPLY so
+    -- the remote admin can deliberately submit the guarded second request.
+    self.stagedDirty = true
+    self.forceApplyArmed = canForce == true
+    self:updateStagedButtons()
+    if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
+        self.selectedDirtyText:setText(self.forceApplyArmed
+            and ccoGuiText("cco_apply_blocked_rule_not_saved", "Apply blocked. Rule not saved.")
+            or ccoGuiText("cco_rule_rejected_server", "Server rejected the rule."))
+    end
+    if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
+        self.selectedInfoText:setText(message)
     end
 end
 
@@ -1493,6 +1560,7 @@ function CropControlOverrideMenu:updateResetModeButton()
 end
 
 function CropControlOverrideMenu:onClickResetMode()
+    if self.serverResetDryRunPending == true or self.serverResetPending == true then return end
     if self.resetMode == "reseedSeasonal" then
         self.resetMode = "cultivated"
     else
@@ -1504,6 +1572,7 @@ function CropControlOverrideMenu:onClickResetMode()
 end
 
 function CropControlOverrideMenu:onClickResetScope()
+    if self.serverResetDryRunPending == true or self.serverResetPending == true then return end
     self:refreshResetScopes()
     if #(self.resetScopes or {}) > 1 then
         self.resetScopeIndex = (self.resetScopeIndex or 1) + 1
@@ -1517,18 +1586,42 @@ function CropControlOverrideMenu:onClickResetScope()
 end
 
 function CropControlOverrideMenu:onClickResetBlockedDryRun()
+    if self.serverResetDryRunPending == true or self.serverResetPending == true then return end
     if CropControlOverride == nil or CropControlOverride.resetBlockedFieldsDryRunFromGui == nil then
         return
     end
 
     local scopeCrop, scopeText = self:getCurrentResetScope()
+    self.pendingResetScopeText = tostring(scopeText or "ALL")
 
-    local ok, result, wouldQueue = pcall(function()
+    local callOk, success, result, wouldQueue, skipped, serverPending = pcall(function()
         return CropControlOverride:resetBlockedFieldsDryRunFromGui(scopeCrop, self.resetMode)
     end)
 
-    local msg = ok and tostring(result or "Dry-run complete.") or ("Dry-run failed: " .. tostring(result))
-    self.resetConfirmArmed = ccoGuiCanEditRules() and ok and (tonumber(wouldQueue or 0) or 0) > 0
+    if not callOk then
+        self:onServerResetDryRunResult(false, "Dry-run failed: " .. tostring(success), 0, 0)
+        return
+    end
+
+    if success == true and serverPending == true then
+        self.serverResetDryRunPending = true
+        self.resetConfirmArmed = false
+        local body = CropControlOverride.buildGuiBlockedText ~= nil and CropControlOverride:buildGuiBlockedText() or ""
+        self.pendingTitle = "Crop Control Override - Validation"
+        self.pendingBody = tostring(body or "") .. "\n\nDRY-RUN RESULT\n" .. ccoGuiText("cco_waiting_server_validation", "Waiting for dedicated-server validation...")
+        self.currentTopic = "blocked"
+        self.tableTopic = false
+        self:updateContent()
+        return
+    end
+
+    self:onServerResetDryRunResult(success == true, result, wouldQueue, skipped)
+end
+
+function CropControlOverrideMenu:onServerResetDryRunResult(success, result, wouldQueue, skipped)
+    self.serverResetDryRunPending = false
+    local msg = tostring(result or (success and "Dry-run complete." or "Dry-run failed."))
+    self.resetConfirmArmed = ccoGuiCanEditRules() and success == true and (tonumber(wouldQueue or 0) or 0) > 0
 
     local body = ""
     if CropControlOverride.buildGuiBlockedText ~= nil then
@@ -1537,7 +1630,7 @@ function CropControlOverrideMenu:onClickResetBlockedDryRun()
 
     local confirmHint = ""
     if self.resetConfirmArmed then
-        confirmHint = "\n\nCONFIRM RESET is now available for scope=" .. tostring(scopeText or "ALL") .. " resetMode=" .. self:getResetModeLabel() .. ". It will apply the selected reset mode."
+        confirmHint = "\n\nCONFIRM RESET is now available for scope=" .. tostring(self.pendingResetScopeText or "ALL") .. " resetMode=" .. self:getResetModeLabel() .. ". It will apply the selected reset mode."
     elseif not ccoGuiCanEditRules() then
         confirmHint = "\n\nRemote multiplayer clients are read-only. Reset actions can only be run by the server/host."
     end
@@ -1555,7 +1648,7 @@ function CropControlOverrideMenu:onClickConfirmBlockedReset()
         if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO reset is read-only for remote multiplayer clients.") end
         return
     end
-    if self.resetConfirmArmed ~= true then
+    if self.resetConfirmArmed ~= true or self.serverResetDryRunPending == true or self.serverResetPending == true then
         return
     end
     if CropControlOverride == nil or CropControlOverride.resetBlockedFieldsFromGui == nil then
@@ -1564,12 +1657,34 @@ function CropControlOverrideMenu:onClickConfirmBlockedReset()
 
     local scopeCrop = self:getCurrentResetScope()
 
-    local ok, result = pcall(function()
+    local callOk, success, result, queued, skipped, serverPending = pcall(function()
         return CropControlOverride:resetBlockedFieldsFromGui(scopeCrop, self.resetMode)
     end)
 
-    local msg = ok and tostring(result or "Reset complete.") or ("Reset failed: " .. tostring(result))
+    if not callOk then
+        self:onServerResetResult(false, "Reset failed: " .. tostring(success), 0, 0)
+        return
+    end
+
+    if success == true and serverPending == true then
+        self.serverResetPending = true
+        local body = CropControlOverride.buildGuiBlockedText ~= nil and CropControlOverride:buildGuiBlockedText() or ""
+        self.pendingTitle = "Crop Control Override - Validation"
+        self.pendingBody = tostring(body or "") .. "\n\nRESET RESULT\n" .. ccoGuiText("cco_waiting_server_reset", "Waiting for dedicated-server confirmation...")
+        self.currentTopic = "blocked"
+        self.tableTopic = false
+        self:updateContent()
+        return
+    end
+
+    self:onServerResetResult(success == true, result, queued, skipped)
+end
+
+function CropControlOverrideMenu:onServerResetResult(success, result, queued, skipped)
+    self.serverResetPending = false
+    local msg = tostring(result or (success and "Reset complete." or "Reset failed."))
     self.resetConfirmArmed = false
+    self.pendingResetScopeText = nil
     self:refreshResetScopes()
 
     local body = ""

@@ -94,7 +94,7 @@
         <text name="cco_label_max_field_ha" text="Max. Feld (ha) 1 ha = 2,47 ac" />
         <text name="cco_label_npc_permitted" text="NPC erlaubt" />
         <text name="cco_label_player_permitted" text="Spieler erlaubt" />
-        <text name="cco_label_reset_npc_fields" text="NPC-Felder zurücksetzen" />
+        <text name="cco_label_reset_npc_fields" text="Bereinigung bestehender Felder" />
         <text name="cco_label_rule_status" text="Regelstatus" />
         <text name="cco_load_defaults_failed" text="Standardwerte konnten nicht geladen werden." />
         <text name="cco_load_defaults_failed_detail" text="Standardwerte konnten nicht geladen werden: %s" />
@@ -140,6 +140,9 @@
         <text name="cco_rule_saved_info" text="Die ausgewählte Fruchtarten-Regel wurde in der aktiven CCO-XML gespeichert und die Regeln wurden erneut angewendet." />
         <text name="cco_rule_saved_validation_passed" text="Regel gespeichert. Validierung erfolgreich." />
         <text name="cco_rule_saved_validation_warning" text="Regel gespeichert. Validierungswarnung." />
+        <text name="cco_rule_rejected_server" text="Der Server hat die Regel abgelehnt." />
+        <text name="cco_rule_saved_server" text="Regel auf dem Server gespeichert." />
+        <text name="cco_rule_sent_server_validation" text="Die Regel wurde zur Validierung an den dedizierten Server gesendet. Die vorbereitete Änderung bleibt bis zur Antwort des Servers erhalten." />
         <text name="cco_rules_readonly_admin" text="CCO-Regeln sind für entfernte Multiplayer-Clients schreibgeschützt. Als Serveradministrator/Master User anmelden, um sie zu ändern." />
         <text name="cco_rules_readonly_remote" text="CCO-Regeln sind für entfernte Multiplayer-Clients schreibgeschützt." />
         <text name="cco_save_defaults_failed" text="Standardwerte konnten nicht gespeichert werden." />
@@ -220,6 +223,9 @@
         <text name="cco_viewing_server_rules" text="Serverseitige CCO-Regeln werden angezeigt. Entfernte Clients können im Multiplayer keine lokale XML bearbeiten oder schreiben." />
         <text name="cco_waiting_mp_connection_send" text="Warten auf die Multiplayer-Serververbindung, bevor die CCO-Anfrage %s gesendet wird." />
         <text name="cco_waiting_mp_connection_sync" text="Warten auf die Multiplayer-Serververbindung, bevor CCO-Regeln synchronisiert werden." />
+        <text name="cco_waiting_server_apply" text="Warten auf die Serverbestätigung ..." />
+        <text name="cco_waiting_server_reset" text="Warten auf die Bestätigung des dedizierten Servers ..." />
+        <text name="cco_waiting_server_validation" text="Warten auf die Validierung durch den dedizierten Server ..." />
         <text name="cco_waiting_server_rules" text="Warten auf CCO-Regeln vom Server." />
         <text name="input_CCO_OPEN_GUI" text="Crop Control Override öffnen" />
         <text name="cco_label_reseed_weight" text="Nachsaatgewichtung (0–5)" />
