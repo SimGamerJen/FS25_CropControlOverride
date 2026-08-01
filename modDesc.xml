@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modDesc descVersion="110">
-    <author>SimGamerJen, Hyper138</author>
-    <version>2.0.3.5</version>
+    <author>SimGamerJen</author>
+    <version>2.1.0.0</version>
     <title>
         <en>Crop Control Override</en>
         <de>Crop Control Override Öffnen</de>
@@ -12,6 +12,8 @@
 Description:
 Crop Control Override is a per-save crop policy manager for Farming Simulator 25. It lets players control which crops are permitted for the player, which crops NPC farmers may plant, and whether NPC crop planting should be limited by field size.
 
+Contributor acknowledgement: Hyper138, who's NPC field-size limitation concept and development inspired me to build size-limitation functionality into the mod.
+
 The mod includes an editable FS25-style GUI, per-save XML rule files, NPC field validation, blocked NPC field reporting, and a guarded Apply / Force Apply workflow to prevent accidental invalid save states.
 
 Main GUI features:
@@ -20,6 +22,8 @@ Main GUI features:
 - SIZE LIMITED: view crops with NPC field-size limits.
 - NPC DISABLED: view crops NPCs should not plant.
 - VALIDATION: view existing NPC fields that violate the active policy and use the guarded dry-run / confirm reset workflow.
+- CALENDAR: review every loaded crop using native-style planting and harvesting bars, then use guarded whole-lifecycle shifts or custom planting/harvest windows with dry-run validation and map-default restore.
+- The built-in game Calendar page includes an EDIT CALENDAR button that opens CCO directly on the Calendar editor.
 - SUMMARY: view active config, rule counts, and validation state.
 - HELP: view in-game guidance.
 
@@ -35,67 +39,104 @@ Configuration:
 - A crop weight of 0 excludes that crop from NPC-field reseeding without disabling it for the player.
 - The global leaveCultivated weight remains available, allowing weighted resets to leave some fields cultivated instead of reseeding them.
 
-Changelog 2.0.3.5:
-- Replaced the seasonalMission and seasonalLifecycle category weights with an individual 0-5 reseed weight for every crop.
-- Added GUI controls for editing the reseed weight of the selected crop.
-- A crop weight of 0 now excludes that crop from NPC-field reseeding while leaving the crop otherwise enabled.
-- Retained the global leaveCultivated weighting.
-- Added automatic migration of existing per-save XML files, assigning the default weight of 5 where reseedWeight is missing and removing obsolete category weights when files are normalised.
-- Added multiplayer synchronisation for per-crop reseed weights.
+Changelog 2.1.0.0 Alpha 16.7:
+- Updated the contributor acknowledgement for Hyper138 to recognise the NPC field-size limitation concept and development that inspired CCO's size-limitation functionality.
 
-Changelog 2.0.3.4:
-- Disabled player crops are now removed immediately from the selectable seed list of loaded, newly purchased, and newly loaded sowing machines.
-- Re-enabling a crop restores it to compatible seeders without requiring a savegame reload.
-- Added server-authoritative sowing and direct-sowing safeguards so stale selections, helpers, multiplayer clients, and compatible third-party worker systems cannot plant prohibited crops.
-- Active AI fieldwork is stopped when a disabled crop is selected, the sowing implement is switched off, and a centre-screen Crop Control Override warning explains why seeding is not permitted.
-- Improved multiplayer crop-rule delivery with a server push after client loading, client retry handling, and deferred client-side policy application until the authoritative server snapshot arrives.
-- Added and completed French localisation support.
+Changelog 2.1.0.0 Alpha 16.6:
+- Moved the Planting / Harvesting legend into a lower reserved footer strip so it no longer overlaps the final visible crop row.
+- Retained the joined calendar bars and month/rule-table column dividers from Alpha 16.5.
 
-Changelog 2.0.1.9:
-- Expanded external l10n support so GUI and gameplay text can be translated through language files.
-- Added German and French language-file support and prepared the mod for community-contributed translations.
+Changelog 2.1.0.0 Alpha 16.5:
+- Added subtle vertical column dividers to the crop calendar month grid.
+- Added matching column dividers to the crop-policy rule tables for clearer scanning.
+- Calendar dividers overlay continuous planting and harvesting runs, retaining joined bars while keeping month boundaries visible.
 
-Changelog 2.0.1.8:
-- Rebuilt cached sowing-machine seed lists whenever crop rules change, so disabled crops disappear from seed selectors immediately.
-- Added a live sowing guard and filtering for newly loaded or purchased seeders.
-- Improved dedicated-server rule synchronisation with a server-side push and client retry process.
-- Prevented remote clients from applying temporary all-enabled placeholder rules while waiting for the server snapshot.
-- Reset multiplayer and original fruit-state data fully when leaving a mission.
-- Fixed config normalisation and template-backup handling for custom reseed settings.
+Changelog 2.1.0.0 Alpha 16.4:
+- Restored the Calendar table to its original vertical position after the Alpha 16.3 container-height regression.
+- Moved the Planting / Harvesting legend into a fixed row outside the scroll-list clipping region so it remains visible without moving the table.
+- Retained the joined continuous month bars introduced in Alpha 16.3.
 
-Changelog 2.0.1.7:
-- Fixed the permission-hook installer load order so the admin-permission build loads cleanly before installing Farm Management admin listeners.
+Changelog 2.1.0.0 Alpha 16.3:
+- Fixed the full Planting / Harvesting legend being clipped below the calendar list.
+- Joined adjacent planting and harvesting month segments into continuous visual runs while retaining separate split windows.
 
-Changelog 2.0.1.6:
-- Remote dedicated-server clients that elevate to game admin/master user through the Farm Management admin console can now unlock CCO editing for that session.
-- Added a permission refresh handshake so admin status changes are sent to the server and the CCO GUI refreshes without using local client XML files.
-- Server-side validation still protects rule changes; normal remote clients remain read-only.
+Changelog 2.1.0.0 Alpha 16.2:
+- Moved the calendar colour legend below the crop grid and expanded the labels to Planting and Harvesting.
+- Removed the abbreviated P/H legend from the month-header row, leaving the header focused on crop and month labels.
 
-Changelog 2.0.1.5:
-- Added dedicated-server admin/master-user edit permissions using the EasyDevControls-style authority model.
-- Remote server admins can edit CCO rules through server-validated multiplayer events while normal remote clients remain read-only.
-- Dedicated-server clients still do not read, create, or write local CCO XML files.
+Changelog 2.1.0.0 Alpha 16.1:
+- Calendar PREVIEW now renders the proposed planting and harvesting windows directly in the visual grid before Apply.
+- PREVIEW changes to CANCEL while a draft is displayed; Cancel restores the live applied calendar and editor values, then disables Apply.
+- Unapplied previews are automatically discarded when the selected crop, edit mode, staged shift/months, tab, or screen changes.
+- Restore Map Default previews the baseline calendar in the grid before APPLY RESTORE.
+- Removed the clipped partial calendar row and improved spacing in the Preview / Result panel.
 
-Changelog 2.0.1.4:
-- Fixed the custom CCO GUI opening path by removing the unstable paging selector that could trigger a TextElement stack overflow in some FS25 builds.
-- Remote multiplayer clients now show a waiting/sync state instead of rendering local default rules before the server snapshot arrives.
+Changelog 2.1.0.0 Alpha 16:
+- Reworked the CCO Calendar grid to use native-style planting and harvesting bars instead of P/H text cells.
+- Planting and harvesting use separate horizontal bands, allowing overlapping months to display both states clearly.
+- Added an EDIT CALENDAR action to the built-in game Calendar page, opening CCO directly on its guarded Calendar editor.
+- Preserves dynamically loaded crop icons, custom crops, override highlighting, scrolling, and all existing Preview / Apply / Restore safeguards.
 
-Changelog 2.0.1.3:
-- Fixed remote multiplayer client sync requests firing before the server connection is ready.
+Changelog 2.1.0.0 Alpha 15:
+- Replaced the Calendar tab's text columns with a visual crop-by-month grid. Green P cells show planting months, orange H cells show harvest months, and P/H marks overlap.
+- Calendar overrides are highlighted directly in the crop list while the guarded shift/custom editor remains in the details panel.
+- Contract-board rebuilds that hit the safety-cycle limit now report a warning instead of a normal completion message.
+- Suppressed stray console return output after custom-calendar preview/apply commands.
 
-Changelog 2.0.1.2:
-- Dedicated/cloud multiplayer clients now ignore local CCO XML files and use an in-memory ruleset synced from the server.
-- Remote multiplayer clients are read-only by default, preventing local savegame XML creation or accidental rule writes.
-- Single-player, local-host multiplayer, and server-side file behaviour remain unchanged.
+Changelog 2.1.0.0 Alpha 14.1:
+- Fixed Restore Map Default in CUSTOM mode so it stages a zero-shift baseline preview and clears the saved custom override when applied.
+- The GUI now labels the confirmation action APPLY RESTORE.
+- Invalid non-numeric shift console arguments are rejected without changing the calendar or rebuilding contracts.
 
-Changelog 2.0.1.1:
-- Fixed dedicated/cloud multiplayer client GUI refresh after server-side rule changes; the originating client now receives the server-authoritative update and refreshes an open CCO GUI.
+Changelog 2.1.0.0 Alpha 14:
+- Added a guarded CUSTOM WINDOWS mode to the Calendar GUI with independent planting and harvest month selection.
+- Generates a phase-warped lifecycle from the captured map baseline while preserving the map's native growth states and transition order.
+- Custom Apply requires every selected planting month to reach a harvest-ready state inside the selected harvest window; crops with inferred initialState remain shift-only.
+- Custom overrides are stored per save, synchronised authoritatively in multiplayer, and are mutually exclusive with whole-lifecycle shifts.
+- Added ccoCalendarCustomPreview and ccoCalendarCustomApply console commands.
 
-Changelog 2.0.1.0:
-- Added multiplayer event handling so GUI changes and server-side reset/apply actions are sent to the server on dedicated multiplayer games.
-- Updated NPC crop planning to use FieldManager.generatePlannedFruitForField instead of the old mission-generation flag mutation.
-- Added defensive error handling around NPC crop replacement during planned fruit generation.
-- Moved localisation to external l10n files so additional languages can be added more easily.
+Changelog 2.1.0.0 Alpha 13.2:
+- Moved detailed per-cycle calendar contract-refill messages from INFO to DEBUG logging.
+- Retained concise INFO messages when a rebuild starts and when it completes.
+- Contract-board rebuild behaviour and stopping conditions are unchanged.
+
+Changelog 2.1.0.0 Alpha 13.1:
+- Calendar Preview now separates contracts directly associated with the selected crop from the complete available contract board that Apply will rebuild.
+- Preview displays the exact accepted/active, available-to-rebuild, and total contract counts used by the guarded Apply workflow.
+- GUI previews are now silent in log.txt; detailed preview output is printed only by the explicit ccoCalendarShiftPreview console command.
+- Calendar Apply now runs a controlled multi-cycle contract-board refill and reports the final regenerated contract count when rebuilding completes.
+- Calendar Apply is blocked while NPC map regeneration or another calendar contract-board rebuild is already in progress.
+
+Changelog 2.1.0.0 Alpha 13:
+- Added the first guarded writable crop-calendar feature: whole-lifecycle shifts from -6 to +6 seasonal periods.
+- Added a structured Calendar GUI with dynamic crop rows, current windows, shift controls, dry-run preview, Apply, and Restore Map Default.
+- Calendar shifts rotate planting windows, harvest windows, and every native growth mapping together from the captured map baseline.
+- Apply requires a matching dry-run preview for the same crop and offset; changing the selection or conditions requires a new preview.
+- Only validated FIELD crops may be changed; perennial, special, and technical lifecycles remain preview-only.
+- Dry-run reports affected player/NPC fields and contracts. Accepted contracts block Apply; available contracts are rebuilt after a successful change.
+- Calendar offsets are stored per save, synchronised authoritatively in multiplayer, and reconstructed from map-default data on each load. Removed multiplayer overrides are explicitly restored to the captured baseline.
+- Added ccoCalendarShiftPreview, ccoCalendarShiftApply, and ccoCalendarRestore console commands.
+
+Changelog 2.1.0.0 Alpha 12:
+- Missing seasonal initialState metadata is now reported as INFERRED information rather than a calendar warning.
+- Calendar windows are displayed as conventional month ranges, including year-wrapping windows such as NOV-FEB.
+- Added dynamic FIELD, PERENNIAL, SPECIAL, and TECHNICAL lifecycle classification using loaded fruit-type behaviour.
+- Added read-only future-editing dispositions: CANDIDATE, REVIEW, or BLOCKED.
+- Added lifecycle graph diagnostics, exposed harvest/terminal target checks, dead-end detection, and simple planting-to-harvest path analysis.
+- Expanded ccoCalendarReport [CROP] with source, category, editability, lifecycle, and informational diagnostics.
+
+Changelog 2.1.0.0 Alpha 11:
+- Added a read-only CROP CALENDAR tab that dynamically discovers every fruit type loaded by the active map/save.
+- Captures map-defined seasonal growth data per map session without changing live sowing, harvest, or growth-state values.
+- Reports planting windows, harvest windows, period coverage, growth-transition counts, and structural calendar warnings.
+- Added ccoCalendarReport [CROP] and ccoCalendarRecapture diagnostic commands.
+- Added a calendar summary to the main SUMMARY tab as the foundation for later safe editing and NPC-field reconciliation.
+
+Changelog 2.1.0.0 Alpha 10.3:
+- Prevents NPC crop-planning hooks from returning an invalid fruit index when a replacement cannot be selected.
+- Delays contract rebuilding until asynchronous blocked-field cleanup has settled and refreshes the affected field states first.
+- Safely removes legacy sow contracts that already contain an invalid fruit reference instead of allowing repeated SowMission update errors.
+
 
 Hotkeys:
 ALT+C opens the Crop Control Override GUI. This keybind can be changed in the in-game controls menu.
@@ -103,7 +144,7 @@ Mouse: use the GUI tabs, table rows, and buttons.
 Keyboard: use the displayed FS25 footer actions for tab navigation, Load Defaults, and back.
 
 Useful console commands:
-ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoHelp
+ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoCalendarReport, ccoCalendarShiftPreview, ccoCalendarShiftApply, ccoCalendarCustomPreview, ccoCalendarCustomApply, ccoCalendarRestore, ccoHelp
 
 GitHub link:
 https://github.com/SimGamerJen/FS25_CropControlOverride
@@ -111,6 +152,8 @@ https://github.com/SimGamerJen/FS25_CropControlOverride
         <de><![CDATA[
 Beschreibung:
 Crop Control Override ist ein speicherstandbasiertes Fruchtarten-Regelwerk für Farming Simulator 25. Mit dem Mod kann festgelegt werden, welche Fruchtarten für Spieler erlaubt sind, welche Fruchtarten NPC-Landwirte anbauen dürfen und ob der NPC-Anbau durch eine maximale Feldgröße begrenzt werden soll.
+
+Mitwirkenden-Hinweis: Das Konzept und die Entwicklung der NPC-Feldgrößenbegrenzung von Hyper138 haben mich dazu inspiriert, eine Funktion zur Feldgrößenbegrenzung in den Mod einzubauen.
 
 Der Mod enthält eine bearbeitbare GUI im FS25-Stil, XML-Regeldateien pro Spielstand, Validierung von NPC-Feldern, Anzeige blockierter NPC-Felder sowie einen geschützten Anwenden-/Erzwingen-Ablauf, um unbeabsichtigte ungültige Spielstände zu vermeiden.
 
@@ -120,6 +163,7 @@ Wichtige GUI-Funktionen:
 - BEGRENZT: Fruchtarten mit NPC-Feldgrößenbegrenzung anzeigen.
 - NPC DEAKTIVIERT: Fruchtarten anzeigen, die NPCs nicht anbauen sollen.
 - VALIDIERUNG: bestehende NPC-Felder anzeigen, die gegen die aktive Regel verstoßen, und den geschützten Testlauf-/Bestätigungsablauf zum Zurücksetzen verwenden.
+- KALENDER: alle geladenen Fruchtarten in einem visuellen Monatsraster prüfen und anschließend geschützte Lebenszyklusverschiebungen oder eigene Saat-/Erntefenster mit Testlauf und Wiederherstellung des Kartenstandards verwenden.
 - ZUSAMMENFASSUNG: aktive Konfiguration, Regelanzahl und Validierungsstatus anzeigen.
 - HILFE: Hinweise zur Bedienung im Spiel anzeigen.
 
@@ -134,67 +178,102 @@ Konfiguration:
 - Eine Gewichtung von 0 schließt die Fruchtart von der Nachsaat auf NPC-Feldern aus, ohne sie für den Spieler zu deaktivieren.
 - Die globale Gewichtung leaveCultivated bleibt erhalten, sodass ein gewichteter Reset einige Felder im kultivierten Zustand belassen kann.
 
-Änderungen 2.0.3.5:
-- Die Kategoriegewichtungen seasonalMission und seasonalLifecycle wurden durch eine individuelle Nachsaatgewichtung von 0 bis 5 für jede Fruchtart ersetzt.
-- GUI-Steuerelemente zum Bearbeiten der Nachsaatgewichtung der ausgewählten Fruchtart hinzugefügt.
-- Eine Fruchtart mit Gewichtung 0 wird nun von der Nachsaat auf NPC-Feldern ausgeschlossen, bleibt aber ansonsten aktiviert.
-- Die globale Gewichtung leaveCultivated wurde beibehalten.
-- Bestehende Spielstand-XML-Dateien werden automatisch migriert: Fehlt reseedWeight, wird der Standardwert 5 gesetzt; veraltete Kategoriegewichtungen werden bei der Normalisierung entfernt.
-- Multiplayer-Synchronisation für individuelle Nachsaatgewichtungen hinzugefügt.
+Änderungen 2.1.0.0 Alpha 16.7:
+- Der Mitwirkenden-Hinweis für Hyper138 wurde aktualisiert, um das Konzept und die Entwicklung der NPC-Feldgrößenbegrenzung anzuerkennen, die CCOs Funktion zur Feldgrößenbegrenzung inspiriert haben.
 
-Änderungen 2.0.3.4:
-- Für Spieler deaktivierte Fruchtarten werden nun sofort aus der auswählbaren Saatgutliste bereits geladener, neu gekaufter und neu geladener Sämaschinen entfernt.
-- Wird eine Fruchtart wieder aktiviert, erscheint sie ohne Neuladen des Spielstands erneut in kompatiblen Sämaschinen.
-- Serverseitig verbindliche Schutzprüfungen für normale und direkte Aussaat verhindern, dass veraltete Auswahlen, Helfer, Multiplayer-Clients oder kompatible Drittanbieter-Helfersysteme gesperrte Fruchtarten säen.
-- Aktive KI-Feldarbeit wird beendet, wenn eine deaktivierte Fruchtart ausgewählt ist; die Sämaschine wird ausgeschaltet und eine zentrale Crop-Control-Override-Warnung erklärt, warum die Aussaat nicht erlaubt ist.
-- Die Übertragung der Multiplayer-Regeln wurde durch einen Server-Push nach dem Client-Ladevorgang, Wiederholungsversuche des Clients und eine verzögerte clientseitige Anwendung bis zum Eingang des verbindlichen Server-Snapshots verbessert.
-- Französische Lokalisierung hinzugefügt und vervollständigt.
+Änderungen 2.1.0.0 Alpha 16.6:
+- Die Legende Aussaat / Ernte wurde in einen tiefer liegenden reservierten Fußbereich verschoben, damit sie die letzte sichtbare Fruchtzeile nicht mehr überlappt.
+- Die verbundenen Kalenderbalken sowie die Monats- und Tabellenspalten-Trenner aus Alpha 16.5 bleiben erhalten.
 
-Änderungen 2.0.1.9:
-- Die externe l10n-Unterstützung wurde erweitert, damit GUI- und Spieltexte über Sprachdateien übersetzt werden können.
-- Unterstützung für deutsche und französische Sprachdateien hinzugefügt und der Mod für Community-Übersetzungen vorbereitet.
+Änderungen 2.1.0.0 Alpha 16.5:
+- Dezente vertikale Spaltentrenner zum Monatsraster des Anbaukalenders hinzugefügt.
+- Entsprechende Spaltentrenner zu den Fruchtregel-Tabellen hinzugefügt, um die Lesbarkeit zu verbessern.
+- Die Kalendertrenner liegen über zusammenhängenden Saat- und Erntebalken, sodass die Balken verbunden bleiben und Monatsgrenzen dennoch sichtbar sind.
 
-Änderungen 2.0.1.8:
-- Zwischengespeicherte Saatgutlisten von Sämaschinen werden bei Regeländerungen neu aufgebaut, sodass deaktivierte Fruchtarten sofort aus der Auswahl verschwinden.
-- Eine aktive Aussaat-Schutzprüfung sowie Filterung für neu geladene oder gekaufte Sämaschinen wurden hinzugefügt.
-- Die Regel-Synchronisation auf dedizierten Servern wurde durch Server-Push und Wiederholungsversuche des Clients verbessert.
-- Entfernte Clients wenden während des Wartens auf den Server-Snapshot keine vorübergehend vollständig aktivierten Platzhalterregeln mehr an.
-- Multiplayer-Status und ursprüngliche Fruchtartenwerte werden beim Verlassen einer Mission vollständig zurückgesetzt.
-- Fehler bei der Konfigurationsnormalisierung und bei Vorlagen-Sicherungen für benutzerdefinierte Nachsaat-Einstellungen wurden behoben.
+Änderungen 2.1.0.0 Alpha 16.4:
+- Die ursprüngliche vertikale Position der Kalendertabelle wurde nach der Container-Höhenregression in Alpha 16.3 wiederhergestellt.
+- Die Legende Aussaat / Ernte befindet sich nun in einer festen Zeile außerhalb des beschnittenen Scrolllistenbereichs und bleibt sichtbar, ohne die Tabelle zu verschieben.
+- Die in Alpha 16.3 eingeführten verbundenen Monatsbalken bleiben erhalten.
 
-Änderungen 2.0.1.7:
-- Die Lade-Reihenfolge des Berechtigungs-Hook-Installers korrigiert, damit der Admin-Berechtigungs-Build sauber lädt, bevor Listener für Farmverwaltungs-Administratoren installiert werden.
+Änderungen 2.1.0.0 Alpha 16.3:
+- Die vollständige Legende für Aussaat / Ernte wird nicht mehr unterhalb der Kalenderliste abgeschnitten.
+- Benachbarte Monatssegmente für Aussaat und Ernte werden nun als durchgehende Balken dargestellt; getrennte Zeitfenster bleiben weiterhin getrennt.
 
-Änderungen 2.0.1.6:
-- Entfernte Clients auf dedizierten Servern, die sich über die Farmverwaltung als Spieladministrator/Master User anmelden, können CCO-Bearbeitung nun für diese Sitzung freischalten.
-- Eine Berechtigungsaktualisierung sendet Admin-Statusänderungen an den Server und aktualisiert die CCO-GUI, ohne lokale Client-XML-Dateien zu verwenden.
-- Die serverseitige Validierung schützt Regeländerungen weiterhin; normale entfernte Clients bleiben schreibgeschützt.
+Änderungen 2.1.0.0 Alpha 16.2:
+- Die Farblegende des Kalenders wurde unter das Fruchtraster verschoben und verwendet nun die vollständigen Bezeichnungen Aussaat und Ernte.
+- Die abgekürzte P/H-Legende wurde aus der Monatskopfzeile entfernt, damit dort nur Fruchtart und Monate angezeigt werden.
 
-Änderungen 2.0.1.5:
-- Admin-/Master-User-Bearbeitungsrechte für dedizierte Server nach dem EasyDevControls-Berechtigungsmodell hinzugefügt.
-- Entfernte Serveradministratoren können CCO-Regeln über serverseitig validierte Mehrspieler-Ereignisse bearbeiten, während normale entfernte Clients schreibgeschützt bleiben.
-- Clients auf dedizierten Servern lesen, erstellen oder schreiben weiterhin keine lokalen CCO-XML-Dateien.
+Änderungen 2.1.0.0 Alpha 16.1:
+- KALENDER-VORSCHAU zeigt die geplanten Saat- und Erntefenster nun vor dem Anwenden direkt im visuellen Raster.
+- VORSCHAU wechselt zu ABBRECHEN, solange ein Entwurf angezeigt wird; Abbrechen stellt den aktuell angewendeten Kalender und die Editorwerte wieder her und deaktiviert Anwenden.
+- Nicht angewendete Vorschauen werden automatisch verworfen, wenn Fruchtart, Bearbeitungsmodus, Verschiebung/Monate, Registerkarte oder Bildschirm gewechselt werden.
+- Kartenstandard wiederherstellen zeigt vor ANWENDEN WIEDERHERSTELLEN den Basiskalender im Raster.
+- Die angeschnittene Teilzeile wurde entfernt und der Abstand im Bereich Vorschau / Ergebnis verbessert.
 
-Änderungen 2.0.1.4:
-- Korrigiert den CCO-GUI-Start, indem der instabile Seitenwahlschalter entfernt wurde, der in manchen FS25-Versionen einen TextElement-Stack-Overflow auslösen konnte.
-- Entfernte Mehrspieler-Clients zeigen nun einen Warte-/Synchronisationsstatus, statt lokale Standardregeln vor dem Server-Snapshot darzustellen.
+Änderungen 2.1.0.0 Alpha 16:
+- Die CCO-Kalenderübersicht verwendet nun spielnahe Balken für Aussaat und Ernte anstelle von P/H-Textzellen.
+- Aussaat und Ernte werden in getrennten horizontalen Spuren angezeigt, sodass überlappende Monate beide Zustände darstellen können.
+- Die integrierte Kalenderseite des Spiels besitzt nun die Aktion KALENDER BEARBEITEN, die CCO direkt im geschützten Kalendereditor öffnet.
+- Dynamisch geladene Fruchtsymbole, benutzerdefinierte Fruchtarten, Markierung von Überschreibungen, Scrollen und alle Vorschau-/Anwenden-/Wiederherstellen-Schutzmaßnahmen bleiben erhalten.
 
-Änderungen 2.0.1.3:
-- Synchronisationsanfragen entfernter Multiplayer-Clients werden nun erst gesendet, wenn die Serververbindung bereit ist.
+Änderungen 2.1.0.0 Alpha 15:
+- Die Textspalten des Kalender-Tabs wurden durch ein visuelles Fruchtarten-Monatsraster ersetzt. Grüne P-Felder markieren Saatmonate, orange H-Felder Erntemonate und P/H kennzeichnet Überschneidungen.
+- Kalenderüberschreibungen werden direkt in der Fruchtartenliste hervorgehoben; der geschützte Verschiebungs-/Benutzerdefiniert-Editor bleibt im Detailbereich erhalten.
+- Erreicht der Vertragslisten-Neuaufbau das Sicherheitslimit, wird nun eine Warnung statt einer normalen Abschlussmeldung ausgegeben.
+- Überflüssige numerische Konsolenausgabe nach Vorschau/Anwendung benutzerdefinierter Kalender unterdrückt.
 
-Änderungen 2.0.1.2:
-- Clients im dedizierten/Cloud-Multiplayer ignorieren lokale CCO-XML-Dateien und verwenden einen vom Server synchronisierten Regelsatz im Speicher.
-- Entfernte Multiplayer-Clients sind standardmäßig schreibgeschützt, wodurch lokale savegame-XML-Erstellung und unbeabsichtigte Regeländerungen verhindert werden.
-- Einzelspieler-, lokaler Host-Multiplayer- und serverseitiges Dateiverhalten bleiben unverändert.
+Änderungen 2.1.0.0 Alpha 14.1:
+- „Kartenstandard wiederherstellen“ im BENUTZERDEFINIERTEN Modus korrigiert: Es wird nun eine Nullverschiebung des Kartenstandards vorgeschaut und die gespeicherte benutzerdefinierte Überschreibung beim Anwenden entfernt.
+- Die Bestätigungsaktion wird in der GUI jetzt als WIEDERHERSTELLUNG ANWENDEN bezeichnet.
+- Ungültige nichtnumerische Verschiebungsargumente der Konsolenbefehle werden abgelehnt, ohne Kalender oder Verträge zu verändern.
 
-Änderungen 2.0.1.1:
-- Client-GUI-Aktualisierung im dedizierten/Cloud-Multiplayer nach serverseitigen Regeländerungen korrigiert; der auslösende Client erhält nun die serverseitige Aktualisierung und aktualisiert eine geöffnete CCO-GUI.
+Änderungen 2.1.0.0 Alpha 14:
+- Einen geschützten Modus BENUTZERDEFINIERTE ZEITFENSTER zur Kalender-GUI hinzugefügt, mit unabhängiger Auswahl von Saat- und Erntemonaten.
+- Erzeugt aus dem erfassten Kartenstandard einen phasenangepassten Lebenszyklus und bewahrt dabei die nativen Wachstumszustände und deren Reihenfolge.
+- Benutzerdefiniertes Anwenden ist nur zulässig, wenn jeder ausgewählte Saatmonat innerhalb des gewählten Erntefensters einen erntereifen Zustand erreichen kann; Fruchtarten mit abgeleitetem initialState bleiben auf Verschiebungen beschränkt.
+- Benutzerdefinierte Überschreibungen werden je Spielstand gespeichert, im Mehrspielermodus serverseitig synchronisiert und schließen Lebenszyklusverschiebungen gegenseitig aus.
+- Konsolenbefehle ccoCalendarCustomPreview und ccoCalendarCustomApply hinzugefügt.
 
-Änderungen 2.0.1.0:
-- Multiplayer-Ereignisverarbeitung hinzugefügt, damit GUI-Änderungen und serverseitige Zurücksetzen-/Anwenden-Aktionen in dedizierten Multiplayer-Spielen an den Server gesendet werden.
-- Die NPC-Fruchtplanung verwendet nun FieldManager.generatePlannedFruitForField anstelle der bisherigen Änderung von Missions-Flags.
-- Defensive Fehlerbehandlung für die NPC-Ersatzfruchtwahl hinzugefügt.
-- Lokalisierung in externe l10n-Dateien verschoben, damit weitere Sprachen einfacher ergänzt werden können.
+Änderungen 2.1.0.0 Alpha 13.2:
+- Detaillierte Meldungen jedes Kalender-Auftragsauffüllzyklus wurden von INFO auf DEBUG verschoben.
+- Kurze INFO-Meldungen beim Start und Abschluss eines Neuaufbaus bleiben erhalten.
+- Verhalten und Abbruchbedingungen des Auftragslisten-Neuaufbaus bleiben unverändert.
+
+Änderungen 2.1.0.0 Alpha 13.1:
+- Die Kalendervorschau trennt nun direkt zur ausgewählten Fruchtart gehörende Aufträge von der vollständigen verfügbaren Auftragsliste, die beim Anwenden neu aufgebaut wird.
+- Die Vorschau zeigt die tatsächlich verwendeten Zahlen für angenommene/aktive, neu zu erstellende verfügbare und gesamte Aufträge.
+- GUI-Vorschauen schreiben nicht mehr wiederholt in log.txt; ausführliche Vorschauausgaben erfolgen nur über ccoCalendarShiftPreview.
+- Nach dem Anwenden wird die Auftragsliste kontrolliert über mehrere Erzeugungszyklen aufgefüllt; die endgültige Anzahl neu erzeugter Aufträge wird gemeldet.
+- Anwenden ist während einer NPC-Kartenregeneration oder eines bereits laufenden Kalender-Auftragsaufbaus gesperrt.
+
+Änderungen 2.1.0.0 Alpha 13:
+- Erste geschützte schreibbare Kalenderfunktion hinzugefügt: Verschiebung des gesamten Lebenszyklus um -6 bis +6 Saisonperioden.
+- Strukturierte Kalender-GUI mit dynamischer Fruchtartenliste, aktuellen Fenstern, Verschiebungssteuerung, Vorschau, Anwenden und Kartenstandard wiederherstellen hinzugefügt.
+- Saatfenster, Erntefenster und alle nativen Wachstumszuordnungen werden gemeinsam vom erfassten Kartenstandard verschoben.
+- Anwenden erfordert eine passende Vorschau für dieselbe Fruchtart und denselben Versatz; nach Änderungen muss die Vorschau erneut ausgeführt werden.
+- Nur validierte FIELD-Fruchtarten können geändert werden; mehrjährige, spezielle und technische Lebenszyklen bleiben reine Vorschau.
+- Die Vorschau meldet betroffene Spieler-/NPC-Felder und Aufträge. Angenommene Aufträge blockieren das Anwenden; verfügbare Aufträge werden danach neu erstellt.
+- Kalenderverschiebungen werden pro Spielstand gespeichert und im Mehrspielermodus serverseitig synchronisiert. Entfernte Mehrspieler-Überschreibungen werden ausdrücklich auf den erfassten Kartenstandard zurückgesetzt.
+
+Änderungen 2.1.0.0 Alpha 12:
+- Fehlende saisonale initialState-Metadaten werden nun als abgeleitete Information (INFERRED) statt als Kalenderwarnung angezeigt.
+- Kalenderfenster werden als normale Monatsbereiche angezeigt, einschließlich jahresübergreifender Bereiche wie NOV-FEB.
+- Dynamische Klassifizierung als FIELD, PERENNIAL, SPECIAL oder TECHNICAL anhand des Verhaltens der geladenen Fruchtart hinzugefügt.
+- Schreibgeschützte Einstufung für eine spätere Bearbeitung hinzugefügt: CANDIDATE, REVIEW oder BLOCKED.
+- Lebenszyklus-Diagnosen für Zustandsgraphen, Ernte-/Endzustände, Sackgassen und einfache Pfade von der Saat bis zur Ernte hinzugefügt.
+- ccoCalendarReport [CROP] zeigt nun Quelle, Kategorie, Bearbeitungseinstufung, Lebenszyklus und Informationsdiagnosen.
+
+Änderungen 2.1.0.0 Alpha 11:
+- Eine schreibgeschützte Registerkarte CROP CALENDAR erkennt dynamisch alle von der aktiven Karte bzw. dem Spielstand geladenen Fruchtarten.
+- Kartendefinierte saisonale Wachstumsdaten werden pro Kartensitzung erfasst, ohne Saat-, Ernte- oder Wachstumswerte zu verändern.
+- Zeigt Saatfenster, Erntefenster, Periodenabdeckung, Wachstumsübergänge und strukturelle Kalenderwarnungen an.
+- Neue Diagnosebefehle ccoCalendarReport [CROP] und ccoCalendarRecapture.
+
+Änderungen 2.1.0.0 Alpha 10.3:
+- Verhindert, dass die NPC-Fruchtplanung einen ungültigen Fruchtindex zurückgibt, wenn keine Ersatzfrucht ausgewählt werden kann.
+- Erstellt Aufträge erst neu, nachdem die asynchrone Bereinigung blockierter Felder abgeschlossen und deren Feldstatus aktualisiert wurde.
+- Entfernt bereits vorhandene Saat-Aufträge mit ungültigem Fruchtverweis sicher, statt wiederholte SowMission-Aktualisierungsfehler zuzulassen.
+
 
 Tastenkombinationen:
 ALT+C öffnet die Crop Control Override GUI. Diese Tastenkombination kann im Steuerungsmenü des Spiels geändert werden.
@@ -202,7 +281,7 @@ Maus: GUI-Reiter, Tabellenzeilen und Schaltflächen verwenden.
 Tastatur: die angezeigten FS25-Fußleistenaktionen für Reiterwechsel, Standardwerte laden und Zurück verwenden.
 
 Nützliche Konsolenbefehle:
-ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoHelp
+ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoCalendarReport, ccoCalendarShiftPreview, ccoCalendarShiftApply, ccoCalendarCustomPreview, ccoCalendarCustomApply, ccoCalendarRestore, ccoHelp
 
 GitHub-Link:
 https://github.com/SimGamerJen/FS25_CropControlOverride
@@ -210,6 +289,8 @@ https://github.com/SimGamerJen/FS25_CropControlOverride
         <fr><![CDATA[
 Description :
 Crop Control Override est un gestionnaire de règles de cultures par sauvegarde pour Farming Simulator 25. Il permet de contrôler quelles cultures sont autorisées pour le joueur, quelles cultures les agriculteurs PNJ peuvent semer, et si les cultures PNJ doivent être limitées par taille de champ.
+
+Remerciement au contributeur : le concept et le développement par Hyper138 de la limitation de taille des champs PNJ ont inspiré l’ajout d’une fonctionnalité de limitation par taille dans le mod.
 
 Le mod inclut une interface modifiable de style FS25, des fichiers XML de règles par sauvegarde, une validation des champs PNJ, un affichage des champs PNJ bloqués, ainsi qu’un flux sécurisé Appliquer / Forcer l’application pour éviter les états de sauvegarde invalides accidentels.
 
@@ -219,6 +300,7 @@ Fonctions principales de l’interface :
 - LIMITÉES : afficher les cultures avec une limite de taille de champ PNJ.
 - PNJ DÉSACTIVÉ : afficher les cultures que les PNJ ne doivent pas semer.
 - VALIDATION : afficher les champs PNJ existants qui ne respectent pas la règle active et utiliser le flux sécurisé d’essai / confirmation de réinitialisation.
+- CALENDRIER : afficher toutes les cultures chargées dans une grille mensuelle visuelle, puis utiliser des décalages sécurisés du cycle ou des fenêtres personnalisées de semis/récolte avec prévisualisation et restauration des valeurs de la carte.
 - RÉSUMÉ : afficher la configuration active, le nombre de règles et l’état de validation.
 - AIDE : afficher l’aide intégrée.
 
@@ -233,67 +315,102 @@ Configuration :
 - Une pondération de 0 exclut la culture du ressemis des champs PNJ sans la désactiver pour le joueur.
 - La pondération globale leaveCultivated est conservée, ce qui permet à une réinitialisation pondérée de laisser certains champs cultivés sans les ressemer.
 
-Journal des modifications 2.0.3.5 :
-- Remplacement des pondérations de catégorie seasonalMission et seasonalLifecycle par une pondération de ressemis individuelle de 0 à 5 pour chaque culture.
-- Ajout de commandes dans l’interface pour modifier la pondération de ressemis de la culture sélectionnée.
-- Une culture avec une pondération de 0 est désormais exclue du ressemis des champs PNJ tout en restant activée pour les autres usages.
-- Conservation de la pondération globale leaveCultivated.
-- Migration automatique des fichiers XML de sauvegarde existants : la valeur par défaut 5 est attribuée lorsque reseedWeight est absent et les anciennes pondérations de catégorie sont supprimées lors de la normalisation.
-- Ajout de la synchronisation multijoueur des pondérations de ressemis par culture.
+Journal des modifications 2.1.0.0 Alpha 16.7 :
+- Mise à jour du remerciement adressé à Hyper138 afin de reconnaître le concept et le développement de la limitation de taille des champs PNJ qui ont inspiré cette fonctionnalité dans CCO.
 
-Journal des modifications 2.0.3.4 :
-- Les cultures désactivées pour le joueur sont désormais retirées immédiatement de la liste de semences des semoirs déjà chargés, nouvellement achetés ou nouvellement chargés.
-- Lorsqu’une culture est réactivée, elle réapparaît dans les semoirs compatibles sans nécessiter le rechargement de la sauvegarde.
-- Des protections autoritaires côté serveur pour le semis normal et le semis direct empêchent les anciennes sélections, les ouvriers, les clients multijoueurs et les systèmes d’ouvriers tiers compatibles de semer des cultures interdites.
-- Le travail de champ d’un ouvrier IA est arrêté lorsqu’une culture désactivée est sélectionnée, le semoir est éteint et un avertissement central Crop Control Override explique pourquoi le semis n’est pas autorisé.
-- La synchronisation multijoueur des règles a été améliorée grâce à un envoi serveur après le chargement du client, à des tentatives répétées côté client et au report de l’application locale jusqu’à la réception de l’instantané serveur faisant autorité.
-- Ajout et finalisation de la localisation française.
+Journal des modifications 2.1.0.0 Alpha 16.6 :
+- La légende Semis / Récolte a été déplacée dans une zone de pied réservée plus basse afin de ne plus chevaucher la dernière ligne de culture visible.
+- Les barres continues du calendrier et les séparateurs de colonnes du calendrier et des tableaux de règles d’Alpha 16.5 sont conservés.
 
-Journal des modifications 2.0.1.9 :
-- Extension de la prise en charge l10n externe afin que les textes de l’interface et du jeu puissent être traduits via des fichiers de langue.
-- Ajout de la prise en charge des fichiers allemands et français et préparation du mod aux traductions fournies par la communauté.
+Journal des modifications 2.1.0.0 Alpha 16.5 :
+- Ajout de séparateurs verticaux discrets entre les colonnes mensuelles du calendrier.
+- Ajout de séparateurs correspondants dans les tableaux de règles de culture pour améliorer la lecture.
+- Les séparateurs restent visibles au-dessus des barres continues de semis et de récolte, sans recréer d’espace entre les mois.
 
-Journal des modifications 2.0.1.8 :
-- Reconstruction des listes de semences mises en cache par les semoirs à chaque modification des règles, afin que les cultures désactivées disparaissent immédiatement du sélecteur.
-- Ajout d’une protection active pendant le semis et du filtrage des semoirs nouvellement chargés ou achetés.
-- Amélioration de la synchronisation des règles sur serveur dédié avec un envoi serveur et des tentatives répétées côté client.
-- Les clients distants n’appliquent plus de règles temporaires entièrement activées en attendant l’instantané serveur.
-- Réinitialisation complète de l’état multijoueur et des valeurs d’origine des cultures à la sortie d’une mission.
-- Correction de la normalisation de la configuration et de la sauvegarde des modèles pour les paramètres personnalisés de réensemencement.
+Journal des modifications 2.1.0.0 Alpha 16.4 :
+- Rétablissement de la position verticale d’origine du tableau du calendrier après la régression de hauteur du conteneur dans Alpha 16.3.
+- La légende Semis / Récolte est maintenant placée dans une ligne fixe hors de la zone de découpage de la liste défilante, afin de rester visible sans déplacer le tableau.
+- Les barres mensuelles continues introduites dans Alpha 16.3 sont conservées.
 
-Journal des modifications 2.0.1.7 :
-- Correction de l’ordre de chargement de l’installation des hooks de permissions afin que la version avec permissions administrateur se charge correctement avant d’installer les écouteurs d’administration de la gestion de ferme.
+Journal des modifications 2.1.0.0 Alpha 16.3 :
+- Correction de la légende complète Semis / Récolte qui était masquée sous la liste du calendrier.
+- Les segments mensuels adjacents de semis et de récolte sont désormais joints visuellement en barres continues, tout en conservant les fenêtres séparées.
 
-Journal des modifications 2.0.1.6 :
-- Les clients distants d’un serveur dédié qui élèvent leurs droits en administrateur/master user via la gestion de ferme peuvent désormais déverrouiller l’édition CCO pour la session.
-- Ajout d’une actualisation des permissions afin d’envoyer les changements de statut administrateur au serveur et de rafraîchir l’interface CCO sans utiliser de fichiers XML locaux côté client.
-- La validation côté serveur protège toujours les changements de règles ; les clients distants normaux restent en lecture seule.
+Journal des modifications 2.1.0.0 Alpha 16.2 :
+- La légende colorée du calendrier a été déplacée sous la grille des cultures et utilise désormais les libellés complets Semis et Récolte.
+- La légende abrégée P/H a été retirée de l’en-tête des mois afin de réserver cette ligne aux cultures et aux mois.
 
-Journal des modifications 2.0.1.5 :
-- Ajout de la détection des droits d’édition administrateur/master user sur serveur dédié, inspirée du modèle de permissions d’EasyDevControls.
-- Les administrateurs distants du serveur peuvent désormais modifier les règles CCO via des événements multijoueurs validés par le serveur, tandis que les clients distants normaux restent en lecture seule.
-- Les clients dédiés ne lisent, ne créent et n’écrivent toujours aucun fichier XML CCO local.
+Journal des modifications 2.1.0.0 Alpha 16.1 :
+- L'APERÇU DU CALENDRIER affiche désormais directement dans la grille les fenêtres de semis et de récolte proposées avant application.
+- APERÇU devient ANNULER lorsqu'un brouillon est affiché ; Annuler rétablit le calendrier et les valeurs de l'éditeur actuellement appliqués, puis désactive Appliquer.
+- Les aperçus non appliqués sont automatiquement annulés lorsque la culture, le mode d'édition, le décalage/les mois, l'onglet ou l'écran change.
+- Restaurer les valeurs par défaut de la carte prévisualise le calendrier de base avant APPLIQUER LA RESTAURATION.
+- Suppression de la ligne partiellement coupée et amélioration de l'espacement dans la zone Aperçu / Résultat.
 
-Journal des modifications 2.0.1.4 :
-- Correction de l’ouverture de l’interface CCO en supprimant le sélecteur de pages instable qui pouvait provoquer un dépassement de pile TextElement dans certaines versions de FS25.
-- Les clients multijoueurs distants affichent désormais un état d’attente/synchronisation au lieu d’afficher les règles locales par défaut avant la réception de l’instantané serveur.
+Journal des modifications 2.1.0.0 Alpha 16 :
+- La grille du calendrier CCO utilise désormais des barres de semis et de récolte proches de l’interface native au lieu de cellules textuelles P/H.
+- Le semis et la récolte utilisent deux bandes horizontales distinctes, ce qui permet d’afficher clairement les mois qui se chevauchent.
+- La page Calendrier intégrée au jeu propose désormais l’action MODIFIER LE CALENDRIER, qui ouvre directement l’éditeur protégé de CCO.
+- Les icônes de cultures chargées dynamiquement, les cultures personnalisées, le marquage des modifications, le défilement et toutes les protections Aperçu / Appliquer / Restaurer sont conservés.
 
-Journal des modifications 2.0.1.3 :
-- Correction des demandes de synchronisation des clients multijoueurs distants déclenchées avant que la connexion serveur soit prête.
+Journal des modifications 2.1.0.0 Alpha 15 :
+- Remplacement des colonnes textuelles de l'onglet Calendrier par une grille visuelle cultures-mois. Les cases P vertes indiquent les semis, les cases H orange les récoltes et P/H les chevauchements.
+- Les calendriers modifiés sont mis en évidence directement dans la liste, tandis que l'éditeur sécurisé Décalage/Personnalisé reste dans le panneau de détails.
+- Un remplissage des contrats atteignant la limite de sécurité est désormais signalé comme avertissement plutôt que comme réussite normale.
+- Suppression de la sortie numérique parasite après les commandes de prévisualisation/application du calendrier personnalisé.
 
-Journal des modifications 2.0.1.2 :
-- Les clients en multijoueur dédié/cloud ignorent désormais les fichiers XML CCO locaux et utilisent un jeu de règles en mémoire synchronisé depuis le serveur.
-- Les clients multijoueurs distants sont en lecture seule par défaut, empêchant la création de XML savegame locaux ou les écritures de règles accidentelles.
-- Le comportement fichier en solo, hôte multijoueur local et côté serveur reste inchangé.
+Journal des modifications 2.1.0.0 Alpha 14.1 :
+- Correction de Restaurer les valeurs de la carte en mode PERSONNALISÉ : l’action prépare désormais un aperçu avec décalage nul et supprime la personnalisation enregistrée lors de l’application.
+- L’action de confirmation de l’interface est désormais libellée APPLIQUER LA RESTAURATION.
+- Les arguments de décalage non numériques sont refusés sans modifier le calendrier ni reconstruire les contrats.
 
-Journal des modifications 2.0.1.1 :
-- Correction de l’actualisation de l’interface client en multijoueur dédié/cloud après les changements de règles côté serveur ; le client à l’origine de la demande reçoit désormais la mise à jour serveur et actualise l’interface CCO ouverte.
+Journal des modifications 2.1.0.0 Alpha 14 :
+- Ajout d’un mode FENÊTRES PERSONNALISÉES protégé dans l’interface Calendrier, avec sélection indépendante des mois de semis et de récolte.
+- Génère un cycle saisonnier adapté à partir de la référence de la carte tout en conservant les états de croissance natifs et l’ordre des transitions.
+- L’application personnalisée exige que chaque mois de semis sélectionné puisse atteindre un état récoltable dans la fenêtre de récolte choisie ; les cultures avec initialState déduit restent limitées au décalage complet.
+- Les réglages personnalisés sont enregistrés par sauvegarde, synchronisés par le serveur en multijoueur et exclusifs des décalages de cycle.
+- Ajout des commandes ccoCalendarCustomPreview et ccoCalendarCustomApply.
 
-Journal des modifications 2.0.1.0 :
-- Ajout de la gestion des événements multijoueur afin que les changements de l’interface et les actions serveur d’application/réinitialisation soient envoyés au serveur dans les parties multijoueur dédiées.
-- La planification des cultures PNJ utilise désormais FieldManager.generatePlannedFruitForField au lieu de modifier temporairement les indicateurs de missions.
-- Ajout d’une gestion défensive des erreurs lors du choix d’une culture PNJ de remplacement.
-- Déplacement de la localisation vers des fichiers l10n externes afin de faciliter l’ajout d’autres langues.
+Journal des modifications 2.1.0.0 Alpha 13.2 :
+- Les messages détaillés de chaque cycle de régénération des contrats du calendrier ont été déplacés du niveau INFO au niveau DEBUG.
+- Les messages INFO concis au démarrage et à la fin de la reconstruction sont conservés.
+- Le comportement et les conditions d’arrêt de la reconstruction des contrats restent inchangés.
+
+Journal des modifications 2.1.0.0 Alpha 13.1 :
+- La prévisualisation distingue désormais les contrats directement liés à la culture sélectionnée de l’ensemble des contrats disponibles qui seront recréés lors de l’application.
+- La prévisualisation affiche les nombres exacts de contrats acceptés/actifs, disponibles à recréer et totaux utilisés par le processus sécurisé.
+- Les prévisualisations de l’interface n’écrivent plus plusieurs fois dans log.txt ; la sortie détaillée est réservée à la commande ccoCalendarShiftPreview.
+- Après application, le tableau des contrats est rempli par plusieurs cycles contrôlés et le nombre final de contrats recréés est signalé.
+- L’application est bloquée pendant une régénération de la carte PNJ ou pendant une autre reconstruction des contrats du calendrier.
+
+Journal des modifications 2.1.0.0 Alpha 13 :
+- Ajout de la première fonction de calendrier modifiable et sécurisée : décalage du cycle complet de -6 à +6 périodes saisonnières.
+- Ajout d’une interface Calendrier structurée avec cultures dynamiques, fenêtres actuelles, réglage du décalage, prévisualisation, application et restauration de la carte.
+- Les fenêtres de semis, de récolte et toutes les transitions de croissance natives sont décalées ensemble depuis la référence de la carte.
+- L’application exige une prévisualisation correspondante pour la même culture et le même décalage ; toute modification impose une nouvelle prévisualisation.
+- Seules les cultures FIELD validées peuvent être modifiées ; les cycles pérennes, spéciaux et techniques restent en prévisualisation uniquement.
+- La prévisualisation indique les champs joueur/PNJ et contrats affectés. Les contrats acceptés bloquent l’application ; les contrats disponibles sont recréés après modification.
+- Les décalages sont enregistrés par sauvegarde et synchronisés par le serveur en multijoueur. Les décalages supprimés sont explicitement restaurés selon la référence capturée de la carte.
+
+Journal des modifications 2.1.0.0 Alpha 12 :
+- L’absence de métadonnée saisonnière initialState est désormais indiquée comme information déduite (INFERRED), et non comme avertissement de calendrier.
+- Les fenêtres du calendrier sont affichées sous forme de plages mensuelles conventionnelles, y compris les plages traversant l’année comme NOV-FEB.
+- Ajout d’une classification dynamique FIELD, PERENNIAL, SPECIAL ou TECHNICAL selon le comportement du type de culture chargé.
+- Ajout d’un statut en lecture seule pour une future modification : CANDIDATE, REVIEW ou BLOCKED.
+- Ajout de diagnostics du graphe de cycle, des états de récolte/terminaux, des impasses et d’un chemin simple du semis à la récolte.
+- ccoCalendarReport [CROP] affiche désormais la source, la catégorie, l’aptitude à la modification, le cycle et les informations de diagnostic.
+
+Journal des modifications 2.1.0.0 Alpha 11 :
+- Ajout d’un onglet CROP CALENDAR en lecture seule qui détecte dynamiquement toutes les cultures chargées par la carte ou la sauvegarde active.
+- Capture les données de croissance saisonnière définies par la carte sans modifier les fenêtres de semis, de récolte ni les états de croissance.
+- Signale les fenêtres de semis/récolte, la couverture des périodes, les transitions de croissance et les avertissements structurels.
+- Ajout des commandes de diagnostic ccoCalendarReport [CROP] et ccoCalendarRecapture.
+
+Journal des modifications 2.1.0.0 Alpha 10.3 :
+- Empêche la planification des cultures PNJ de renvoyer un indice de culture invalide lorsqu’aucune culture de remplacement ne peut être choisie.
+- Attend la fin du nettoyage asynchrone des parcelles bloquées, puis actualise leur état avant de recréer les contrats.
+- Supprime en toute sécurité les anciens contrats de semis contenant déjà une référence de culture invalide au lieu de laisser l’erreur SowMission se répéter.
+
 
 Raccourcis :
 ALT+C ouvre l’interface Crop Control Override. Ce raccourci peut être modifié dans le menu des commandes du jeu.
@@ -301,20 +418,14 @@ Souris : utiliser les onglets, les lignes du tableau et les boutons de l’inter
 Clavier : utiliser les actions affichées dans la barre inférieure FS25 pour changer d’onglet, charger les valeurs par défaut et revenir en arrière.
 
 Commandes console utiles :
-ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoHelp
+ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoCalendarReport, ccoCalendarShiftPreview, ccoCalendarShiftApply, ccoCalendarCustomPreview, ccoCalendarCustomApply, ccoCalendarRestore, ccoHelp
 
 Lien GitHub :
 https://github.com/SimGamerJen/FS25_CropControlOverride
 ]]></fr>
     </description>
 
-    <l10n filenamePrefix="l10n/l10n">
-        <text name="input_CCO_OPEN_GUI">
-            <en>Open Crop Control Override</en>
-            <de>Crop Control Override Öffnen</de>
-            <fr>Ouvrir Crop Control Override</fr>
-        </text>
-    </l10n>
+    <l10n filenamePrefix="l10n/l10n"/>
     <iconFilename>icon_CropControlOverride.dds</iconFilename>
     <inputBinding>
         <actionBinding action="CCO_OPEN_GUI">
@@ -330,6 +441,7 @@ https://github.com/SimGamerJen/FS25_CropControlOverride
     <extraSourceFiles>
         <sourceFile filename="scripts/Debug.lua"/>
         <sourceFile filename="scripts/CropControlOverrideChangeSettingsEvent.lua"/>
+        <sourceFile filename="scripts/CropCalendarManager.lua"/>
         <sourceFile filename="scripts/gui/CropControlOverrideMenu.lua"/>
         <sourceFile filename="scripts/CropControlOverride.lua"/>
     </extraSourceFiles>

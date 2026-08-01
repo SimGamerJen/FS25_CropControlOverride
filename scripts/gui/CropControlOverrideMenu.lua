@@ -3,6 +3,64 @@
 
 local CCO_GUI_MOD_DIRECTORY = g_currentModDirectory or ""
 
+local function ccoGuiText(key, fallback)
+    if g_i18n ~= nil and g_i18n.getText ~= nil then
+        local ok, value = pcall(function() return g_i18n:getText(key) end)
+        local valueText = tostring(value or "")
+        if ok and valueText ~= "" and valueText ~= key and valueText:find("^Missing '") == nil then
+            return value
+        end
+    end
+    return tostring(fallback or key or "")
+end
+
+local CCO_CALENDAR_MONTHS = {
+    {label="JAN", period=11, field="calendarMonthJanButton"},
+    {label="FEB", period=12, field="calendarMonthFebButton"},
+    {label="MAR", period=1, field="calendarMonthMarButton"},
+    {label="APR", period=2, field="calendarMonthAprButton"},
+    {label="MAY", period=3, field="calendarMonthMayButton"},
+    {label="JUN", period=4, field="calendarMonthJunButton"},
+    {label="JUL", period=5, field="calendarMonthJulButton"},
+    {label="AUG", period=6, field="calendarMonthAugButton"},
+    {label="SEP", period=7, field="calendarMonthSepButton"},
+    {label="OCT", period=8, field="calendarMonthOctButton"},
+    {label="NOV", period=9, field="calendarMonthNovButton"},
+    {label="DEC", period=10, field="calendarMonthDecButton"},
+}
+
+local function ccoNormalizeCalendarMask(value)
+    local text = tostring(value or ""):gsub("[^01]", "")
+    if #text < 12 then text = text .. string.rep("0", 12 - #text) end
+    return text:sub(1, 12)
+end
+
+local function ccoCalendarMaskHas(mask, period)
+    local normalized = ccoNormalizeCalendarMask(mask)
+    return normalized:sub(period, period) == "1"
+end
+
+local function ccoCalendarMaskToggle(mask, period)
+    local normalized = ccoNormalizeCalendarMask(mask)
+    local chars = {}
+    for index = 1, 12 do chars[index] = normalized:sub(index, index) end
+    chars[period] = chars[period] == "1" and "0" or "1"
+    return table.concat(chars)
+end
+
+local function ccoCalendarMaskShift(mask, shift)
+    local normalized = ccoNormalizeCalendarMask(mask)
+    local amount = math.floor(tonumber(shift or 0) or 0)
+    if amount < -6 then amount = -6 end
+    if amount > 6 then amount = 6 end
+    local chars = {}
+    for targetPeriod = 1, 12 do
+        local sourcePeriod = ((targetPeriod - 1 - amount) % 12) + 1
+        chars[targetPeriod] = normalized:sub(sourcePeriod, sourcePeriod)
+    end
+    return table.concat(chars)
+end
+
 CropControlOverrideMenu = {}
 
 local CropControlOverrideMenu_mt = Class(CropControlOverrideMenu, ScreenElement)
@@ -15,12 +73,38 @@ function CropControlOverrideMenu.new(target, customMt)
     self.currentTopic = "rules"
     self.currentPage = 1
     self.ruleRows = {}
+    self.calendarRows = {}
+    self.calendarTopic = false
+    self.selectedCalendarRowIndex = nil
+    self.selectedCalendarRow = nil
+    self.stagedCalendarShift = 0
+    self.calendarEditMode = "SHIFT"
+    self.calendarCustomTarget = "PLANTING"
+    self.stagedCalendarPlantingMask = string.rep("0", 12)
+    self.stagedCalendarHarvestMask = string.rep("0", 12)
+    self.calendarPreviewArmed = false
+    self.calendarPreviewApplyAllowed = false
+    self.calendarPreviewPending = false
+    self.calendarApplyPending = false
+    self.calendarPendingCropName = nil
+    self.calendarRestoreRequested = false
+    self.calendarDraftPreviewActive = false
+    self.calendarDraftCropName = nil
+    self.calendarDraftPlantingMask = nil
+    self.calendarDraftHarvestMask = nil
+    self.calendarDraftKind = nil
+    self.suppressCalendarSelectionCallback = false
     self.selectedRowIndex = nil
     self.selectedRow = nil
     self.stagedRule = nil
     self.stagedDirty = false
     self.forceApplyArmed = false
+    self.serverApplyPending = false
+    self.serverResetDryRunPending = false
+    self.serverResetPending = false
+    self.pendingResetScopeText = nil
     self.resetConfirmArmed = false
+    self.regenerationConfirmArmed = false
     self.resetMode = "cultivated"
     self.resetScopeIndex = 1
     self.resetScopes = {"ALL"}
@@ -133,8 +217,9 @@ local TAB_TOPIC_INDEX = {
     limited = 4,
     blocked = 5,
     validation = 5,
-    status = 6,
-    help = 7,
+    calendar = 6,
+    status = 7,
+    help = 8,
 }
 
 local TAB_INDEX_TOPIC = {
@@ -143,8 +228,9 @@ local TAB_INDEX_TOPIC = {
     [3] = "blockedrules",
     [4] = "limited",
     [5] = "blocked",
-    [6] = "status",
-    [7] = "help",
+    [6] = "calendar",
+    [7] = "status",
+    [8] = "help",
 }
 
 local TAB_TEXTS = {
@@ -153,6 +239,7 @@ local TAB_TEXTS = {
     "NPC DISABLED",
     "SIZE LIMITED",
     "VALIDATION",
+    "CALENDAR",
     "SUMMARY",
     "HELP",
 }
@@ -185,6 +272,8 @@ function buildTopicContent(topic, page)
         return "Crop Control Override - NPC Disabled Rules", CropControlOverride:buildGuiRuleListText("blockedrules", page), "blockedrules", page or 1
     elseif topic == "blocked" or topic == "validation" then
         return "Crop Control Override - Validation", CropControlOverride:buildGuiBlockedText(), "blocked", 1
+    elseif topic == "calendar" then
+        return "Crop Control Override - Crop Calendar", CropControlOverride:buildGuiCalendarText(), "calendar", 1
     elseif topic == "undiscovered" then
         return "Crop Control Override - Undiscovered Rules", CropControlOverride:buildGuiRuleListText("undiscovered", page), "undiscovered", page or 1
     elseif topic == "help" then
@@ -359,6 +448,10 @@ function CropControlOverrideMenu:onGuiSetupFinished()
         self.ruleList:setDataSource(self)
         self.ruleList:setDelegate(self)
     end
+    if self.calendarList ~= nil then
+        self.calendarList:setDataSource(self)
+        self.calendarList:setDelegate(self)
+    end
 
     self:updateContent()
 end
@@ -516,6 +609,11 @@ function CropControlOverrideMenu:onOpen()
 end
 
 function CropControlOverrideMenu:onClose()
+    self.calendarDraftPreviewActive = false
+    self.calendarDraftCropName = nil
+    self.calendarDraftPlantingMask = nil
+    self.calendarDraftHarvestMask = nil
+    self.calendarDraftKind = nil
     self:removeBackAction()
     CropControlOverrideMenu:superClass().onClose(self)
 end
@@ -569,6 +667,7 @@ function CropControlOverrideMenu:setContent(title, body, topic)
     self.pendingTitle = title or "Crop Control Override"
     self.pendingBody = body or ""
     self.tableTopic = TABLE_TOPICS[topic or self.currentTopic or ""] == true
+    self.calendarTopic = (topic or self.currentTopic or "") == "calendar"
     local parsedRows = {}
     if self.tableTopic then
         if CropControlOverride ~= nil and CropControlOverride.getGuiRuleRows ~= nil then
@@ -578,11 +677,28 @@ function CropControlOverrideMenu:setContent(title, body, topic)
         end
     end
     self.ruleRows = self.tableTopic and filterRuleRows(parsedRows, self.showNotLoaded) or {}
+    self.calendarRows = self.calendarTopic and CropControlOverride ~= nil and CropControlOverride.getGuiCalendarRows ~= nil
+        and CropControlOverride:getGuiCalendarRows() or {}
+    self.selectedCalendarRowIndex = nil
+    self.selectedCalendarRow = nil
+    self.calendarEditMode = "SHIFT"
+    self.stagedCalendarShift = 0
+    self.calendarPreviewArmed = false
+    self.calendarPreviewApplyAllowed = false
+    self.calendarPreviewPending = false
+    self.calendarApplyPending = false
+    self.calendarPendingCropName = nil
+    self.calendarDraftPreviewActive = false
+    self.calendarDraftCropName = nil
+    self.calendarDraftPlantingMask = nil
+    self.calendarDraftHarvestMask = nil
+    self.calendarDraftKind = nil
     self.selectedRowIndex = nil
     self.selectedRow = nil
     self.stagedRule = nil
     self.stagedDirty = false
     self.forceApplyArmed = false
+    self.serverApplyPending = false
     self:updateContent()
 end
 
@@ -635,6 +751,11 @@ local function ccoGuiCanEditRules()
         return CropControlOverride:canEditRules()
     end
     return true
+end
+
+local function ccoGuiCanRegenerateNpcFields()
+    if not ccoGuiCanEditRules() then return false end
+    return g_currentMission ~= nil and g_currentMission.getIsServer ~= nil and g_currentMission:getIsServer()
 end
 
 function CropControlOverrideMenu:createStagedRuleFromRow(row)
@@ -701,12 +822,14 @@ function CropControlOverrideMenu:updateStagedButtons()
     setButton(self.editReseedDownButton, "-1", readOnly)
     setButton(self.editReseedUpButton, "+1", readOnly)
     setText(self.editReseedWeightText, tostring(staged.reseedWeight or 5))
-    setButton(self.editApplyButton, self.forceApplyArmed and "FORCE APPLY" or "APPLY", readOnly or not self.stagedDirty)
+    setButton(self.editApplyButton, self.forceApplyArmed and "FORCE APPLY" or "APPLY", readOnly or not self.stagedDirty or self.serverApplyPending == true)
     setButton(self.editDiscardButton, "DISCARD", readOnly or not self.stagedDirty)
     setText(self.editMaxHaText, string.format("%.2f", tonumber(staged.maxHa or 0) or 0))
 
     if readOnly then
         setText(self.selectedDirtyText, "Read-only server rules. Only the server/host can change CCO settings.")
+    elseif self.serverApplyPending == true then
+        setText(self.selectedDirtyText, ccoGuiText("cco_waiting_server_apply", "Waiting for server confirmation..."))
     elseif self.stagedDirty then
         setText(self.selectedDirtyText, "Staged changes ready. Apply will save XML.")
     else
@@ -762,6 +885,12 @@ function CropControlOverrideMenu:updateContent()
     if self.ruleTableContainer ~= nil then
         self.ruleTableContainer:setVisible(self.tableTopic)
     end
+    if self.calendarTableContainer ~= nil then
+        self.calendarTableContainer:setVisible(self.calendarTopic)
+    end
+    if self.calendarLegendContainer ~= nil then
+        self.calendarLegendContainer:setVisible(self.calendarTopic)
+    end
     if self.notLoadedToggleButton ~= nil then
         self.notLoadedToggleButton:setVisible(self.tableTopic)
         if self.notLoadedToggleButton.setText ~= nil then
@@ -769,8 +898,8 @@ function CropControlOverrideMenu:updateContent()
         end
     end
     if self.bodyTextElement ~= nil then
-        self.bodyTextElement:setVisible(not self.tableTopic)
-        if not self.tableTopic then
+        self.bodyTextElement:setVisible(not self.tableTopic and not self.calendarTopic)
+        if not self.tableTopic and not self.calendarTopic then
             self.bodyTextElement:setText(tostring(self.pendingBody or ""))
         end
     end
@@ -794,14 +923,16 @@ function CropControlOverrideMenu:updateContent()
     if self.resetBlockedDryRunButton ~= nil then
         self.resetBlockedDryRunButton:setVisible(showResetControls)
         if self.resetBlockedDryRunButton.setDisabled ~= nil then
-            local disabled = false
+            local disabled = not ccoGuiCanEditRules()
+                or self.serverResetDryRunPending == true
+                or self.serverResetPending == true
             if showResetControls and CropControlOverride ~= nil then
                 local scope = self:getCurrentResetScope()
                 if CropControlOverride.getBlockedCountForGuiScope ~= nil then
-                    disabled = (tonumber(CropControlOverride:getBlockedCountForGuiScope(scope) or 0) or 0) == 0
+                    disabled = disabled or (tonumber(CropControlOverride:getBlockedCountForGuiScope(scope) or 0) or 0) == 0
                 elseif CropControlOverride.buildFieldSummary ~= nil then
                     local summary = CropControlOverride:buildFieldSummary(nil)
-                    disabled = (tonumber(summary.offending or 0) or 0) == 0
+                    disabled = disabled or (tonumber(summary.offending or 0) or 0) == 0
                 end
             end
             self.resetBlockedDryRunButton:setDisabled(disabled)
@@ -811,6 +942,26 @@ function CropControlOverrideMenu:updateContent()
     if self.confirmBlockedResetButton ~= nil then
         local showConfirmReset = showResetControls and self.resetConfirmArmed == true
         self.confirmBlockedResetButton:setVisible(showConfirmReset)
+        if self.confirmBlockedResetButton.setDisabled ~= nil then
+            self.confirmBlockedResetButton:setDisabled(self.serverResetDryRunPending == true or self.serverResetPending == true)
+        end
+    end
+
+    if self.regenerateNpcPreviewButton ~= nil then
+        self.regenerateNpcPreviewButton:setVisible(showResetControls)
+        if self.regenerateNpcPreviewButton.setDisabled ~= nil then
+            local busy = CropControlOverride ~= nil and CropControlOverride._npcMapRegenerationState ~= nil
+            self.regenerateNpcPreviewButton:setDisabled((not ccoGuiCanRegenerateNpcFields()) or busy)
+        end
+    end
+
+    if self.confirmNpcRegenerationButton ~= nil then
+        local showConfirmRegeneration = showResetControls and self.regenerationConfirmArmed == true
+        self.confirmNpcRegenerationButton:setVisible(showConfirmRegeneration)
+        if self.confirmNpcRegenerationButton.setDisabled ~= nil then
+            local busy = CropControlOverride ~= nil and CropControlOverride._npcMapRegenerationState ~= nil
+            self.confirmNpcRegenerationButton:setDisabled((not ccoGuiCanRegenerateNpcFields()) or busy)
+        end
     end
 
     if self.tableTopic then
@@ -839,7 +990,26 @@ function CropControlOverrideMenu:updateContent()
         end
     end
 
+    if self.calendarTopic then
+        local hasCalendarRows = #self.calendarRows > 0
+        if hasCalendarRows then
+            self.selectedCalendarRowIndex = self.selectedCalendarRowIndex or 1
+            self.selectedCalendarRow = self.calendarRows[self.selectedCalendarRowIndex]
+            self:loadCalendarStagingFromRow(self.selectedCalendarRow)
+        end
+        if self.calendarList ~= nil then
+            self.calendarList:reloadData()
+            self.calendarList:setVisible(hasCalendarRows)
+            if hasCalendarRows and self.calendarList.setSelectedIndex ~= nil then
+                pcall(function() self.calendarList:setSelectedIndex(self.selectedCalendarRowIndex or 1, true) end)
+            end
+        end
+        if self.calendarListSliderBox ~= nil then self.calendarListSliderBox:setVisible(#self.calendarRows > 14) end
+        if self.calendarEmptyStateText ~= nil then self.calendarEmptyStateText:setVisible(not hasCalendarRows) end
+    end
+
     self:updateSelectedDetails()
+    self:updateCalendarSelectedDetails()
 end
 
 -- SmoothList data source / delegate ---------------------------------------
@@ -848,6 +1018,7 @@ function CropControlOverrideMenu:getNumberOfSections()
 end
 
 function CropControlOverrideMenu:getNumberOfItemsInSection(list, section)
+    if list == self.calendarList then return #self.calendarRows end
     return #self.ruleRows
 end
 
@@ -860,6 +1031,51 @@ function CropControlOverrideMenu:getSectionHeaderHeight(list, section)
 end
 
 function CropControlOverrideMenu:populateCellForItemInSection(list, section, index, cell)
+    if list == self.calendarList then
+        local row = self.calendarRows[index]
+        if row == nil or cell == nil then return end
+        local cropIcon = cell.getDescendantByName ~= nil and cell:getDescendantByName("calendarCropIcon") or nil
+        if cropIcon ~= nil then
+            local hasIcon = row.iconFilename ~= nil and tostring(row.iconFilename) ~= ""
+            if hasIcon and cropIcon.setImageFilename ~= nil then cropIcon:setImageFilename(row.iconFilename) end
+            if cropIcon.setVisible ~= nil then cropIcon:setVisible(hasIcon) end
+        end
+        local isDraftPreview = self.calendarDraftPreviewActive == true
+            and self.calendarDraftCropName ~= nil
+            and tostring(self.calendarDraftCropName) == tostring(row.crop)
+        local modifiedMarker = cell.getDescendantByName ~= nil and cell:getDescendantByName("calendarModifiedMarker") or nil
+        if modifiedMarker ~= nil and modifiedMarker.setVisible ~= nil then
+            modifiedMarker:setVisible(row.changed == true or isDraftPreview)
+        end
+        local cropElement = cell.getDescendantByName ~= nil and cell:getDescendantByName("calendarCellCrop") or nil
+        if cropElement ~= nil and cropElement.setText ~= nil then
+            cropElement:setText(tostring(row.displayName or row.crop or ""))
+            if cropElement.setTextColor ~= nil then
+                if isDraftPreview then
+                    cropElement:setTextColor(1.00, 0.88, 0.35, 1.00)
+                elseif row.changed == true then
+                    cropElement:setTextColor(1.00, 0.78, 0.20, 1.00)
+                else
+                    cropElement:setTextColor(0.88, 0.90, 0.86, 1.00)
+                end
+            end
+        end
+
+        local plantingMask = ccoNormalizeCalendarMask(isDraftPreview and self.calendarDraftPlantingMask or row.plantingMask)
+        local harvestMask = ccoNormalizeCalendarMask(isDraftPreview and self.calendarDraftHarvestMask or row.harvestMask)
+        for monthIndex, month in ipairs(CCO_CALENDAR_MONTHS) do
+            local planting = ccoCalendarMaskHas(plantingMask, month.period)
+            local harvest = ccoCalendarMaskHas(harvestMask, month.period)
+            local plantCell = cell.getDescendantByName ~= nil and cell:getDescendantByName("calendarPlantCell" .. tostring(monthIndex)) or nil
+            local harvestCell = cell.getDescendantByName ~= nil and cell:getDescendantByName("calendarHarvestCell" .. tostring(monthIndex)) or nil
+            -- Native-style rows use separate planting and harvesting bands, so
+            -- overlapping months can display both states simultaneously.
+            if plantCell ~= nil and plantCell.setVisible ~= nil then plantCell:setVisible(planting == true) end
+            if harvestCell ~= nil and harvestCell.setVisible ~= nil then harvestCell:setVisible(harvest == true) end
+        end
+        return
+    end
+
     local row = self.ruleRows[index]
     if row == nil or cell == nil then
         return
@@ -928,6 +1144,26 @@ function CropControlOverrideMenu:populateCellForItemInSection(list, section, ind
 end
 
 function CropControlOverrideMenu:onListSelectionChanged(list, section, index)
+    if list == self.calendarList then
+        if self.suppressCalendarSelectionCallback == true then return end
+        local row = self.calendarRows[index]
+        if row ~= nil then
+            local previousCrop = self.selectedCalendarRow ~= nil and self.selectedCalendarRow.crop or nil
+            local changedCrop = previousCrop ~= nil and tostring(previousCrop) ~= tostring(row.crop)
+            local hadDraft = changedCrop and self:clearCalendarDraftPreview(nil, false) or false
+            self.selectedCalendarRowIndex = index
+            self.selectedCalendarRow = row
+            self:loadCalendarStagingFromRow(row)
+            if hadDraft then
+                self:reloadCalendarListPreservingSelection()
+                if self.calendarPreviewText ~= nil and self.calendarPreviewText.setText ~= nil then
+                    self.calendarPreviewText:setText("Unapplied preview cancelled because the selected crop changed.")
+                end
+            end
+            self:updateCalendarSelectedDetails()
+        end
+        return
+    end
     local row = self.ruleRows[index]
     if row ~= nil then
         self.selectedRowIndex = index
@@ -1195,10 +1431,19 @@ function CropControlOverrideMenu:onClickApplyDryRun()
     end
 
     local cropName = tostring(self.stagedRule.crop or "")
-    local ok, msg, canForce = CropControlOverride:applyGuiStagedRule(self.stagedRule, self.forceApplyArmed == true)
+    local ok, msg, canForce, serverPending = CropControlOverride:applyGuiStagedRule(self.stagedRule, self.forceApplyArmed == true)
     local resultText = tostring(msg or "")
 
-    if ok then
+    if ok and serverPending == true then
+        self.serverApplyPending = true
+        self:updateStagedButtons()
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
+            self.selectedDirtyText:setText(ccoGuiText("cco_waiting_server_apply", "Waiting for server confirmation..."))
+        end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
+            self.selectedInfoText:setText(ccoGuiText("cco_rule_sent_server_validation", "The rule was sent to the dedicated server for validation. The staged change will be kept until the server replies."))
+        end
+    elseif ok then
         self.stagedDirty = false
         self.forceApplyArmed = false
 
@@ -1261,6 +1506,41 @@ function CropControlOverrideMenu:onClickApplyDryRun()
     end
 end
 
+function CropControlOverrideMenu:onServerApplyResult(success, msg, canForce)
+    self.serverApplyPending = false
+    local message = tostring(msg or (success
+        and ccoGuiText("cco_rule_saved_server", "Rule saved by server.")
+        or ccoGuiText("cco_rule_rejected_server", "Server rejected the rule.")))
+
+    if success == true then
+        self.stagedDirty = false
+        self.forceApplyArmed = false
+        self:updateStagedButtons()
+        if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
+            self.selectedDirtyText:setText(ccoGuiText("cco_rule_saved_server", "Rule saved by server."))
+        end
+        if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
+            self.selectedInfoText:setText(message)
+        end
+        return
+    end
+
+    -- Keep the proposed values exactly as staged. When the server's preflight
+    -- reports blocked NPC fields, the same button now becomes FORCE APPLY so
+    -- the remote admin can deliberately submit the guarded second request.
+    self.stagedDirty = true
+    self.forceApplyArmed = canForce == true
+    self:updateStagedButtons()
+    if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
+        self.selectedDirtyText:setText(self.forceApplyArmed
+            and ccoGuiText("cco_apply_blocked_rule_not_saved", "Apply blocked. Rule not saved.")
+            or ccoGuiText("cco_rule_rejected_server", "Server rejected the rule."))
+    end
+    if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
+        self.selectedInfoText:setText(message)
+    end
+end
+
 function CropControlOverrideMenu:onClickDiscardStaged()
     if self.selectedRow ~= nil then
         self:createStagedRuleFromRow(self.selectedRow)
@@ -1268,6 +1548,336 @@ function CropControlOverrideMenu:onClickDiscardStaged()
         self:createStagedRuleFromRow(nil)
     end
     self:updateSelectedDetails()
+end
+
+function CropControlOverrideMenu:reloadCalendarListPreservingSelection()
+    if self.calendarList == nil then return end
+    self.suppressCalendarSelectionCallback = true
+    self.calendarList:reloadData()
+    if self.selectedCalendarRowIndex ~= nil and self.calendarList.setSelectedIndex ~= nil then
+        pcall(function() self.calendarList:setSelectedIndex(self.selectedCalendarRowIndex, true) end)
+    end
+    self.suppressCalendarSelectionCallback = false
+end
+
+function CropControlOverrideMenu:clearCalendarDraftPreview(message, reloadGrid)
+    local wasActive = self.calendarDraftPreviewActive == true
+    self.calendarDraftPreviewActive = false
+    self.calendarDraftCropName = nil
+    self.calendarDraftPlantingMask = nil
+    self.calendarDraftHarvestMask = nil
+    self.calendarDraftKind = nil
+    self.calendarPreviewArmed = false
+    self.calendarPreviewApplyAllowed = false
+    if message ~= nil and self.calendarPreviewText ~= nil and self.calendarPreviewText.setText ~= nil then
+        self.calendarPreviewText:setText(tostring(message))
+    end
+    if wasActive and reloadGrid ~= false then
+        self:reloadCalendarListPreservingSelection()
+    end
+    return wasActive
+end
+
+function CropControlOverrideMenu:activateCalendarDraftPreview()
+    local row = self.selectedCalendarRow
+    if row == nil then return end
+    self.calendarDraftPreviewActive = true
+    self.calendarDraftCropName = row.crop
+    self.calendarDraftKind = self.calendarEditMode
+    if self.calendarEditMode == "CUSTOM" then
+        self.calendarDraftPlantingMask = ccoNormalizeCalendarMask(self.stagedCalendarPlantingMask)
+        self.calendarDraftHarvestMask = ccoNormalizeCalendarMask(self.stagedCalendarHarvestMask)
+    else
+        self.calendarDraftPlantingMask = ccoCalendarMaskShift(row.defaultPlantingMask, self.stagedCalendarShift)
+        self.calendarDraftHarvestMask = ccoCalendarMaskShift(row.defaultHarvestMask, self.stagedCalendarShift)
+    end
+    self:reloadCalendarListPreservingSelection()
+end
+
+function CropControlOverrideMenu:loadCalendarStagingFromRow(row)
+    if row == nil then return end
+    self.stagedCalendarShift = tonumber(row.shift or 0) or 0
+    self.calendarEditMode = row.mode == "CUSTOM" and "CUSTOM" or "SHIFT"
+    self.stagedCalendarPlantingMask = ccoNormalizeCalendarMask(row.customPlantingMask or row.defaultPlantingMask)
+    self.stagedCalendarHarvestMask = ccoNormalizeCalendarMask(row.customHarvestMask or row.defaultHarvestMask)
+    self.calendarCustomTarget = self.calendarCustomTarget or "PLANTING"
+    self.calendarPreviewArmed = false
+    self.calendarPreviewApplyAllowed = false
+    self.calendarRestoreRequested = false
+end
+
+function CropControlOverrideMenu:invalidateCalendarPreview(message)
+    self:clearCalendarDraftPreview(message or "Calendar values changed. Run PREVIEW before Apply.", true)
+end
+
+function CropControlOverrideMenu:updateCalendarMonthButtons(disabled)
+    for _, month in ipairs(CCO_CALENDAR_MONTHS) do
+        local element = self[month.field]
+        if element ~= nil then
+            if element.setVisible ~= nil then element:setVisible(self.calendarEditMode == "CUSTOM") end
+            local planting = ccoCalendarMaskHas(self.stagedCalendarPlantingMask, month.period)
+            local harvest = ccoCalendarMaskHas(self.stagedCalendarHarvestMask, month.period)
+            local suffix = planting and harvest and " P/H" or (planting and " P" or (harvest and " H" or " -"))
+            if element.setText ~= nil then element:setText(month.label .. suffix) end
+            if element.setDisabled ~= nil then element:setDisabled(disabled == true) end
+        end
+    end
+end
+
+function CropControlOverrideMenu:updateCalendarSelectedDetails()
+    local function set(element, value)
+        if element ~= nil and element.setText ~= nil then element:setText(tostring(value or "-")) end
+    end
+    local function button(element, text, disabled, visible)
+        if element ~= nil then
+            if element.setText ~= nil and text ~= nil then element:setText(text) end
+            if element.setDisabled ~= nil then element:setDisabled(disabled == true) end
+            if visible ~= nil and element.setVisible ~= nil then element:setVisible(visible == true) end
+        end
+    end
+
+    if not self.calendarTopic or self.selectedCalendarRow == nil then
+        set(self.calendarSelectedCropText, "No crop selected")
+        set(self.calendarSelectedTypeText, "-")
+        set(self.calendarCurrentWindowText, "-")
+        set(self.calendarShiftValueText, "0")
+        set(self.calendarPreviewText, "Select a crop to edit its calendar.")
+        button(self.calendarModeButton, "MODE: SHIFT", true, true)
+        button(self.calendarShiftDownButton, "-1", true, true)
+        button(self.calendarShiftUpButton, "+1", true, true)
+        button(self.calendarPlantTargetButton, "EDIT PLANTING", true, false)
+        button(self.calendarHarvestTargetButton, "EDIT HARVEST", true, false)
+        self:updateCalendarMonthButtons(true)
+        button(self.calendarPreviewButton, "PREVIEW", true, true)
+        button(self.calendarApplyButton, "APPLY", true, true)
+        button(self.calendarRestoreButton, "RESTORE MAP DEFAULT", true, true)
+        return
+    end
+
+    local row = self.selectedCalendarRow
+    local readOnly = not ccoGuiCanEditRules()
+    local busy = self.calendarPreviewPending or self.calendarApplyPending
+    set(self.calendarSelectedCropText, row.crop)
+    set(self.calendarSelectedTypeText, tostring(row.category or "-") .. " / " .. tostring(row.editability or "-") .. " / " .. tostring(row.mode or "DEFAULT"))
+    local currentWindowText = ("Plant %s | Harvest %s | Current mode %s"):format(
+        tostring(row.planting or "-"), tostring(row.harvest or "-"), tostring(row.mode or "DEFAULT"))
+    if self.calendarDraftPreviewActive == true and tostring(self.calendarDraftCropName or "") == tostring(row.crop or "") then
+        currentWindowText = currentWindowText .. "\nDRAFT PREVIEW shown in calendar grid; not yet applied."
+    end
+    set(self.calendarCurrentWindowText, currentWindowText)
+    button(self.calendarModeButton, "MODE: " .. tostring(self.calendarEditMode), busy, true)
+
+    local shiftVisible = self.calendarEditMode == "SHIFT"
+    set(self.calendarShiftValueText, string.format("%+d", tonumber(self.stagedCalendarShift or 0) or 0))
+    if self.calendarShiftValueText ~= nil and self.calendarShiftValueText.setVisible ~= nil then self.calendarShiftValueText:setVisible(shiftVisible) end
+    if self.calendarShiftLabelText ~= nil and self.calendarShiftLabelText.setVisible ~= nil then self.calendarShiftLabelText:setVisible(shiftVisible) end
+    button(self.calendarShiftDownButton, "-1", busy, shiftVisible)
+    button(self.calendarShiftUpButton, "+1", busy, shiftVisible)
+
+    local customVisible = self.calendarEditMode == "CUSTOM"
+    button(self.calendarPlantTargetButton, self.calendarCustomTarget == "PLANTING" and "[PLANTING]" or "EDIT PLANTING", busy, customVisible)
+    button(self.calendarHarvestTargetButton, self.calendarCustomTarget == "HARVEST" and "[HARVEST]" or "EDIT HARVEST", busy, customVisible)
+    self:updateCalendarMonthButtons(busy)
+
+    local previewLabel = self.calendarPreviewPending and "WAITING FOR SERVER"
+        or (self.calendarDraftPreviewActive and "CANCEL" or "PREVIEW")
+    button(self.calendarPreviewButton, previewLabel, busy, true)
+    local applyLabel = self.calendarApplyPending and "WAITING FOR SERVER"
+        or (self.calendarRestoreRequested and "APPLY RESTORE" or "APPLY")
+    button(self.calendarApplyButton, applyLabel,
+        readOnly or busy or not self.calendarPreviewArmed or not self.calendarPreviewApplyAllowed, true)
+    button(self.calendarRestoreButton, "RESTORE MAP DEFAULT", busy or row.mode == "DEFAULT", true)
+end
+
+function CropControlOverrideMenu:onClickCalendarMode()
+    if self.selectedCalendarRow == nil then return end
+    self.calendarRestoreRequested = false
+    self.calendarEditMode = self.calendarEditMode == "CUSTOM" and "SHIFT" or "CUSTOM"
+    self:invalidateCalendarPreview(self.calendarEditMode == "CUSTOM"
+        and "Custom-window mode selected. Choose planting and harvest months, then PREVIEW."
+        or "Whole-lifecycle shift mode selected. Choose an offset, then PREVIEW.")
+    self:updateCalendarSelectedDetails()
+end
+
+function CropControlOverrideMenu:onClickCalendarPlantTarget()
+    self.calendarRestoreRequested = false
+    self.calendarCustomTarget = "PLANTING"
+    self:invalidateCalendarPreview("Editing planting months. Toggle months, then PREVIEW.")
+    self:updateCalendarSelectedDetails()
+end
+
+function CropControlOverrideMenu:onClickCalendarHarvestTarget()
+    self.calendarRestoreRequested = false
+    self.calendarCustomTarget = "HARVEST"
+    self:invalidateCalendarPreview("Editing harvest months. Toggle months, then PREVIEW.")
+    self:updateCalendarSelectedDetails()
+end
+
+function CropControlOverrideMenu:toggleCalendarMonth(period)
+    if self.selectedCalendarRow == nil or self.calendarEditMode ~= "CUSTOM" then return end
+    self.calendarRestoreRequested = false
+    if self.calendarCustomTarget == "HARVEST" then
+        self.stagedCalendarHarvestMask = ccoCalendarMaskToggle(self.stagedCalendarHarvestMask, period)
+    else
+        self.stagedCalendarPlantingMask = ccoCalendarMaskToggle(self.stagedCalendarPlantingMask, period)
+    end
+    self:invalidateCalendarPreview("Custom months changed. Run PREVIEW before Apply.")
+    self:updateCalendarSelectedDetails()
+end
+
+function CropControlOverrideMenu:onClickCalendarMonthJan() self:toggleCalendarMonth(11) end
+function CropControlOverrideMenu:onClickCalendarMonthFeb() self:toggleCalendarMonth(12) end
+function CropControlOverrideMenu:onClickCalendarMonthMar() self:toggleCalendarMonth(1) end
+function CropControlOverrideMenu:onClickCalendarMonthApr() self:toggleCalendarMonth(2) end
+function CropControlOverrideMenu:onClickCalendarMonthMay() self:toggleCalendarMonth(3) end
+function CropControlOverrideMenu:onClickCalendarMonthJun() self:toggleCalendarMonth(4) end
+function CropControlOverrideMenu:onClickCalendarMonthJul() self:toggleCalendarMonth(5) end
+function CropControlOverrideMenu:onClickCalendarMonthAug() self:toggleCalendarMonth(6) end
+function CropControlOverrideMenu:onClickCalendarMonthSep() self:toggleCalendarMonth(7) end
+function CropControlOverrideMenu:onClickCalendarMonthOct() self:toggleCalendarMonth(8) end
+function CropControlOverrideMenu:onClickCalendarMonthNov() self:toggleCalendarMonth(9) end
+function CropControlOverrideMenu:onClickCalendarMonthDec() self:toggleCalendarMonth(10) end
+
+function CropControlOverrideMenu:changeCalendarShift(delta)
+    if self.selectedCalendarRow == nil then return end
+    self.calendarRestoreRequested = false
+    local value = math.floor(tonumber(self.stagedCalendarShift or 0) or 0) + (tonumber(delta) or 0)
+    if value < -6 then value = -6 end
+    if value > 6 then value = 6 end
+    self.stagedCalendarShift = value
+    self:invalidateCalendarPreview("Shift changed. Run PREVIEW before Apply.")
+    self:updateCalendarSelectedDetails()
+end
+
+function CropControlOverrideMenu:onClickCalendarShiftDown()
+    self:changeCalendarShift(-1)
+end
+
+function CropControlOverrideMenu:onClickCalendarShiftUp()
+    self:changeCalendarShift(1)
+end
+
+function CropControlOverrideMenu:onClickCalendarPreview()
+    if self.calendarDraftPreviewActive == true then
+        self:clearCalendarDraftPreview("Preview cancelled. The grid and editor now show the live applied calendar.", true)
+        if self.selectedCalendarRow ~= nil then self:loadCalendarStagingFromRow(self.selectedCalendarRow) end
+        self:updateCalendarSelectedDetails()
+        return
+    end
+    if self.selectedCalendarRow == nil or CropControlOverride == nil then return end
+    local ok, msg, applyAllowed, pending
+    if self.calendarEditMode == "CUSTOM" then
+        if CropControlOverride.previewCalendarCustom == nil then return end
+        ok, msg, applyAllowed, pending = CropControlOverride:previewCalendarCustom(
+            self.selectedCalendarRow.crop, self.stagedCalendarPlantingMask, self.stagedCalendarHarvestMask)
+    else
+        if CropControlOverride.previewCalendarShift == nil then return end
+        ok, msg, applyAllowed, pending = CropControlOverride:previewCalendarShift(self.selectedCalendarRow.crop, self.stagedCalendarShift)
+    end
+    if ok and pending == true then
+        self.calendarPreviewPending = true
+        self.calendarPreviewArmed = false
+        if self.calendarPreviewText ~= nil then self.calendarPreviewText:setText("Waiting for the server's authoritative calendar preview...") end
+    else
+        self.calendarPreviewPending = false
+        self.calendarPreviewArmed = ok == true
+        self.calendarPreviewApplyAllowed = ok == true and applyAllowed == true
+        if self.calendarPreviewText ~= nil then self.calendarPreviewText:setText(tostring(msg or "Calendar preview failed.")) end
+        if ok == true then self:activateCalendarDraftPreview() end
+    end
+    self:updateCalendarSelectedDetails()
+end
+
+function CropControlOverrideMenu:onServerCalendarPreviewResult(success, msg, applyAllowed)
+    self.calendarPreviewPending = false
+    self.calendarPreviewArmed = success == true
+    self.calendarPreviewApplyAllowed = success == true and applyAllowed == true
+    if self.calendarPreviewText ~= nil and self.calendarPreviewText.setText ~= nil then self.calendarPreviewText:setText(tostring(msg or "")) end
+    if success == true then
+        self:activateCalendarDraftPreview()
+    else
+        self:clearCalendarDraftPreview(nil, true)
+    end
+    self:updateCalendarSelectedDetails()
+end
+
+function CropControlOverrideMenu:onClickCalendarApply()
+    if self.selectedCalendarRow == nil or not self.calendarPreviewArmed or not self.calendarPreviewApplyAllowed then return end
+    if CropControlOverride == nil then return end
+    local cropName = self.selectedCalendarRow.crop
+    self.calendarPendingCropName = cropName
+    local ok, msg, _, pending
+    if self.calendarEditMode == "CUSTOM" then
+        if CropControlOverride.applyCalendarCustom == nil then return end
+        ok, msg, _, pending = CropControlOverride:applyCalendarCustom(
+            cropName, self.stagedCalendarPlantingMask, self.stagedCalendarHarvestMask)
+    else
+        if CropControlOverride.applyCalendarShift == nil then return end
+        ok, msg, _, pending = CropControlOverride:applyCalendarShift(cropName, self.stagedCalendarShift)
+    end
+    if ok and pending == true then
+        self.calendarApplyPending = true
+        if self.calendarPreviewText ~= nil then self.calendarPreviewText:setText("Waiting for the server to apply the calendar shift...") end
+    else
+        self.calendarApplyPending = false
+        if self.calendarPreviewText ~= nil then self.calendarPreviewText:setText(tostring(msg or "Calendar apply failed.")) end
+        if ok then self:refreshCalendarAfterApply(cropName) end
+    end
+    self:updateCalendarSelectedDetails()
+end
+
+function CropControlOverrideMenu:onServerCalendarApplyResult(success, msg, serverCropName)
+    local cropName = (serverCropName ~= nil and serverCropName ~= "" and serverCropName) or self.calendarPendingCropName or (self.selectedCalendarRow ~= nil and self.selectedCalendarRow.crop or nil)
+    self.calendarPendingCropName = nil
+    self.calendarApplyPending = false
+    if self.calendarPreviewText ~= nil and self.calendarPreviewText.setText ~= nil then self.calendarPreviewText:setText(tostring(msg or "")) end
+    if success and cropName ~= nil then self:refreshCalendarAfterApply(cropName) end
+    self:updateCalendarSelectedDetails()
+end
+
+function CropControlOverrideMenu:refreshCalendarAfterApply(cropName)
+    self:clearCalendarDraftPreview(nil, false)
+    self.calendarRows = CropControlOverride ~= nil and CropControlOverride.getGuiCalendarRows ~= nil and CropControlOverride:getGuiCalendarRows() or {}
+    self.calendarPreviewArmed = false
+    self.calendarPreviewApplyAllowed = false
+    for index, row in ipairs(self.calendarRows) do
+        if row.crop == cropName then
+            self.selectedCalendarRowIndex = index
+            self.selectedCalendarRow = row
+            self:loadCalendarStagingFromRow(row)
+            break
+        end
+    end
+    if self.calendarList ~= nil then
+        self.calendarList:reloadData()
+        if self.selectedCalendarRowIndex ~= nil and self.calendarList.setSelectedIndex ~= nil then
+            pcall(function() self.calendarList:setSelectedIndex(self.selectedCalendarRowIndex, true) end)
+        end
+    end
+end
+
+function CropControlOverrideMenu:onClickCalendarRestore()
+    if self.selectedCalendarRow == nil then return end
+    self:clearCalendarDraftPreview(nil, true)
+
+    -- Restoration must always use the map-default shift path. Leaving the editor
+    -- in CUSTOM mode caused the Restore button to preview and reapply the current
+    -- custom masks instead of clearing the override.
+    self.calendarEditMode = "SHIFT"
+    self.stagedCalendarShift = 0
+    self.stagedCalendarPlantingMask = ccoNormalizeCalendarMask(self.selectedCalendarRow.defaultPlantingMask)
+    self.stagedCalendarHarvestMask = ccoNormalizeCalendarMask(self.selectedCalendarRow.defaultHarvestMask)
+    self.calendarRestoreRequested = true
+    self.calendarPreviewArmed = false
+    self.calendarPreviewApplyAllowed = false
+    if self.calendarPreviewText ~= nil and self.calendarPreviewText.setText ~= nil then
+        self.calendarPreviewText:setText("Map-default restoration staged. Review the preview, then click APPLY RESTORE.")
+    end
+    self:onClickCalendarPreview()
+end
+
+function CropControlOverrideMenu:onClickCalendar()
+    self:openTopic("calendar")
 end
 
 function CropControlOverrideMenu:onClickStatus()
@@ -1470,6 +2080,7 @@ function CropControlOverrideMenu:updateResetModeButton()
 end
 
 function CropControlOverrideMenu:onClickResetMode()
+    if self.serverResetDryRunPending == true or self.serverResetPending == true then return end
     if self.resetMode == "reseedSeasonal" then
         self.resetMode = "cultivated"
     else
@@ -1481,6 +2092,7 @@ function CropControlOverrideMenu:onClickResetMode()
 end
 
 function CropControlOverrideMenu:onClickResetScope()
+    if self.serverResetDryRunPending == true or self.serverResetPending == true then return end
     self:refreshResetScopes()
     if #(self.resetScopes or {}) > 1 then
         self.resetScopeIndex = (self.resetScopeIndex or 1) + 1
@@ -1494,18 +2106,42 @@ function CropControlOverrideMenu:onClickResetScope()
 end
 
 function CropControlOverrideMenu:onClickResetBlockedDryRun()
+    if self.serverResetDryRunPending == true or self.serverResetPending == true then return end
     if CropControlOverride == nil or CropControlOverride.resetBlockedFieldsDryRunFromGui == nil then
         return
     end
 
     local scopeCrop, scopeText = self:getCurrentResetScope()
+    self.pendingResetScopeText = tostring(scopeText or "ALL")
 
-    local ok, result, wouldQueue = pcall(function()
+    local callOk, success, result, wouldQueue, skipped, serverPending = pcall(function()
         return CropControlOverride:resetBlockedFieldsDryRunFromGui(scopeCrop, self.resetMode)
     end)
 
-    local msg = ok and tostring(result or "Dry-run complete.") or ("Dry-run failed: " .. tostring(result))
-    self.resetConfirmArmed = ccoGuiCanEditRules() and ok and (tonumber(wouldQueue or 0) or 0) > 0
+    if not callOk then
+        self:onServerResetDryRunResult(false, "Dry-run failed: " .. tostring(success), 0, 0)
+        return
+    end
+
+    if success == true and serverPending == true then
+        self.serverResetDryRunPending = true
+        self.resetConfirmArmed = false
+        local body = CropControlOverride.buildGuiBlockedText ~= nil and CropControlOverride:buildGuiBlockedText() or ""
+        self.pendingTitle = "Crop Control Override - Validation"
+        self.pendingBody = tostring(body or "") .. "\n\nDRY-RUN RESULT\n" .. ccoGuiText("cco_waiting_server_validation", "Waiting for dedicated-server validation...")
+        self.currentTopic = "blocked"
+        self.tableTopic = false
+        self:updateContent()
+        return
+    end
+
+    self:onServerResetDryRunResult(success == true, result, wouldQueue, skipped)
+end
+
+function CropControlOverrideMenu:onServerResetDryRunResult(success, result, wouldQueue, skipped)
+    self.serverResetDryRunPending = false
+    local msg = tostring(result or (success and "Dry-run complete." or "Dry-run failed."))
+    self.resetConfirmArmed = ccoGuiCanEditRules() and success == true and (tonumber(wouldQueue or 0) or 0) > 0
 
     local body = ""
     if CropControlOverride.buildGuiBlockedText ~= nil then
@@ -1514,7 +2150,7 @@ function CropControlOverrideMenu:onClickResetBlockedDryRun()
 
     local confirmHint = ""
     if self.resetConfirmArmed then
-        confirmHint = "\n\nCONFIRM RESET is now available for scope=" .. tostring(scopeText or "ALL") .. " resetMode=" .. self:getResetModeLabel() .. ". It will apply the selected reset mode."
+        confirmHint = "\n\nCONFIRM RESET is now available for scope=" .. tostring(self.pendingResetScopeText or "ALL") .. " resetMode=" .. self:getResetModeLabel() .. ". It will apply the selected reset mode."
     elseif not ccoGuiCanEditRules() then
         confirmHint = "\n\nRemote multiplayer clients are read-only. Reset actions can only be run by the server/host."
     end
@@ -1532,7 +2168,7 @@ function CropControlOverrideMenu:onClickConfirmBlockedReset()
         if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then self.selectedInfoText:setText("CCO reset is read-only for remote multiplayer clients.") end
         return
     end
-    if self.resetConfirmArmed ~= true then
+    if self.resetConfirmArmed ~= true or self.serverResetDryRunPending == true or self.serverResetPending == true then
         return
     end
     if CropControlOverride == nil or CropControlOverride.resetBlockedFieldsFromGui == nil then
@@ -1541,12 +2177,34 @@ function CropControlOverrideMenu:onClickConfirmBlockedReset()
 
     local scopeCrop = self:getCurrentResetScope()
 
-    local ok, result = pcall(function()
+    local callOk, success, result, queued, skipped, serverPending = pcall(function()
         return CropControlOverride:resetBlockedFieldsFromGui(scopeCrop, self.resetMode)
     end)
 
-    local msg = ok and tostring(result or "Reset complete.") or ("Reset failed: " .. tostring(result))
+    if not callOk then
+        self:onServerResetResult(false, "Reset failed: " .. tostring(success), 0, 0)
+        return
+    end
+
+    if success == true and serverPending == true then
+        self.serverResetPending = true
+        local body = CropControlOverride.buildGuiBlockedText ~= nil and CropControlOverride:buildGuiBlockedText() or ""
+        self.pendingTitle = "Crop Control Override - Validation"
+        self.pendingBody = tostring(body or "") .. "\n\nRESET RESULT\n" .. ccoGuiText("cco_waiting_server_reset", "Waiting for dedicated-server confirmation...")
+        self.currentTopic = "blocked"
+        self.tableTopic = false
+        self:updateContent()
+        return
+    end
+
+    self:onServerResetResult(success == true, result, queued, skipped)
+end
+
+function CropControlOverrideMenu:onServerResetResult(success, result, queued, skipped)
+    self.serverResetPending = false
+    local msg = tostring(result or (success and "Reset complete." or "Reset failed."))
     self.resetConfirmArmed = false
+    self.pendingResetScopeText = nil
     self:refreshResetScopes()
 
     local body = ""
@@ -1556,6 +2214,63 @@ function CropControlOverrideMenu:onClickConfirmBlockedReset()
 
     self.pendingTitle = "Crop Control Override - Validation"
     self.pendingBody = tostring(body or "") .. "\n\nRESET RESULT\n" .. msg
+    self.currentTopic = "blocked"
+    self.tableTopic = false
+    self:updateContent()
+end
+
+function CropControlOverrideMenu:onClickRegenerateNpcPreview()
+    if not ccoGuiCanRegenerateNpcFields() then
+        self.regenerationConfirmArmed = false
+        self.pendingTitle = "Crop Control Override - Validation"
+        self.pendingBody = tostring(self.pendingBody or "") .. "\n\nNPC MAP REGENERATION\nRemote multiplayer clients are read-only. Regeneration can only be run by the server/host."
+        self:updateContent()
+        return
+    end
+    if CropControlOverride == nil or CropControlOverride.regenerateNpcFieldsDryRunFromGui == nil then
+        return
+    end
+
+    local ok, result, planned, confirmAllowed = pcall(function()
+        return CropControlOverride:regenerateNpcFieldsDryRunFromGui()
+    end)
+    local msg = ok and tostring(result or "Preview complete.") or ("Preview failed: " .. tostring(result))
+    self.regenerationConfirmArmed = ok and confirmAllowed == true and (tonumber(planned or 0) or 0) > 0
+
+    local body = ""
+    if CropControlOverride.buildGuiBlockedText ~= nil then
+        body = CropControlOverride:buildGuiBlockedText()
+    end
+    local hint = self.regenerationConfirmArmed
+        and "\n\nCONFIRM NPC REGENERATION is now available. This will replace crops on every unowned field, remove available contracts, and rebuild the contract board."
+        or ""
+    self.pendingTitle = "Crop Control Override - Validation"
+    self.pendingBody = tostring(body or "") .. "\n\nNPC MAP REGENERATION PREVIEW\n" .. msg .. hint
+    self.currentTopic = "blocked"
+    self.tableTopic = false
+    self:updateContent()
+end
+
+function CropControlOverrideMenu:onClickConfirmNpcRegeneration()
+    if not ccoGuiCanRegenerateNpcFields() or self.regenerationConfirmArmed ~= true then
+        return
+    end
+    if CropControlOverride == nil or CropControlOverride.regenerateNpcFieldsFromGui == nil then
+        return
+    end
+
+    local ok, result = pcall(function()
+        return CropControlOverride:regenerateNpcFieldsFromGui()
+    end)
+    local msg = ok and tostring(result or "Regeneration queued.") or ("Regeneration failed: " .. tostring(result))
+    self.regenerationConfirmArmed = false
+
+    local body = ""
+    if CropControlOverride.buildGuiBlockedText ~= nil then
+        body = CropControlOverride:buildGuiBlockedText()
+    end
+    self.pendingTitle = "Crop Control Override - Validation"
+    self.pendingBody = tostring(body or "") .. "\n\nNPC MAP REGENERATION RESULT\n" .. msg
     self.currentTopic = "blocked"
     self.tableTopic = false
     self:updateContent()

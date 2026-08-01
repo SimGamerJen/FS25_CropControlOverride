@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.0.3.5",
+    VERSION = "2.1.0.0-alpha.16.7",
 
     _origFlags = {},
     _rules = {},
@@ -35,6 +35,14 @@ CropControlOverride = {
     _seedGuardHooksApplied = false,
     _serverSettingsRetryTimer = 0,
     _serverSettingsRetryCount = 0,
+    _serverValidationSummary = nil,
+    _serverBlockedFieldRows = nil,
+    _pendingValidationSyncTimer = nil,
+    _pendingBlockedResetMissionRefresh = nil,
+    _npcMapRegenerationPlan = nil,
+    _npcMapRegenerationState = nil,
+    _calendarContractRefillState = nil,
+    _sowUpdateGuardApplied = false,
 }
 
 local CCO = CropControlOverride
@@ -64,6 +72,82 @@ local function normalizeReseedWeights(weights)
     return {
         leaveCultivated = clampWeight(weights.leaveCultivated, DEFAULT_RESEED_WEIGHTS.leaveCultivated),
     }
+end
+
+local function normalizeCalendarShift(value)
+    local shift = tonumber(value) or 0
+    shift = math.floor(shift)
+    if shift < -6 then shift = -6 end
+    if shift > 6 then shift = 6 end
+    return shift
+end
+
+local function parseStrictCalendarShift(value)
+    local text = tostring(value or "")
+    if not text:match("^[+-]?%d+$") then
+        return nil, "Shift must be a whole number from -6 to +6."
+    end
+    local shift = tonumber(text)
+    if shift == nil or shift < -6 or shift > 6 then
+        return nil, "Shift must be a whole number from -6 to +6."
+    end
+    return math.floor(shift), nil
+end
+
+local function normalizeCalendarShifts(shifts)
+    local result = {}
+    for name, shift in pairs(shifts or {}) do
+        local nameU = string.upper(tostring(name or ""))
+        local value = normalizeCalendarShift(shift)
+        if nameU ~= nil and nameU ~= "" and value ~= 0 then result[nameU] = value end
+    end
+    return result
+end
+
+local function normalizeCalendarMask(value)
+    local text = tostring(value or ""):gsub("[^01]", "")
+    if #text < 12 then text = text .. string.rep("0", 12 - #text) end
+    return text:sub(1, 12)
+end
+
+local function calendarMaskFromPeriods(periods)
+    local chars = {}
+    for period = 1, 12 do chars[period] = "0" end
+    for _, value in ipairs(periods or {}) do
+        local period = tonumber(value)
+        if period ~= nil and period >= 1 and period <= 12 then
+            chars[math.floor(period)] = "1"
+        end
+    end
+    return table.concat(chars)
+end
+
+local function normalizeCalendarCustomOverrides(overrides)
+    local result = {}
+    for name, value in pairs(overrides or {}) do
+        local nameU = string.upper(tostring(name or ""))
+        if type(value) == "table" then
+            local planting = normalizeCalendarMask(value.planting or value.plantingMask)
+            local harvest = normalizeCalendarMask(value.harvest or value.harvestMask)
+            if nameU ~= "" and planting:find("1", 1, true) and harvest:find("1", 1, true) then
+                result[nameU] = { planting = planting, harvest = harvest, strategy = tostring(value.strategy or "phaseWarpV1") }
+            end
+        end
+    end
+    return result
+end
+
+local function normalizeSettings(settings)
+    settings = settings or {}
+    local normalized = {
+        reseedWeights = normalizeReseedWeights(settings.reseedWeights),
+        calendarShifts = normalizeCalendarShifts(settings.calendarShifts),
+        calendarCustomOverrides = normalizeCalendarCustomOverrides(settings.calendarCustomOverrides),
+    }
+    for nameU, _ in pairs(normalized.calendarCustomOverrides) do
+        normalized.calendarShifts[nameU] = nil
+    end
+    return normalized
 end
 
 local FRUIT_FLAG_FIELDS = {
@@ -596,7 +680,7 @@ end
 
 local function readConfig(path)
     local rules = {}
-    local settings = { reseedWeights = normalizeReseedWeights(nil) }
+    local settings = normalizeSettings(nil)
     if path == nil or not fileExists(path) then return rules, settings end
 
     local xml = XMLFile.load("CCO_read", path, CONFIG_ROOT)
@@ -607,6 +691,36 @@ local function readConfig(path)
         settings.reseedWeights = normalizeReseedWeights({
             leaveCultivated = xml:getInt(weightsKey .. "#leaveCultivated", DEFAULT_RESEED_WEIGHTS.leaveCultivated),
         })
+    end
+
+    local calendarIndex = 0
+    while true do
+        local calendarKey = ("%s.settings.calendarShifts.crop(%d)"):format(CONFIG_ROOT, calendarIndex)
+        if not xml:hasProperty(calendarKey) then break end
+        local cropName = xml:getString(calendarKey .. "#name")
+        local shift = normalizeCalendarShift(xml:getInt(calendarKey .. "#periods", 0))
+        if cropName ~= nil and cropName ~= "" and shift ~= 0 then
+            settings.calendarShifts[string.upper(cropName)] = shift
+        end
+        calendarIndex = calendarIndex + 1
+    end
+
+    local customCalendarIndex = 0
+    while true do
+        local customKey = ("%s.settings.calendarCustom.crop(%d)"):format(CONFIG_ROOT, customCalendarIndex)
+        if not xml:hasProperty(customKey) then break end
+        local cropName = xml:getString(customKey .. "#name")
+        local planting = normalizeCalendarMask(xml:getString(customKey .. "#planting", ""))
+        local harvest = normalizeCalendarMask(xml:getString(customKey .. "#harvest", ""))
+        if cropName ~= nil and cropName ~= "" and planting:find("1", 1, true) and harvest:find("1", 1, true) then
+            settings.calendarCustomOverrides[string.upper(cropName)] = {
+                planting = planting,
+                harvest = harvest,
+                strategy = xml:getString(customKey .. "#strategy", "phaseWarpV1"),
+            }
+            settings.calendarShifts[string.upper(cropName)] = nil
+        end
+        customCalendarIndex = customCalendarIndex + 1
     end
 
     local i = 0
@@ -693,7 +807,7 @@ local function readConfig(path)
     end
 
     xml:delete()
-    return rules, settings
+    return rules, normalizeSettings(settings)
 end
 
 local function inspectConfigNormalization(path)
@@ -815,9 +929,35 @@ local function writeConfig(path, rules, settings)
     xml:setString(CONFIG_ROOT .. "#version", "2")
     xml:setString(CONFIG_ROOT .. "#modVersion", CCO.VERSION)
 
-    local reseedWeights = normalizeReseedWeights(settings ~= nil and settings.reseedWeights or nil)
+    local normalizedSettings = normalizeSettings(settings)
+    local reseedWeights = normalizedSettings.reseedWeights
     local weightsKey = CONFIG_ROOT .. ".settings.reseedCandidateWeights"
     xml:setInt(weightsKey .. "#leaveCultivated", reseedWeights.leaveCultivated)
+
+    local calendarNames = {}
+    for nameU, shift in pairs(normalizedSettings.calendarShifts or {}) do
+        if normalizeCalendarShift(shift) ~= 0 then calendarNames[#calendarNames + 1] = nameU end
+    end
+    table.sort(calendarNames)
+    for calendarIndex, nameU in ipairs(calendarNames) do
+        local calendarKey = ("%s.settings.calendarShifts.crop(%d)"):format(CONFIG_ROOT, calendarIndex - 1)
+        xml:setString(calendarKey .. "#name", nameU)
+        xml:setInt(calendarKey .. "#periods", normalizeCalendarShift(normalizedSettings.calendarShifts[nameU]))
+    end
+
+    local customCalendarNames = {}
+    for nameU, value in pairs(normalizedSettings.calendarCustomOverrides or {}) do
+        if value ~= nil then customCalendarNames[#customCalendarNames + 1] = nameU end
+    end
+    table.sort(customCalendarNames)
+    for customIndex, nameU in ipairs(customCalendarNames) do
+        local value = normalizedSettings.calendarCustomOverrides[nameU]
+        local customKey = ("%s.settings.calendarCustom.crop(%d)"):format(CONFIG_ROOT, customIndex - 1)
+        xml:setString(customKey .. "#name", nameU)
+        xml:setString(customKey .. "#planting", normalizeCalendarMask(value.planting))
+        xml:setString(customKey .. "#harvest", normalizeCalendarMask(value.harvest))
+        xml:setString(customKey .. "#strategy", tostring(value.strategy or "phaseWarpV1"))
+    end
 
     local names = {}
     for nameU, _ in pairs(rules or {}) do table.insert(names, nameU) end
@@ -851,7 +991,7 @@ local function ensureTemplateExists()
     local tpl = templatePath()
     if fileExists(tpl) then return tpl end
     local rules = buildDefaultRules()
-    if writeConfig(tpl, rules, { reseedWeights = normalizeReseedWeights(nil) }) then
+    if writeConfig(tpl, rules, normalizeSettings(nil)) then
         debug("wrote default template at " .. tpl)
     end
     return tpl
@@ -860,8 +1000,28 @@ end
 
 local function serializeRulesForMultiplayer(rules, settings)
     local lines = {}
-    local weights = normalizeReseedWeights(settings ~= nil and settings.reseedWeights or nil)
+    local normalizedSettings = normalizeSettings(settings)
+    local weights = normalizedSettings.reseedWeights
     table.insert(lines, ("@weights|%d"):format(weights.leaveCultivated))
+    local calendarNames = {}
+    for nameU, shift in pairs(normalizedSettings.calendarShifts or {}) do
+        if normalizeCalendarShift(shift) ~= 0 then calendarNames[#calendarNames + 1] = nameU end
+    end
+    table.sort(calendarNames)
+    for _, nameU in ipairs(calendarNames) do
+        table.insert(lines, ("@calendar|%s|%d"):format(nameU, normalizeCalendarShift(normalizedSettings.calendarShifts[nameU])))
+    end
+
+    local customNames = {}
+    for nameU, value in pairs(normalizedSettings.calendarCustomOverrides or {}) do
+        if value ~= nil then customNames[#customNames + 1] = nameU end
+    end
+    table.sort(customNames)
+    for _, nameU in ipairs(customNames) do
+        local value = normalizedSettings.calendarCustomOverrides[nameU]
+        table.insert(lines, ("@calendarCustom|%s|%s|%s|%s"):format(
+            nameU, normalizeCalendarMask(value.planting), normalizeCalendarMask(value.harvest), tostring(value.strategy or "phaseWarpV1")))
+    end
 
     local names = {}
     for nameU, _ in pairs(rules or {}) do table.insert(names, nameU) end
@@ -888,7 +1048,7 @@ end
 
 local function deserializeRulesFromMultiplayer(payload)
     local rules = {}
-    local settings = { reseedWeights = normalizeReseedWeights(nil) }
+    local settings = normalizeSettings(nil)
     payload = tostring(payload or "")
 
     for line in (payload .. "\n"):gmatch("(.-)\n") do
@@ -904,6 +1064,22 @@ local function deserializeRulesFromMultiplayer(payload)
                 local leaveValue = tonumber(parts[2])
                 if parts[4] ~= nil and parts[4] ~= "" then leaveValue = tonumber(parts[4]) end
                 settings.reseedWeights = normalizeReseedWeights({ leaveCultivated = leaveValue })
+            elseif parts[1] == "@calendar" then
+                local nameU = string.upper(tostring(parts[2] or ""))
+                local shift = normalizeCalendarShift(parts[3])
+                if nameU ~= "" and shift ~= 0 then settings.calendarShifts[nameU] = shift end
+            elseif parts[1] == "@calendarCustom" then
+                local nameU = string.upper(tostring(parts[2] or ""))
+                local planting = normalizeCalendarMask(parts[3])
+                local harvest = normalizeCalendarMask(parts[4])
+                if nameU ~= "" and planting:find("1", 1, true) and harvest:find("1", 1, true) then
+                    settings.calendarCustomOverrides[nameU] = {
+                        planting = planting,
+                        harvest = harvest,
+                        strategy = tostring(parts[5] or "phaseWarpV1"),
+                    }
+                    settings.calendarShifts[nameU] = nil
+                end
             else
                 local nameU = upper(parts[1] or "")
                 if nameU ~= "" then
@@ -925,7 +1101,7 @@ local function deserializeRulesFromMultiplayer(payload)
         rules = buildDefaultRules()
     end
     rules = mergeMissingDiscoveredFruits(rules)
-    return rules, settings
+    return rules, normalizeSettings(settings)
 end
 
 function CCO:loadRulesForMission(missionInfo)
@@ -934,10 +1110,12 @@ function CCO:loadRulesForMission(missionInfo)
         self._awaitingServerSettings = true
         self._serverSettingsSynced = false
         self._serverCanEditRules = false
+        self._serverValidationSummary = nil
+        self._serverBlockedFieldRows = nil
         self._serverSaveId = getSaveIdFromMissionInfo(missionInfo)
         self._configPath = "server:pending"
         self._rules = mergeMissingDiscoveredFruits(buildDefaultRules())
-        self._settings = { reseedWeights = normalizeReseedWeights(nil) }
+        self._settings = normalizeSettings(nil)
         self:requestServerSettings("loadRulesForMission")
         return self._rules, self._configPath
     end
@@ -950,14 +1128,14 @@ function CCO:loadRulesForMission(missionInfo)
 
     local path = tpl
     local rules = nil
-    local settings = { reseedWeights = normalizeReseedWeights(nil) }
+    local settings = normalizeSettings(nil)
 
     if per ~= nil and fileExists(per) then
         path = per
         local meta = inspectConfigNormalization(per)
         rules, settings = readConfig(per)
         if rules == nil or not next(rules) then rules = buildDefaultRules() end
-        settings = settings or { reseedWeights = normalizeReseedWeights(nil) }
+        settings = settings or normalizeSettings(nil)
         rules = mergeMissingDiscoveredFruits(rules)
         if meta ~= nil and meta.needsNormalize then
             if writeConfig(per, rules, settings) then
@@ -968,7 +1146,7 @@ function CCO:loadRulesForMission(missionInfo)
         local meta = inspectConfigNormalization(tpl)
         rules, settings = readConfig(tpl)
         if not next(rules) then rules = buildDefaultRules() end
-        settings = settings or { reseedWeights = normalizeReseedWeights(nil) }
+        settings = settings or normalizeSettings(nil)
         rules = mergeMissingDiscoveredFruits(rules)
         if per ~= nil and writeConfig(per, rules, settings) then
             path = per
@@ -987,7 +1165,7 @@ function CCO:loadRulesForMission(missionInfo)
     rules = mergeMissingDiscoveredFruits(rules)
     self._configPath = path
     self._rules = rules
-    self._settings = settings or { reseedWeights = normalizeReseedWeights(nil) }
+    self._settings = normalizeSettings(settings)
     return rules, path
 end
 
@@ -1256,7 +1434,7 @@ function CCO:getReseedWeights()
     return normalizeReseedWeights(settings.reseedWeights)
 end
 
-function CCO:buildWeightedReseedPool(candidates)
+function CCO:buildWeightedReseedPool(candidates, includeLeaveCultivated)
     local weights = self:getReseedWeights()
     local pool = {}
 
@@ -1271,24 +1449,26 @@ function CCO:buildWeightedReseedPool(candidates)
         end
     end
 
-    for _ = 1, weights.leaveCultivated do
-        table.insert(pool, {
-            cropName = "NONE",
-            category = "leaveCultivated",
-            ok = true,
-            seasonalOk = true,
-            seasonalKnown = true,
-            priority = 30,
-            fruit = nil,
-            reason = "weighted leave cultivated",
-        })
+    if includeLeaveCultivated ~= false then
+        for _ = 1, weights.leaveCultivated do
+            table.insert(pool, {
+                cropName = "NONE",
+                category = "leaveCultivated",
+                ok = true,
+                seasonalOk = true,
+                seasonalKnown = true,
+                priority = 30,
+                fruit = nil,
+                reason = "authoritative weighted leave cultivated", authoritative = true,
+            })
+        end
     end
 
     return pool, weights
 end
 
 
-function CCO:findReplacementNpcCropForField(field, blockedCropName)
+function CCO:findReplacementNpcCropForField(field, blockedCropName, allowLeaveCultivated)
     local candidates = self:buildNpcCandidatesForField(field, false)
     if #candidates == 0 then return nil, "no valid NPC candidates" end
 
@@ -1300,7 +1480,7 @@ function CCO:findReplacementNpcCropForField(field, blockedCropName)
     end
     if #filtered == 0 then filtered = candidates end
 
-    local weightedPool, weights = self:buildWeightedReseedPool(filtered)
+    local weightedPool, weights = self:buildWeightedReseedPool(filtered, allowLeaveCultivated ~= false)
     local fieldIdNum = tonumber(getFieldId(field)) or 1
 
     if #weightedPool > 0 then
@@ -1386,7 +1566,14 @@ function CCO:setFieldReseeded(field, fruit, growthState)
     local state = tonumber(growthState or 1) or 1
     if state < 1 then state = 1 end
 
-    local groundType = FieldGroundType ~= nil and (FieldGroundType.SOWN or FieldGroundType.SEEDBED or FieldGroundType.CULTIVATED) or nil
+    local groundType = nil
+    if fruit.getGrowthStateGroundType ~= nil then
+        local okGround, resolvedGround = pcall(function() return fruit:getGrowthStateGroundType(state) end)
+        if okGround then groundType = resolvedGround end
+    end
+    if groundType == nil and FieldGroundType ~= nil then
+        groundType = FieldGroundType.SOWN or FieldGroundType.SEEDBED or FieldGroundType.CULTIVATED
+    end
 
     local task = FieldUpdateTask.new()
     task:setField(field)
@@ -1571,7 +1758,7 @@ function CCO:printFieldSummary(filterCrop)
 end
 
 function CCO:validateSave()
-    local summary = self:buildFieldSummary(nil)
+    local summary = self:getGuiValidationSummary()
     if summary.offending == 0 then
         print(("CCO: validation passed. checked=%d npcFields=%d playerFields=%d offendingNpcFields=0"):format(
             summary.total, summary.npcTotal, summary.playerTotal))
@@ -1619,6 +1806,9 @@ function CCO:resetNpcFields(filterCrop, dryRun, resetMode)
     local target = filterCrop ~= nil and filterCrop ~= "" and upper(filterCrop) or nil
     local queued, skipped = 0, 0
     local wouldQueue = 0
+    local removedMissions = nil
+    local changedFields = {}
+    local purgeRefused = false
 
     for idx, field in pairs(g_fieldManager:getFields()) do
         local ft = getFieldFruit(field)
@@ -1633,9 +1823,21 @@ function CCO:resetNpcFields(filterCrop, dryRun, resetMode)
                         print(("CCO: dry-run would reset field=%s crop=%s size=%.2fha reason=%s resetMode=%s action=%s reseedCandidate=%s candidateReason=%s"):format(
                             tostring(getFieldId(field, idx)), cropName, getFieldSizeHa(field), tostring(reason), select(2, self:normaliseResetMode(resetMode)), tostring(action), tostring(candidateCrop), tostring(candidateReason)))
                     else
+                        if removedMissions == nil then
+                            local purgeReason
+                            removedMissions, purgeReason = self:purgeAvailableContractsForRegeneration()
+                            if purgeReason ~= "ok" then
+                                warn("NPC field reset refused: " .. tostring(purgeReason))
+                                removedMissions = 0
+                                purgeRefused = true
+                                skipped = skipped + 1
+                                break
+                            end
+                        end
                         local ok = self:applyResetActionToField(field, cropName, reason, resetMode)
                         if ok then
                             queued = queued + 1
+                            table.insert(changedFields, field)
                         else
                             skipped = skipped + 1
                         end
@@ -1651,13 +1853,14 @@ function CCO:resetNpcFields(filterCrop, dryRun, resetMode)
         return wouldQueue, skipped
     end
 
-    if queued > 0 and g_missionManager ~= nil then
-        info("triggering mission generation after field reset")
-        if g_missionManager.generationTimer ~= nil then g_missionManager.generationTimer = 0 end
-        if g_missionManager.startMissionGeneration ~= nil then g_missionManager:startMissionGeneration() end
+    if queued > 0 then
+        self:scheduleBlockedResetMissionRefresh(changedFields, removedMissions)
     end
 
     local msg = ("CCO: NPC field reset complete. queued=%d skipped=%d"):format(queued, skipped)
+    if purgeRefused then
+        msg = msg .. " Cleanup was refused because an accepted/active contract exists."
+    end
     print(msg)
     if g_currentMission ~= nil and g_currentMission.addIngameNotification ~= nil then
         g_currentMission:addIngameNotification(FSBaseMission.INGAME_NOTIFICATION_OK, msg)
@@ -1673,7 +1876,9 @@ function CCO:generatePlannedFruitForField(superFunc, fieldManager, field)
 
     if not ok then
         warn("generatePlannedFruitForField original call failed: " .. tostring(proposedFruit))
-        return nil
+        -- Do not convert an engine planning failure into a nil fruit value that
+        -- can be stored on a mission and crash repeatedly during update.
+        error(proposedFruit, 0)
     end
 
     local ok2, selectedFruit = pcall(function()
@@ -1697,16 +1902,23 @@ function CCO:generatePlannedFruitForField(superFunc, fieldManager, field)
             return proposedFruit
         end
 
-        local replacement, replacementReason = self:findReplacementNpcCropForField(field, cropName)
+        -- Mission planning must always return a registered fruit index. The
+        -- weighted "leave cultivated" outcome is valid for cleanup/regeneration,
+        -- but returning nil here creates a SowMission whose update later
+        -- dereferences a missing fruit descriptor.
+        local replacement, replacementReason = self:findReplacementNpcCropForField(field, cropName, false)
         if replacement ~= nil and replacement.index ~= nil then
             debug(("planned fruit replacement for field %s: %s -> %s (%.2f ha): %s"):format(
                 tostring(getFieldId(field)), cropName, upper(replacement.name), fieldHa, tostring(reason)))
             return replacement.index
         end
 
-        debug(("planned fruit blocked for field %s: %s (%.2f ha): %s; no replacement selected (%s)"):format(
-            tostring(getFieldId(field)), cropName, fieldHa, tostring(reason), tostring(replacementReason)))
-        return nil
+        warn(("planned fruit replacement unavailable for field %s: %s (%.2f ha): %s; retaining engine fruit index %s so SowMission remains valid (%s)"):format(
+            tostring(getFieldId(field)), cropName, fieldHa, tostring(reason), tostring(proposedFruit), tostring(replacementReason)))
+        -- SowMission.isAvailableForField applies the policy rejection later.
+        -- Keeping the engine's valid proposal is safer than injecting nil into
+        -- the base-game mission lifecycle.
+        return proposedFruit
     end)
 
     if not ok2 then
@@ -2209,6 +2421,8 @@ end
 
 function CCO:update(dt)
     self:scanAndStopBlockedSowingWorkers(dt)
+    self:updateBlockedResetMissionRefresh(dt)
+    self:updateNpcMapRegeneration(dt)
 end
 
 function CCO:updateTick(dt)
@@ -2271,21 +2485,57 @@ function CCO:applyRuntimeHooks()
             local fieldHa = getFieldSizeHa(field)
             local allowed, reason = CCO:isNpcCropAllowedForField(fieldHa, cropName)
             if not allowed then
-                local replacement, replacementReason = CCO:findReplacementNpcCropForField(field, cropName)
+                local replacement, replacementReason = CCO:findReplacementNpcCropForField(field, cropName, false)
                 if replacement ~= nil and replacement.index ~= nil then
                     debug(("replaced blocked NPC crop choice %s with %s on field %s (%.2f ha): %s"):format(
                         cropName, upper(replacement.name), tostring(getFieldId(field)), fieldHa, tostring(reason)))
                     return replacement.index
                 end
 
-                debug(("blocked NPC crop choice %s on field %s (%.2f ha): %s; %s"):format(
-                    cropName, tostring(getFieldId(field)), fieldHa, tostring(reason), tostring(replacementReason)))
-                return nil
+                warn(("blocked NPC crop choice %s on field %s (%.2f ha): %s; retaining engine fruit index %s so mission data remains valid (%s)"):format(
+                    cropName, tostring(getFieldId(field)), fieldHa, tostring(reason), tostring(fruitIndex), tostring(replacementReason)))
+                return fruitIndex
             end
 
             return fruitIndex
         end
         debug("hooked FieldManager.getFruitIndexForField")
+    end
+end
+
+local function getSowMissionCropName(mission)
+    if mission == nil or g_fruitTypeManager == nil then return nil end
+
+    local fruit = mission.fruitType
+    if type(fruit) == "table" then
+        return fruit.name
+    end
+
+    local fruitIndex = tonumber(mission.fruitTypeIndex or mission.fruitIndex or fruit)
+    if fruitIndex == nil or fruitIndex == FruitType.UNKNOWN then return nil end
+    local descriptor = g_fruitTypeManager:getFruitTypeByIndex(fruitIndex)
+    return descriptor ~= nil and descriptor.name or nil
+end
+
+function CCO:discardInvalidSowMission(mission, failure)
+    if mission == nil then return end
+    if mission._ccoInvalidFruitQueued ~= true then
+        mission._ccoInvalidFruitQueued = true
+        local field = mission.field
+        warn(("discarding invalid SowMission before repeated update failure field=%s fruitType=%s fruitTypeIndex=%s error=%s"):format(
+            tostring(field ~= nil and getFieldId(field) or "UNKNOWN"),
+            tostring(mission.fruitType), tostring(mission.fruitTypeIndex or mission.fruitIndex), tostring(failure)))
+    end
+
+    if g_missionManager ~= nil and g_missionManager.markMissionForDeletion ~= nil then
+        g_missionManager:markMissionForDeletion(mission)
+    elseif mission.delete ~= nil then
+        local ok, deleteError = pcall(mission.delete, mission)
+        if not ok then warn("failed deleting invalid SowMission: " .. tostring(deleteError)) end
+    end
+
+    if g_missionManager ~= nil and g_missionManager.generationTimer ~= nil then
+        g_missionManager.generationTimer = 0
     end
 end
 
@@ -2297,15 +2547,7 @@ function CCO:applyLateHooks()
             local result = originalSowIsAvailable(field, mission, ...)
             if not result then return false end
 
-            local cropName = nil
-            if mission ~= nil then
-                if mission.fruitType ~= nil then
-                    cropName = mission.fruitType.name
-                elseif mission.fruitTypeIndex ~= nil and g_fruitTypeManager ~= nil then
-                    local ft = g_fruitTypeManager:getFruitTypeByIndex(mission.fruitTypeIndex)
-                    if ft ~= nil then cropName = ft.name end
-                end
-            end
+            local cropName = getSowMissionCropName(mission)
 
             if cropName == nil then return result end
 
@@ -2320,10 +2562,108 @@ function CCO:applyLateHooks()
         end
         debug("hooked SowMission.isAvailableForField")
     end
+
+    if SowMission ~= nil and SowMission.update ~= nil and not self._sowUpdateGuardApplied then
+        self._sowUpdateGuardApplied = true
+        SowMission.update = Utils.overwrittenFunction(SowMission.update, function(mission, superFunc, dt)
+            local ok, result = pcall(superFunc, mission, dt)
+            if ok then return result end
+
+            local failure = tostring(result)
+            if failure:find("attempt to index nil", 1, true) ~= nil
+                and failure:find("getIsPlantableInPeriod", 1, true) ~= nil then
+                CCO:discardInvalidSowMission(mission, failure)
+                return
+            end
+
+            error(result, 0)
+        end)
+        debug("hooked SowMission.update (invalid fruit recovery guard)")
+    end
+end
+
+-- Native Calendar-page integration ------------------------------------------
+-- The built-in Calendar page already reads the live seasonal tables modified
+-- by CCO. This adds a direct route from that page into the guarded CCO editor.
+local function ccoNativeCalendarButtonText()
+    if g_i18n ~= nil and g_i18n.getText ~= nil then
+        local ok, value = pcall(function() return g_i18n:getText("cco_calendar_open_editor") end)
+        local text = tostring(value or "")
+        if ok and text ~= "" and text ~= "cco_calendar_open_editor" and text:find("^Missing '") == nil then
+            return value
+        end
+    end
+    return "Edit Calendar"
+end
+
+function CCO:addNativeCalendarMenuButton(frame)
+    if frame == nil or InputAction == nil then return end
+
+    local menuController = (g_gui ~= nil and g_gui.currentGui ~= nil and g_gui.currentGui.target) or nil
+    local source = (type(frame.menuButtonInfo) == "table" and #frame.menuButtonInfo > 0 and frame.menuButtonInfo)
+        or (menuController ~= nil and type(menuController.defaultMenuButtonInfo) == "table"
+            and #menuController.defaultMenuButtonInfo > 0 and menuController.defaultMenuButtonInfo)
+        or nil
+    if type(source) ~= "table" then return end
+
+    local buttons = {}
+    local usedActions = {}
+    for _, entry in ipairs(source) do
+        if entry.ccoCalendarEditorButton ~= true then
+            buttons[#buttons + 1] = entry
+            if entry.inputAction ~= nil then usedActions[entry.inputAction] = true end
+        end
+    end
+    if #buttons == 0 then return end
+
+    local action = nil
+    local candidates = {}
+    if InputAction.MENU_EXTRA_2 ~= nil then candidates[#candidates + 1] = InputAction.MENU_EXTRA_2 end
+    if InputAction.MENU_EXTRA_1 ~= nil then candidates[#candidates + 1] = InputAction.MENU_EXTRA_1 end
+    for _, candidate in ipairs(candidates) do
+        if usedActions[candidate] ~= true then
+            action = candidate
+            break
+        end
+    end
+    if action == nil then
+        debug("native Calendar editor button skipped: no unused MENU_EXTRA action")
+        return
+    end
+
+    buttons[#buttons + 1] = {
+        ccoCalendarEditorButton = true,
+        inputAction = action,
+        text = ccoNativeCalendarButtonText(),
+        callback = function()
+            if CCO ~= nil and CCO.openGui ~= nil then CCO:openGui("calendar", 1) end
+        end,
+    }
+
+    if frame.setMenuButtonInfo ~= nil then
+        pcall(frame.setMenuButtonInfo, frame, buttons)
+    else
+        frame.menuButtonInfo = buttons
+    end
+    frame.hasCustomMenuButtons = true
+    if frame.setMenuButtonInfoDirty ~= nil then pcall(frame.setMenuButtonInfoDirty, frame) end
+end
+
+function CCO:installNativeCalendarButtonHook()
+    if self._nativeCalendarButtonHookApplied == true then return true end
+    if InGameMenuCalendarFrame == nil or InGameMenuCalendarFrame.onFrameOpen == nil or Utils == nil then return false end
+    InGameMenuCalendarFrame.onFrameOpen = Utils.appendedFunction(
+        InGameMenuCalendarFrame.onFrameOpen,
+        function(frame) CCO:addNativeCalendarMenuButton(frame) end
+    )
+    self._nativeCalendarButtonHookApplied = true
+    debug("hooked InGameMenuCalendarFrame.onFrameOpen (Edit Calendar button)")
+    return true
 end
 
 -- PDA / UI filtering hooks, inherited from the original CCO build.
 local function applyPdaFilterHooks()
+    CCO:installNativeCalendarButtonHook()
     if IngameMenu == nil then return end
 
     local function filteredFruitList()
@@ -2416,6 +2756,21 @@ function FSBaseMission:loadMapFinished(...)
             CCO:applyRules(CCO._rules)
         end
         CCO:applyLateHooks()
+        CCO:installNativeCalendarButtonHook()
+        if CCO_CropCalendar ~= nil and CCO_CropCalendar.captureMapDefaults ~= nil then
+            local _, calendarMessage = CCO_CropCalendar:captureMapDefaults(false)
+            debug("calendar discovery: " .. tostring(calendarMessage))
+            if CCO_CropCalendar.setConfiguredShifts ~= nil then
+                CCO_CropCalendar:setConfiguredShifts(CCO._settings ~= nil and CCO._settings.calendarShifts or nil)
+                if CCO_CropCalendar.setConfiguredCustomOverrides ~= nil then
+                    CCO_CropCalendar:setConfiguredCustomOverrides(CCO._settings ~= nil and CCO._settings.calendarCustomOverrides or nil)
+                end
+            end
+            if CCO_CropCalendar.applyConfiguredShifts ~= nil then
+                local _, applyMessage = CCO_CropCalendar:applyConfiguredShifts()
+                debug("calendar overrides: " .. tostring(applyMessage))
+            end
+        end
         debug("reapplied crop policy after loadMapFinished")
         CCO:printStartupValidation()
     end)
@@ -2450,6 +2805,15 @@ FSBaseMission.delete = Utils.appendedFunction(FSBaseMission.delete, function()
     CCO._clientReportedMasterUser = false
     CCO._serverSettingsRetryTimer = 0
     CCO._serverSettingsRetryCount = 0
+    CCO._serverValidationSummary = nil
+    CCO._serverBlockedFieldRows = nil
+    CCO._pendingValidationSyncTimer = nil
+    CCO._npcMapRegenerationPlan = nil
+    CCO._npcMapRegenerationState = nil
+    CCO._calendarContractRefillState = nil
+    if CCO_CropCalendar ~= nil and CCO_CropCalendar.reset ~= nil then
+        CCO_CropCalendar:reset()
+    end
 end)
 
 -- Multiplayer sync reliability ------------------------------------------------
@@ -2491,10 +2855,36 @@ function CCO:updateServerSettingsRetry(dt)
     self:requestServerSettings("retry")
 end
 
+function CCO:updatePendingValidationSync(dt)
+    if g_server == nil or self._pendingValidationSyncTimer == nil then return end
+    self._pendingValidationSyncTimer = self._pendingValidationSyncTimer - (tonumber(dt) or 0)
+    if self._pendingValidationSyncTimer > 0 then return end
+
+    self._pendingValidationSyncTimer = nil
+    local ok, e = pcall(function()
+        self:sendSettingsSnapshotToClient(nil, "validationRefresh")
+    end)
+    if not ok then
+        warn("failed to refresh dedicated-server validation snapshot after field cleanup: " .. tostring(e))
+    end
+end
+
 if FSBaseMission ~= nil and FSBaseMission.update ~= nil then
     FSBaseMission.update = Utils.appendedFunction(FSBaseMission.update, function(mission, dt)
         if CCO ~= nil and CCO.updateServerSettingsRetry ~= nil then
             CCO:updateServerSettingsRetry(dt)
+        end
+        if CCO ~= nil and CCO.updatePendingValidationSync ~= nil then
+            CCO:updatePendingValidationSync(dt)
+        end
+        -- CCO is not installed as a ModEventListener, so its CCO:update(dt)
+        -- method is not called automatically. Service the staged NPC map
+        -- regeneration explicitly from the mission update loop.
+        if CCO ~= nil and CCO.updateNpcMapRegeneration ~= nil then
+            CCO:updateNpcMapRegeneration(dt)
+        end
+        if CCO ~= nil and CCO.updateCalendarContractRefill ~= nil then
+            CCO:updateCalendarContractRefill(dt)
         end
     end)
 end
@@ -2545,7 +2935,7 @@ function CCO:buildGuiStatusText()
         if tonumber(r.npcMaxHa or 0) > 0 then limited = limited + 1 end
     end
 
-    local summary = self:buildFieldSummary(nil)
+    local summary = self:getGuiValidationSummary()
     local validation = (summary.offending or 0) == 0 and "PASS" or ("FAILED - " .. tostring(summary.offending or 0) .. " offending NPC field(s)")
 
     local lines = {}
@@ -2573,6 +2963,16 @@ function CCO:buildGuiStatusText()
     table.insert(lines, ("Not loaded on map:      %d"):format(undiscovered))
     table.insert(lines, "")
 
+    if CCO_CropCalendar ~= nil and CCO_CropCalendar.getSummary ~= nil then
+        local calendarSummary = CCO_CropCalendar:getSummary()
+        table.insert(lines, ("Calendar: %d/%d seasonal; warnings=%d errors=%d; candidates=%d review=%d; active shifts=%d custom=%d"):format(
+            tonumber(calendarSummary.seasonal or 0), tonumber(calendarSummary.loaded or 0),
+            tonumber(calendarSummary.warnings or 0), tonumber(calendarSummary.errors or 0),
+            tonumber(calendarSummary.candidates or 0), tonumber(calendarSummary.review or 0),
+            tonumber(calendarSummary.activeShifts or 0), tonumber(calendarSummary.activeCustom or 0)))
+        table.insert(lines, "")
+    end
+
     table.insert(lines, "POLICY SUMMARY")
     table.insert(lines, ("Disabled crops:         %d"):format(disabled))
     table.insert(lines, ("NPC-disabled crops:      %d"):format(npcBlocked))
@@ -2598,6 +2998,248 @@ function CCO:buildGuiStatusText()
     table.insert(lines, "NAVIGATION")
     table.insert(lines, "Use the top tabs, or PREV TAB / NEXT TAB, to move between sections. Use BACK to close.")
     return table.concat(lines, "\n")
+end
+
+function CCO:buildGuiCalendarText()
+    if CCO_CropCalendar == nil or CCO_CropCalendar.buildGuiText == nil then
+        return "Crop calendar discovery is not available."
+    end
+    return CCO_CropCalendar:buildGuiText()
+end
+
+function CCO:getGuiCalendarRows()
+    if CCO_CropCalendar == nil or CCO_CropCalendar.getRows == nil then return {} end
+    CCO_CropCalendar:refresh()
+    local rows = {}
+    for _, row in ipairs(CCO_CropCalendar:getRows() or {}) do
+        local defaultPlantingMask, defaultHarvestMask = CCO_CropCalendar:getDefaultMasks(row.name)
+        local displayName = row.name
+        local iconFilename = nil
+        if g_fillTypeManager ~= nil and g_fillTypeManager.getFillTypeByName ~= nil then
+            local ok, fillType = pcall(function() return g_fillTypeManager:getFillTypeByName(row.name) end)
+            if ok and fillType ~= nil then
+                if fillType.title ~= nil and fillType.title ~= "" then displayName = fillType.title end
+                iconFilename = fillType.hudOverlayFilename
+            end
+        end
+        rows[#rows + 1] = {
+            crop = row.name,
+            displayName = displayName,
+            iconFilename = iconFilename,
+            category = row.category,
+            planting = row.plantingText,
+            harvest = row.harvestText,
+            lifecycle = row.lifecycleStatus,
+            status = row.status,
+            editability = row.editability,
+            shift = tonumber(row.configuredShift or 0) or 0,
+            mode = row.configuredMode or "DEFAULT",
+            customPlantingMask = row.configuredCustom ~= nil and row.configuredCustom.planting or nil,
+            customHarvestMask = row.configuredCustom ~= nil and row.configuredCustom.harvest or nil,
+            plantingMask = calendarMaskFromPeriods(row.plantingPeriods),
+            harvestMask = calendarMaskFromPeriods(row.harvestPeriods),
+            defaultPlantingMask = defaultPlantingMask,
+            defaultHarvestMask = defaultHarvestMask,
+            changed = row.changedFromBaseline == true,
+        }
+    end
+    return rows
+end
+
+function CCO:_previewCalendarShiftLocal(cropName, shift, logOutput)
+    if CCO_CropCalendar == nil or CCO_CropCalendar.previewShift == nil then
+        return false, "Calendar shift preview is not available."
+    end
+    local preview, reason = CCO_CropCalendar:previewShift(cropName, shift)
+    if preview == nil then return false, tostring(reason or "Calendar preview failed.") end
+
+    local contractBoard = self.getContractBoardSummary ~= nil and self:getContractBoardSummary() or {
+        total = 0, active = 0, available = 0,
+    }
+    preview.contractBoard = contractBoard
+    if tonumber(contractBoard.active or 0) > 0 then
+        preview.applyAllowed = false
+        preview.blockReason = ("Calendar Apply is blocked while %d accepted/active contract(s) exist."):format(
+            tonumber(contractBoard.active or 0))
+    elseif self._npcMapRegenerationState ~= nil then
+        preview.applyAllowed = false
+        preview.blockReason = "Calendar Apply is blocked while NPC map regeneration is in progress."
+    elseif self._calendarContractRefillState ~= nil then
+        preview.applyAllowed = false
+        preview.blockReason = "Calendar Apply is blocked while the contract board is still rebuilding."
+    end
+
+    local previewText = CCO_CropCalendar:buildPreviewText(preview)
+    if logOutput == true then
+        local consoleText = ("CCO CALENDAR: " .. previewText):gsub("\n", "\nCCO CALENDAR: ")
+        print(consoleText)
+    end
+    return true, previewText, preview.applyAllowed == true, preview.shift
+end
+
+function CCO:previewCalendarShift(cropName, shift, logOutput)
+    if self:_shouldUseMultiplayerEvent() and isClientOnlyMultiplayer() then
+        return self:_sendMultiplayerEvent("calendarShiftPreview", tostring(cropName or ""), tostring(normalizeCalendarShift(shift)))
+    end
+    return self:_previewCalendarShiftLocal(cropName, shift, logOutput == true)
+end
+
+function CCO:_previewCalendarCustomLocal(cropName, plantingMask, harvestMask, logOutput)
+    if CCO_CropCalendar == nil or CCO_CropCalendar.previewCustom == nil then
+        return false, "Custom calendar preview is not available."
+    end
+    local preview, reason = CCO_CropCalendar:previewCustom(cropName, plantingMask, harvestMask)
+    if preview == nil then return false, tostring(reason or "Custom calendar preview failed.") end
+    local contractBoard = self.getContractBoardSummary ~= nil and self:getContractBoardSummary() or { total = 0, active = 0, available = 0 }
+    preview.contractBoard = contractBoard
+    if tonumber(contractBoard.active or 0) > 0 then
+        preview.applyAllowed = false
+        preview.blockReason = ("Calendar Apply is blocked while %d accepted/active contract(s) exist."):format(tonumber(contractBoard.active or 0))
+    elseif self._npcMapRegenerationState ~= nil then
+        preview.applyAllowed = false
+        preview.blockReason = "Calendar Apply is blocked while NPC map regeneration is in progress."
+    elseif self._calendarContractRefillState ~= nil then
+        preview.applyAllowed = false
+        preview.blockReason = "Calendar Apply is blocked while the contract board is still rebuilding."
+    end
+    local previewText = CCO_CropCalendar:buildPreviewText(preview)
+    if logOutput == true then print(("CCO CALENDAR: " .. previewText):gsub("\n", "\nCCO CALENDAR: ")) end
+    return true, previewText, preview.applyAllowed == true, preview.crop
+end
+
+function CCO:previewCalendarCustom(cropName, plantingMask, harvestMask, logOutput)
+    if self:_shouldUseMultiplayerEvent() and isClientOnlyMultiplayer() then
+        return self:_sendMultiplayerEvent("calendarCustomPreview", tostring(cropName or ""), tostring(plantingMask or ""), tostring(harvestMask or ""))
+    end
+    return self:_previewCalendarCustomLocal(cropName, plantingMask, harvestMask, logOutput == true)
+end
+
+function CCO:_applyCalendarCustomLocal(cropName, plantingMask, harvestMask)
+    if not self:canEditRules() then return false, "Custom calendars are read-only for this client." end
+    if self._npcMapRegenerationState ~= nil then return false, "Calendar apply blocked while NPC map regeneration is in progress." end
+    if self._calendarContractRefillState ~= nil then return false, "Calendar apply blocked while the contract board is still rebuilding." end
+    if CCO_CropCalendar == nil or CCO_CropCalendar.commitCustom == nil then return false, "Custom calendar apply is not available." end
+    if CCO_CropCalendar.hasMatchingCustomPreview == nil or not CCO_CropCalendar:hasMatchingCustomPreview(cropName, plantingMask, harvestMask) then
+        return false, "Calendar Apply requires a matching custom-window dry-run preview."
+    end
+    if self.getActiveContractCount ~= nil and self:getActiveContractCount() > 0 then
+        return false, "Calendar apply blocked while one or more accepted/active contracts exist. Complete or cancel them first."
+    end
+
+    local nameU = upper(cropName or "")
+    local previousShifts = CCO_CropCalendar:getConfiguredShifts()
+    local previousCustom = CCO_CropCalendar:getConfiguredCustomOverrides()
+    local ok, message, preview = CCO_CropCalendar:commitCustom(nameU, plantingMask, harvestMask)
+    if not ok then return false, tostring(message or "Custom calendar apply failed.") end
+
+    self._settings = normalizeSettings(self._settings)
+    self._settings.calendarShifts = CCO_CropCalendar:getConfiguredShifts()
+    self._settings.calendarCustomOverrides = CCO_CropCalendar:getConfiguredCustomOverrides()
+    if self._configPath == nil or not writeConfig(self._configPath, self._rules or buildDefaultRules(), self._settings) then
+        CCO_CropCalendar:setConfiguredShifts(previousShifts)
+        CCO_CropCalendar:setConfiguredCustomOverrides(previousCustom)
+        CCO_CropCalendar:applyConfiguredShifts()
+        return false, "Custom calendar was rolled back because the active per-save XML could not be written."
+    end
+
+    local removedMissions = 0
+    if self.purgeAvailableContractsForRegeneration ~= nil then
+        local removed, purgeReason = self:purgeAvailableContractsForRegeneration()
+        removedMissions = tonumber(removed or 0) or 0
+        if purgeReason ~= "ok" and purgeReason ~= "mission manager unavailable" then warn("calendar contract purge: " .. tostring(purgeReason)) end
+    end
+    local refillStarted, refillReason = false, "mission manager unavailable"
+    if self.startCalendarContractRefill ~= nil then
+        refillStarted, refillReason = self:startCalendarContractRefill(removedMissions, nameU, 0, "custom windows")
+    end
+    local impact = preview ~= nil and preview.impact or {}
+    local action = ("Applied custom calendar to %s: planting=%s harvest=%s"):format(
+        nameU, CCO_CropCalendar:maskToWindowText(plantingMask), CCO_CropCalendar:maskToWindowText(harvestMask))
+    local msg = ("%s. Directly affected fields=%d (player=%d NPC=%d); available contracts queued for rebuild=%d%s. Existing field growth states were not changed."):format(
+        action, tonumber(impact.fields or 0), tonumber(impact.playerFields or 0), tonumber(impact.npcFields or 0), removedMissions,
+        refillStarted and "; completion will be reported separately" or ("; refill not started: " .. tostring(refillReason)))
+    print("CCO CALENDAR APPLY: " .. msg)
+    self._guiNotice = msg
+    return true, msg, false, nameU
+end
+
+function CCO:applyCalendarCustom(cropName, plantingMask, harvestMask)
+    if self:_shouldUseMultiplayerEvent() and isClientOnlyMultiplayer() then
+        return self:_sendMultiplayerEvent("calendarCustomApply", tostring(cropName or ""), tostring(plantingMask or ""), tostring(harvestMask or ""))
+    end
+    return self:_applyCalendarCustomLocal(cropName, plantingMask, harvestMask)
+end
+
+function CCO:_applyCalendarShiftLocal(cropName, shift)
+    if not self:canEditRules() then
+        return false, "Calendar shifts are read-only for this client."
+    end
+    if self._npcMapRegenerationState ~= nil then
+        return false, "Calendar apply blocked while NPC map regeneration is in progress."
+    end
+    if self._calendarContractRefillState ~= nil then
+        return false, "Calendar apply blocked while the contract board is still rebuilding."
+    end
+    if CCO_CropCalendar == nil or CCO_CropCalendar.commitShift == nil then
+        return false, "Calendar shift apply is not available."
+    end
+    if CCO_CropCalendar.hasMatchingPreview == nil or not CCO_CropCalendar:hasMatchingPreview(cropName, shift) then
+        return false, "Calendar Apply requires a matching dry-run preview. Run PREVIEW again for this crop and offset."
+    end
+    if self.getActiveContractCount ~= nil and self:getActiveContractCount() > 0 then
+        return false, "Calendar apply blocked while one or more accepted/active contracts exist. Complete or cancel them first."
+    end
+
+    local nameU = upper(cropName or "")
+    local previousShifts = CCO_CropCalendar:getConfiguredShifts()
+    local previousCustom = CCO_CropCalendar:getConfiguredCustomOverrides()
+    local ok, message, preview = CCO_CropCalendar:commitShift(nameU, shift)
+    if not ok then return false, tostring(message or "Calendar apply failed.") end
+
+    self._settings = normalizeSettings(self._settings)
+    self._settings.calendarShifts = CCO_CropCalendar:getConfiguredShifts()
+    self._settings.calendarCustomOverrides = CCO_CropCalendar:getConfiguredCustomOverrides()
+    if self._configPath == nil or not writeConfig(self._configPath, self._rules or buildDefaultRules(), self._settings) then
+        CCO_CropCalendar:setConfiguredShifts(previousShifts)
+        CCO_CropCalendar:setConfiguredCustomOverrides(previousCustom)
+        CCO_CropCalendar:applyConfiguredShifts()
+        return false, "Calendar shift was rolled back because the active per-save XML could not be written."
+    end
+
+    local removedMissions = 0
+    if self.purgeAvailableContractsForRegeneration ~= nil then
+        local removed, purgeReason = self:purgeAvailableContractsForRegeneration()
+        removedMissions = tonumber(removed or 0) or 0
+        if purgeReason ~= "ok" and purgeReason ~= "mission manager unavailable" then
+            warn("calendar contract purge: " .. tostring(purgeReason))
+        end
+    end
+    local finalShift = normalizeCalendarShift(shift)
+    local refillStarted, refillReason = false, "mission manager unavailable"
+    if self.startCalendarContractRefill ~= nil then
+        refillStarted, refillReason = self:startCalendarContractRefill(removedMissions, nameU, finalShift, ("shift=%+d"):format(finalShift))
+    end
+
+    local impact = preview ~= nil and preview.impact or {}
+    local action = finalShift == 0 and "Restored map-default calendar" or ("Applied calendar shift %+d"):format(finalShift)
+    local rebuildText = refillStarted
+        and ("available contracts queued for rebuild=%d; completion will be reported separately"):format(removedMissions)
+        or ("available contracts removed=%d; rebuild could not start (%s)"):format(removedMissions, tostring(refillReason))
+    local msg = ("%s for %s. Directly affected fields=%d (player=%d NPC=%d); %s. Existing field growth states were not changed."):format(
+        action, nameU, tonumber(impact.fields or 0), tonumber(impact.playerFields or 0), tonumber(impact.npcFields or 0), rebuildText)
+    self._guiNotice = msg
+    print("CCO CALENDAR APPLY: " .. msg)
+    return true, msg, finalShift, nameU
+end
+
+function CCO:applyCalendarShift(cropName, shift)
+    if not self:canEditRules() then
+        return false, "Calendar shifts are read-only for remote multiplayer clients. Log in as server admin/master user to change them."
+    end
+    if self:_shouldUseMultiplayerEvent() and isClientOnlyMultiplayer() then
+        return self:_sendMultiplayerEvent("calendarShiftApply", tostring(cropName or ""), tostring(normalizeCalendarShift(shift)))
+    end
+    return self:_applyCalendarShiftLocal(cropName, shift)
 end
 
 function CCO:ruleStatusText(nameU, r)
@@ -2714,8 +3356,15 @@ function CCO:buildGuiRuleListText(mode, pageArg)
     return table.concat(lines, "\n")
 end
 
+function CCO:getGuiValidationSummary()
+    if isClientOnlyMultiplayer() and self._serverSettingsSynced == true and self._serverValidationSummary ~= nil then
+        return self._serverValidationSummary
+    end
+    return self:buildFieldSummary(nil)
+end
+
 function CCO:buildGuiBlockedText()
-    local summary = self:buildFieldSummary(nil)
+    local summary = self:getGuiValidationSummary()
     if (summary.offending or 0) == 0 then
         return table.concat({
             "SAVE VALIDATION",
@@ -2740,36 +3389,8 @@ function CCO:buildGuiBlockedText()
         "--------------------------------------------------------------------------",
     }
 
-    if g_fieldManager ~= nil and g_fieldManager.getFields ~= nil then
-        local fields = g_fieldManager:getFields()
-        local rows = {}
-
-        for i, field in pairs(fields or {}) do
-            local ft = getFieldFruit(field)
-            if ft ~= nil then
-                local cropName = upper(ft.name)
-                local blocked, reason = self:shouldResetNpcField(field, cropName)
-                if blocked then
-                    local candidateCrop, candidateReason = self:getReseedCandidateTextForField(field, cropName)
-                    table.insert(rows, {
-                        fieldId = tostring(getFieldId(field, i)),
-                        cropName = cropName,
-                        sizeHa = getFieldSizeHa(field),
-                        candidateCrop = candidateCrop,
-                        candidateReason = candidateReason,
-                        reason = tostring(reason or "blocked"),
-                    })
-                end
-            end
-        end
-
-        table.sort(rows, function(a, b)
-            local an = tonumber(a.fieldId)
-            local bn = tonumber(b.fieldId)
-            if an ~= nil and bn ~= nil then return an < bn end
-            return tostring(a.fieldId) < tostring(b.fieldId)
-        end)
-
+    do
+        local rows = self:getBlockedFieldRows()
         local maxRows = 12
         for i, row in ipairs(rows) do
             if i > maxRows then
@@ -2777,11 +3398,16 @@ function CCO:buildGuiBlockedText()
                 break
             end
 
+            local candidateCrop = row.candidateCrop
+            if (candidateCrop == nil or candidateCrop == "") and row.field ~= nil then
+                candidateCrop = self:getReseedCandidateTextForField(row.field, row.cropName)
+            end
+
             table.insert(lines, ("%-11s %-16s %7.2f   %-16s %s"):format(
                 row.fieldId,
                 row.cropName,
                 tonumber(row.sizeHa or 0) or 0,
-                tostring(row.candidateCrop or "NONE"),
+                tostring(candidateCrop or "NONE"),
                 row.reason
             ))
         end
@@ -2830,6 +3456,18 @@ function CCO:buildGuiHelpText()
         "Blocked NPC Fields: existing NPC fields that currently violate the active policy.",
         "Not Loaded: the rule is preserved, but the crop is not present on this map/save.",
         "",
+        "CROP CALENDAR",
+        "The CALENDAR tab dynamically discovers every loaded fruit type and displays native-style month bars: the upper green band is planting and the lower red band is harvesting.",
+        "Months that allow both planting and harvesting display both bands. A highlighted crop name and yellow side marker indicate an active override.",
+        "The built-in game Calendar page includes EDIT CALENDAR, which opens CCO directly on this editor.",
+        "SHIFT mode rotates planting windows, harvest windows, and native growth mappings together by -6 to +6 periods.",
+        "CUSTOM mode lets you select planting and harvest months independently; CCO derives a phase-warped lifecycle from the captured map baseline.",
+        "Custom Apply is enabled only when every selected planting month reaches a harvest-ready state inside the selected harvest window.",
+        "Crops without an explicit initialState remain SHIFT-only; PERENNIAL, SPECIAL, and TECHNICAL crops remain preview-only.",
+        "Accepted contracts block calendar Apply. Available contracts are removed and regenerated after a successful change; existing field growth states are not rewritten.",
+        "RESTORE MAP DEFAULT switches to SHIFT 0; review the preview and press APPLY to commit the restoration.",
+        "Use ccoCalendarReport, ccoCalendarShiftPreview/Apply, ccoCalendarCustomPreview/Apply, and ccoCalendarRestore for console access.",
+        "",
         "VALIDATION CLEANUP",
         "Use RESET SCOPE to cycle through ALL, CROP, and FIELD cleanup targets.",
         "Run RESET BLOCKED DRY-RUN first. It does not change the save state.",
@@ -2866,6 +3504,8 @@ function CCO:openGui(topic, pageArg)
         return showCcoCustomGui("Crop Control Override - Blocked Rules", self:buildGuiRuleListText("blockedrules", pageArg), "blockedrules", pageArg or 1)
     elseif topic == "blocked" then
         return showCcoCustomGui("Crop Control Override - Blocked Fields", self:buildGuiBlockedText(), "blocked", 1)
+    elseif topic == "calendar" then
+        return showCcoCustomGui("Crop Control Override - Crop Calendar", self:buildGuiCalendarText(), "calendar", 1)
     elseif topic == "undiscovered" then
         return showCcoCustomGui("Crop Control Override - Undiscovered Rules", self:buildGuiRuleListText("undiscovered", pageArg), "undiscovered", pageArg or 1)
     elseif topic == "help" then
@@ -3212,10 +3852,111 @@ function CCO:requestServerSettings(reason)
     return true, self._guiNotice
 end
 
-function CCO:applyServerSettingsPayload(payload, configPath, saveId, canEdit)
+local function encodeMultiplayerFieldValue(value)
+    return tostring(value or "")
+        :gsub("%%", "%%25")
+        :gsub("|", "%%7C")
+        :gsub("\r", "%%0D")
+        :gsub("\n", "%%0A")
+end
+
+local function decodeMultiplayerFieldValue(value)
+    return tostring(value or "")
+        :gsub("%%0D", "\r")
+        :gsub("%%0A", "\n")
+        :gsub("%%7C", "|")
+        :gsub("%%25", "%%")
+end
+
+function CCO:buildServerValidationPayload()
+    local summary = self:buildFieldSummary(nil)
+    local lines = {
+        table.concat({
+            "@summary",
+            tostring(tonumber(summary.total or 0) or 0),
+            tostring(tonumber(summary.npcTotal or 0) or 0),
+            tostring(tonumber(summary.playerTotal or 0) or 0),
+            tostring(tonumber(summary.offending or 0) or 0),
+        }, "|")
+    }
+
+    for _, row in ipairs(self:getBlockedFieldRows()) do
+        local candidateCrop, candidateReason = "NONE", "candidate unavailable"
+        local okCandidate, resolvedCrop, resolvedReason = pcall(function()
+            return self:getReseedCandidateTextForField(row.field, row.cropName)
+        end)
+        if okCandidate then
+            candidateCrop = resolvedCrop or "NONE"
+            candidateReason = resolvedReason or ""
+        end
+        table.insert(lines, table.concat({
+            "@field",
+            encodeMultiplayerFieldValue(row.fieldId),
+            encodeMultiplayerFieldValue(row.cropName),
+            tostring(tonumber(row.sizeHa or 0) or 0),
+            encodeMultiplayerFieldValue(row.reason),
+            encodeMultiplayerFieldValue(candidateCrop or "NONE"),
+            encodeMultiplayerFieldValue(candidateReason or ""),
+        }, "|"))
+    end
+
+    return table.concat(lines, "\n")
+end
+
+function CCO:parseServerValidationPayload(payload)
+    payload = tostring(payload or "")
+    if payload == "" then return nil, nil end
+
+    local summary = nil
+    local rows = {}
+    for line in (payload .. "\n"):gmatch("(.-)\n") do
+        if line ~= "" then
+            local parts = {}
+            for part in (line .. "|"):gmatch("(.-)|") do
+                table.insert(parts, part)
+            end
+            if parts[1] == "@summary" then
+                summary = {
+                    total = tonumber(parts[2] or 0) or 0,
+                    npcTotal = tonumber(parts[3] or 0) or 0,
+                    playerTotal = tonumber(parts[4] or 0) or 0,
+                    offending = tonumber(parts[5] or 0) or 0,
+                    crops = {},
+                }
+            elseif parts[1] == "@field" then
+                table.insert(rows, {
+                    field = nil,
+                    fieldId = decodeMultiplayerFieldValue(parts[2]),
+                    cropName = upper(decodeMultiplayerFieldValue(parts[3])),
+                    sizeHa = tonumber(parts[4] or 0) or 0,
+                    reason = decodeMultiplayerFieldValue(parts[5]),
+                    candidateCrop = decodeMultiplayerFieldValue(parts[6]),
+                    candidateReason = decodeMultiplayerFieldValue(parts[7]),
+                    serverAuthoritative = true,
+                })
+            end
+        end
+    end
+
+    table.sort(rows, function(a, b)
+        local an = tonumber(a.fieldId)
+        local bn = tonumber(b.fieldId)
+        if an ~= nil and bn ~= nil then return an < bn end
+        return tostring(a.fieldId) < tostring(b.fieldId)
+    end)
+
+    if summary == nil then
+        summary = { total = 0, npcTotal = 0, playerTotal = 0, offending = #rows, crops = {} }
+    end
+    summary.offending = math.max(tonumber(summary.offending or 0) or 0, #rows)
+    return summary, rows
+end
+
+function CCO:applyServerSettingsPayload(payload, configPath, saveId, canEdit, validationPayload)
     local rules, settings = deserializeRulesFromMultiplayer(payload)
+    local validationSummary, blockedRows = self:parseServerValidationPayload(validationPayload)
     self._rules = rules
-    self._settings = settings or { reseedWeights = normalizeReseedWeights(nil) }
+    self._settings = normalizeSettings(settings)
     self._configPath = "server:" .. tostring(saveId or "active")
     self._serverConfigPath = tostring(configPath or "server")
     self._serverSaveId = tostring(saveId or "")
@@ -3227,10 +3968,22 @@ function CCO:applyServerSettingsPayload(payload, configPath, saveId, canEdit)
     self._mpClientOnly = true
     self._serverSettingsRetryTimer = 0
     self._serverSettingsRetryCount = 0
+    self._serverValidationSummary = validationSummary
+    self._serverBlockedFieldRows = blockedRows or {}
     -- applyRules also rebuilds the seed lists of already-loaded sowing
     -- machines, so a snapshot that arrives after vehicles loaded still takes
     -- effect immediately.
     self:applyRules(self._rules)
+    if CCO_CropCalendar ~= nil then
+        if CCO_CropCalendar.captureMapDefaults ~= nil then CCO_CropCalendar:captureMapDefaults(false) end
+        if CCO_CropCalendar.setConfiguredShifts ~= nil then
+            CCO_CropCalendar:setConfiguredShifts(self._settings.calendarShifts)
+            if CCO_CropCalendar.setConfiguredCustomOverrides ~= nil then
+                CCO_CropCalendar:setConfiguredCustomOverrides(self._settings.calendarCustomOverrides)
+            end
+        end
+        if CCO_CropCalendar.applyConfiguredShifts ~= nil then CCO_CropCalendar:applyConfiguredShifts() end
+    end
     local msg = self._serverCanEditRules == true
         and "Server CCO rules synced. Admin editing is enabled for this session. Local CCO XML files were not read or written."
         or "Server CCO rules synced. Local CCO XML files were not read or written."
@@ -3252,11 +4005,20 @@ function CCO:sendSettingsSnapshotToClient(connection, reason)
 
     local saveId = getSaveIdFromMissionInfo(g_currentMission and g_currentMission.missionInfo) or tostring(self._serverSaveId or "active")
     local payload = serializeRulesForMultiplayer(self._rules or buildDefaultRules(), self._settings)
+    local validationPayload = self:buildServerValidationPayload()
     local canEdit = ""
     if connection ~= nil then
         canEdit = tostring(self:getIsAdminConnection(connection) == true)
     end
-    local event = CropControlOverrideChangeSettingsEvent.new("syncSettings", payload, tostring(self._configPath or "server"), tostring(saveId or "active"), tostring(reason or "server"), canEdit)
+    local event = CropControlOverrideChangeSettingsEvent.new(
+        "syncSettings",
+        payload,
+        tostring(self._configPath or "server"),
+        tostring(saveId or "active"),
+        tostring(reason or "server"),
+        canEdit,
+        validationPayload
+    )
 
     if connection ~= nil and connection.sendEvent ~= nil then
         connection:sendEvent(event)
@@ -3269,6 +4031,27 @@ function CCO:sendSettingsSnapshotToClient(connection, reason)
     end
 
     return false, "No connection/server available for CCO settings sync."
+end
+
+function CCO:sendOperationResultToClient(connection, operation, success, message, canForce, value1, value2)
+    if CropControlOverrideChangeSettingsEvent == nil then
+        return false, "CCO multiplayer event is not available."
+    end
+    if connection == nil or connection.sendEvent == nil then
+        return false, "No client connection is available for the CCO operation result."
+    end
+
+    local event = CropControlOverrideChangeSettingsEvent.new(
+        "operationResult",
+        tostring(operation or ""),
+        tostring(success == true),
+        tostring(message or ""),
+        tostring(canForce == true),
+        tostring(value1 or ""),
+        tostring(value2 or "")
+    )
+    connection:sendEvent(event)
+    return true, "Sent CCO operation result to client."
 end
 
 function CCO:_shouldUseMultiplayerEvent()
@@ -3304,7 +4087,7 @@ function CCO:_sendMultiplayerEvent(operation, a, b, c, d, e, f, g)
             connection:sendEvent(event)
             local msg = "Sent CCO " .. tostring(operation) .. " request to the server."
             self._guiNotice = msg
-            return true, msg
+            return true, msg, false, true
         end
         local msg = "Waiting for multiplayer server connection before sending CCO " .. tostring(operation) .. " request."
         self._guiNotice = msg
@@ -3313,7 +4096,7 @@ function CCO:_sendMultiplayerEvent(operation, a, b, c, d, e, f, g)
 
     if g_server ~= nil then
         local ok, msg, extra = self:handleMultiplayerEvent(operation, {a, b, c, d, e, f, g}, nil)
-        if operation ~= "requestSettings" and operation ~= "syncSettings" and ok == true then
+        if operation ~= "requestSettings" and operation ~= "syncSettings" and operation ~= "calendarShiftPreview" and operation ~= "calendarCustomPreview" and ok == true then
             self:sendSettingsSnapshotToClient(nil, operation)
         end
         return ok, msg, extra
@@ -3350,13 +4133,78 @@ function CCO:refreshOpenGuiAfterMultiplayerSync(operation, msg)
     end
 end
 
+function CCO:applyServerOperationResult(operation, success, msg, canForce, value1, value2)
+    operation = tostring(operation or "")
+    success = success == true
+    canForce = canForce == true
+    msg = tostring(msg or (success and "Server operation completed." or "Server operation failed."))
+    self._guiNotice = msg
+
+    local controller = nil
+    if CropControlOverrideMenu ~= nil then
+        controller = CropControlOverrideMenu.INSTANCE
+    end
+
+    if operation == "applyRule" and controller ~= nil and controller.onServerApplyResult ~= nil then
+        controller:onServerApplyResult(success, msg, canForce)
+    elseif operation == "calendarShiftPreview" and controller ~= nil and controller.onServerCalendarPreviewResult ~= nil then
+        controller:onServerCalendarPreviewResult(success, msg, tostring(value1) == "true")
+    elseif operation == "calendarShiftApply" and controller ~= nil and controller.onServerCalendarApplyResult ~= nil then
+        controller:onServerCalendarApplyResult(success, msg, value2)
+    elseif operation == "calendarCustomPreview" and controller ~= nil and controller.onServerCalendarPreviewResult ~= nil then
+        controller:onServerCalendarPreviewResult(success, msg, tostring(value1) == "true")
+    elseif operation == "calendarCustomApply" and controller ~= nil and controller.onServerCalendarApplyResult ~= nil then
+        controller:onServerCalendarApplyResult(success, msg, value2)
+    elseif operation == "resetBlockedDryRun" and controller ~= nil and controller.onServerResetDryRunResult ~= nil then
+        controller:onServerResetDryRunResult(success, msg, tonumber(value1 or 0) or 0, tonumber(value2 or 0) or 0)
+    elseif operation == "resetBlocked" and controller ~= nil and controller.onServerResetResult ~= nil then
+        controller:onServerResetResult(success, msg, tonumber(value1 or 0) or 0, tonumber(value2 or 0) or 0)
+    elseif controller ~= nil then
+        if controller.selectedDirtyText ~= nil and controller.selectedDirtyText.setText ~= nil then
+            controller.selectedDirtyText:setText(success and "Server action completed." or "Server action failed.")
+        end
+        if controller.selectedInfoText ~= nil and controller.selectedInfoText.setText ~= nil then
+            controller.selectedInfoText:setText(msg)
+        end
+    end
+
+    return success, msg, canForce, value1, value2
+end
+
+function CCO:parseMultiplayerResetScope(scopeArg)
+    local scope = scopeArg
+    if type(scopeArg) == "string" then
+        local mode, value = string.match(scopeArg, "^([^:]+):(.*)$")
+        if mode == "all" then
+            scope = { mode = "all", label = "ALL" }
+        elseif mode == "crop" then
+            scope = { mode = "crop", crop = upper(value or ""), label = "CROP: " .. upper(value or "") }
+        elseif mode == "field" then
+            scope = { mode = "field", fieldId = tonumber(value), label = "FIELD: " .. tostring(value) }
+        end
+    end
+    return self:normaliseGuiResetScope(scope)
+end
+
 function CCO:handleMultiplayerEvent(operation, args, connection)
     args = args or {}
     self._handlingMpEvent = true
 
-    local ok, r1, r2, r3 = pcall(function()
+    local ok, r1, r2, r3, r4 = pcall(function()
         if operation == "syncSettings" then
-            return self:applyServerSettingsPayload(args[1], args[2], args[3], args[5])
+            return self:applyServerSettingsPayload(args[1], args[2], args[3], args[5], args[6])
+        elseif operation == "operationResult" then
+            if g_server ~= nil then
+                return false, "CCO operation result ignored by server."
+            end
+            return self:applyServerOperationResult(
+                args[1],
+                boolFromStringOrBool(args[2], false) == true,
+                args[3],
+                boolFromStringOrBool(args[4], false) == true,
+                args[5],
+                args[6]
+            )
         elseif operation == "adminStatus" then
             if g_server ~= nil and connection ~= nil then
                 self:_setServerConnectionMasterUser(connection, boolFromStringOrBool(args[1], false) == true)
@@ -3375,6 +4223,14 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
             return false, msg
         elseif isClientOnlyMultiplayer() and not self:canEditRules() then
             return false, "CCO rules are read-only for remote multiplayer clients. Log in as server admin/master user to change them."
+        elseif operation == "calendarShiftPreview" then
+            return self:_previewCalendarShiftLocal(args[1], args[2])
+        elseif operation == "calendarShiftApply" then
+            return self:_applyCalendarShiftLocal(args[1], args[2])
+        elseif operation == "calendarCustomPreview" then
+            return self:_previewCalendarCustomLocal(args[1], args[2], args[3])
+        elseif operation == "calendarCustomApply" then
+            return self:_applyCalendarCustomLocal(args[1], args[2], args[3])
         elseif operation == "applyRule" then
             local staged = {
                 crop = args[1],
@@ -3390,20 +4246,17 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
             return self:_saveCurrentRulesToTemplateConfigLocal()
         elseif operation == "loadDefaults" then
             return self:_loadTemplateDefaultsIntoCurrentSaveLocal()
+        elseif operation == "resetBlockedDryRun" then
+            local scope = self:parseMultiplayerResetScope(args[1])
+            local msg, wouldQueue, skipped = self:_resetBlockedFieldsDryRunFromGuiLocal(scope, args[2])
+            return true, msg, wouldQueue, skipped
         elseif operation == "resetBlocked" then
-            local scopeArg = args[1]
-            local scope = scopeArg
-            if type(scopeArg) == "string" then
-                local mode, value = string.match(scopeArg, "^([^:]+):(.*)$")
-                if mode == "all" then
-                    scope = { mode = "all", label = "ALL" }
-                elseif mode == "crop" then
-                    scope = { mode = "crop", crop = upper(value or ""), label = upper(value or "") }
-                elseif mode == "field" then
-                    scope = { mode = "field", fieldId = tonumber(value), label = "FIELD " .. tostring(value) }
-                end
+            local scope = self:parseMultiplayerResetScope(args[1])
+            local msg, queued, skipped = self:_resetBlockedFieldsFromGuiLocal(scope, args[2])
+            if tonumber(queued or 0) > 0 then
+                self._pendingValidationSyncTimer = 5000
             end
-            return self:_resetBlockedFieldsFromGuiLocal(scope, args[2])
+            return true, msg, queued, skipped
         elseif operation == "consoleSetCrop" then
             return self:_consoleSetCropLocal(args[1], args[2], args[3], args[4])
         end
@@ -3419,11 +4272,11 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
         return false, msg
     end
 
-    if r1 == true and g_client ~= nil and self.refreshOpenGuiAfterMultiplayerSync ~= nil then
+    if r1 == true and operation ~= "syncSettings" and operation ~= "operationResult" and g_client ~= nil and self.refreshOpenGuiAfterMultiplayerSync ~= nil then
         self:refreshOpenGuiAfterMultiplayerSync(operation, r2)
     end
 
-    return r1, r2, r3
+    return r1, r2, r3, r4
 end
 
 function CCO:applyGuiStagedRule(staged, forceApply)
@@ -3602,7 +4455,7 @@ function CCO:_loadTemplateDefaultsIntoCurrentSaveLocal()
     if templateRules == nil or not next(templateRules) then
         templateRules = buildDefaultRules()
     end
-    templateSettings = templateSettings or { reseedWeights = normalizeReseedWeights(nil) }
+    templateSettings = templateSettings or normalizeSettings(nil)
 
     templateRules = mergeMissingDiscoveredFruits(templateRules)
 
@@ -3611,6 +4464,13 @@ function CCO:_loadTemplateDefaultsIntoCurrentSaveLocal()
         self._settings = templateSettings
         self._configPath = tpl
         self:applyRules(templateRules)
+        if CCO_CropCalendar ~= nil then
+            CCO_CropCalendar:setConfiguredShifts(self._settings.calendarShifts)
+            if CCO_CropCalendar.setConfiguredCustomOverrides ~= nil then
+                CCO_CropCalendar:setConfiguredCustomOverrides(self._settings.calendarCustomOverrides)
+            end
+            CCO_CropCalendar:applyConfiguredShifts()
+        end
         local msg = "Loaded template config.xml. No savegame context was available, so no per-save XML was written."
         print("CCO GUI LOAD DEFAULTS: " .. msg)
         self._guiNotice = msg
@@ -3628,6 +4488,13 @@ function CCO:_loadTemplateDefaultsIntoCurrentSaveLocal()
     self._settings = templateSettings
     self._configPath = per
     self:applyRules(templateRules)
+    if CCO_CropCalendar ~= nil then
+        CCO_CropCalendar:setConfiguredShifts(self._settings.calendarShifts)
+        if CCO_CropCalendar.setConfiguredCustomOverrides ~= nil then
+            CCO_CropCalendar:setConfiguredCustomOverrides(self._settings.calendarCustomOverrides)
+        end
+        CCO_CropCalendar:applyConfiguredShifts()
+    end
 
     local msg = "Loaded template config.xml into active save config: " .. tostring(per)
     print("CCO GUI LOAD DEFAULTS: " .. msg)
@@ -3695,7 +4562,7 @@ function CCO:consoleReload()
         if not fileExists(per) then
             local templateRules, templateSettings = readConfig(tpl)
             if not next(templateRules) then templateRules = buildDefaultRules() end
-            templateSettings = templateSettings or { reseedWeights = normalizeReseedWeights(nil) }
+            templateSettings = templateSettings or normalizeSettings(nil)
             templateRules = mergeMissingDiscoveredFruits(templateRules)
             if writeConfig(per, templateRules, templateSettings) then
                 print(("CCO: created per-save config during reload: %s"):format(tostring(per)))
@@ -3709,7 +4576,7 @@ function CCO:consoleReload()
     local meta = inspectConfigNormalization(path)
     local rules, settings = readConfig(path)
     if not next(rules) then rules = buildDefaultRules() end
-    settings = settings or { reseedWeights = normalizeReseedWeights(nil) }
+    settings = settings or normalizeSettings(nil)
     rules = mergeMissingDiscoveredFruits(rules)
     if meta ~= nil and meta.needsNormalize then
         writeConfig(path, rules, settings)
@@ -3808,7 +4675,7 @@ function CCO:consoleNormalizeConfig(modeArg)
     local meta = inspectConfigNormalization(path)
     local rules, settings = readConfig(path)
     if not next(rules) then rules = self._rules or buildDefaultRules() end
-    settings = settings or self._settings or { reseedWeights = normalizeReseedWeights(nil) }
+    settings = settings or self._settings or normalizeSettings(nil)
     rules = mergeMissingDiscoveredFruits(rules)
 
     if meta == nil or not meta.exists then
@@ -4214,52 +5081,53 @@ end
 
 function CCO:consoleGrowthProbe(cropNameArg)
     local cropName = cropNameArg ~= nil and cropNameArg ~= "" and upper(cropNameArg) or nil
-    print("CCO: growth/calendar probe")
+    print("CCO: growth/calendar diagnostic probe")
 
-    local env = g_currentMission ~= nil and g_currentMission.environment or nil
-    print(("CCO:   currentPeriod=%s"):format(tostring(getCurrentPeriodIndex())))
-    describeTableKeys(env, "environment", 60)
-
-    local mission = g_currentMission
-    describeTableKeys(mission ~= nil and mission.growthSystem or nil, "g_currentMission.growthSystem", 80)
-    describeTableKeys(g_growthSystem, "g_growthSystem", 80)
-    describeTableKeys(g_fruitTypeManager, "g_fruitTypeManager", 80)
+    local period = getCurrentPeriodIndex()
+    print(("CCO:   currentPeriod=%s calendarYear=%s"):format(tostring(period), tostring(getCalendarYearToken ~= nil and getCalendarYearToken() or "n/a")))
 
     local printed = 0
     for _, ft in ipairs(iterFruitTypesSorted()) do
         if cropName == nil or upper(ft.name) == cropName then
-            print(("CCO: fruit=%s index=%s allowsSeeding=%s numFoliageStates=%s"):format(
-                upper(ft.name), tostring(ft.index), tostring(ft.allowsSeeding), tostring(ft.numFoliageStates)))
-            describeTableKeys(ft, "fruit." .. upper(ft.name), 80)
-            if ft.growthDataSeasonal ~= nil then
-                local fruitLabel = "fruit." .. upper(ft.name) .. ".growthDataSeasonal"
-                describeTableKeys(ft.growthDataSeasonal, fruitLabel, 120)
-                if type(ft.growthDataSeasonal) == "table" then
-                    for key, value in pairs(ft.growthDataSeasonal) do
-                        if type(value) == "table" then
-                            describeTableKeys(value, fruitLabel .. "." .. tostring(key), 80)
-                        else
-                            print(("CCO:   fruit.%s.growthDataSeasonal.%s=%s (%s)"):format(upper(ft.name), tostring(key), tostring(value), type(value)))
-                        end
-                    end
+            local name = upper(ft.name)
+            print(("CCO: fruit=%s index=%s allowsSeeding=%s numFoliageStates=%s minHarvestingGrowthState=%s maxHarvestingGrowthState=%s cutState=%s witheredState=%s"):format(
+                name, tostring(ft.index), tostring(ft.allowsSeeding), tostring(ft.numFoliageStates),
+                tostring(ft.minHarvestingGrowthState), tostring(ft.maxHarvestingGrowthState),
+                tostring(ft.cutState), tostring(ft.witheredState)))
 
-                    local periods = ft.growthDataSeasonal.periods
-                    local period = getCurrentPeriodIndex()
-                    if type(periods) == "table" and period ~= nil then
-                        describeValueDeep(periods[periodIndexBefore(period)], fruitLabel .. ".periods[" .. tostring(periodIndexBefore(period)) .. "]", 0, 3, 40)
-                        describeValueDeep(periods[period], fruitLabel .. ".periods[" .. tostring(period) .. "]", 0, 3, 40)
-                        describeValueDeep(periods[periodIndexAfter(period)], fruitLabel .. ".periods[" .. tostring(periodIndexAfter(period)) .. "]", 0, 3, 40)
+            if type(ft.growthStateToName) == "table" then
+                local stateKeys = {}
+                for k in pairs(ft.growthStateToName) do table.insert(stateKeys, k) end
+                table.sort(stateKeys, function(a,b) return tostring(a) < tostring(b) end)
+                for _, k in ipairs(stateKeys) do
+                    print(("CCO:   fruit.%s.growthStateToName[%s]=%s"):format(name, tostring(k), tostring(ft.growthStateToName[k])))
+                end
+            else
+                print(("CCO:   fruit.%s.growthStateToName=%s"):format(name, tostring(ft.growthStateToName)))
+            end
+
+            local seasonal = ft.growthDataSeasonal
+            print(("CCO:   fruit.%s.growthDataSeasonal.type=%s"):format(name, type(seasonal)))
+            if type(seasonal) == "table" then
+                describeTableKeys(seasonal, "fruit." .. name .. ".growthDataSeasonal", 160)
+                local periods = seasonal.periods
+                print(("CCO:   fruit.%s.growthDataSeasonal.periods.type=%s"):format(name, type(periods)))
+                if type(periods) == "table" then
+                    for periodIndex = 1, 12 do
+                        describeValueDeep(periods[periodIndex], "fruit." .. name .. ".growthDataSeasonal.periods[" .. tostring(periodIndex) .. "]", 0, 5, 100)
                     end
                 end
             end
+
+            describeTableKeys(ft, "fruit." .. name, 140)
             if ft.data ~= nil then
-                describeTableKeys(ft.data, "fruit." .. upper(ft.name) .. ".data", 80)
+                describeValueDeep(ft.data, "fruit." .. name .. ".data", 0, 4, 100)
             end
             printed = printed + 1
         end
     end
 
-    print(("CCO: growth/calendar probe complete. fruitsPrinted=%d"):format(printed))
+    print(("CCO: growth/calendar diagnostic probe complete. fruitsPrinted=%d"):format(printed))
 end
 addConsoleCommand("ccoGrowthProbe", "Probe growth/calendar runtime objects. Usage: ccoGrowthProbe [CROP]", "consoleGrowthProbe", CCO)
 
@@ -4323,6 +5191,10 @@ end
 
 
 function CCO:getBlockedFieldRows()
+    if isClientOnlyMultiplayer() and self._serverSettingsSynced == true and self._serverBlockedFieldRows ~= nil then
+        return self._serverBlockedFieldRows
+    end
+
     local rows = {}
 
     if g_fieldManager ~= nil and g_fieldManager.getFields ~= nil then
@@ -4427,6 +5299,42 @@ function CCO:getDryRunResetActionForField(field, cropName, mode)
     return "CULTIVATED", "NONE", "reset mode cultivated"
 end
 
+function CCO:scheduleBlockedResetMissionRefresh(fields, removedMissions)
+    self._pendingBlockedResetMissionRefresh = {
+        elapsedMs = 0,
+        fields = fields or {},
+        removedMissions = tonumber(removedMissions or 0) or 0,
+    }
+    info(("blocked-field cleanup queued; waiting for field tasks before refreshing states and contracts removedContracts=%d fields=%d"):format(
+        self._pendingBlockedResetMissionRefresh.removedMissions, #self._pendingBlockedResetMissionRefresh.fields))
+end
+
+function CCO:updateBlockedResetMissionRefresh(dt)
+    local state = self._pendingBlockedResetMissionRefresh
+    if state == nil then return end
+
+    state.elapsedMs = (state.elapsedMs or 0) + (tonumber(dt) or 0)
+    if state.elapsedMs < 5000 then return end
+    self._pendingBlockedResetMissionRefresh = nil
+
+    self:refreshRegeneratedFieldStates(state)
+    if g_missionManager == nil then
+        warn("blocked-field cleanup contract refresh skipped: mission manager unavailable")
+        return
+    end
+
+    if g_missionManager.generationTimer ~= nil then g_missionManager.generationTimer = 0 end
+    if g_missionManager.missionGenerationInProgress == true then
+        info("blocked-field cleanup contract refresh deferred to active native generation cycle")
+        return
+    end
+    if g_missionManager.startMissionGeneration ~= nil then
+        g_missionManager:startMissionGeneration()
+        info(("blocked-field cleanup field states settled; fresh contract generation started removedContracts=%d"):format(
+            tonumber(state.removedMissions or 0)))
+    end
+end
+
 
 function CCO:resetBlockedFieldById(fieldId, dryRun, resetMode)
     local wanted = tostring(fieldId or "")
@@ -4454,13 +5362,14 @@ function CCO:resetBlockedFieldById(fieldId, dryRun, resetMode)
                             tostring(getFieldId(field, idx)), cropName, getFieldSizeHa(field), tostring(reason), select(2, self:normaliseResetMode(resetMode)), tostring(action), tostring(candidateCrop), tostring(candidateReason)))
                         return 1, 0
                     else
+                        local removedMissions, purgeReason = self:purgeAvailableContractsForRegeneration()
+                        if purgeReason ~= "ok" then
+                            warn("field reset refused: " .. tostring(purgeReason))
+                            return 0, 1
+                        end
                         local ok = self:applyResetActionToField(field, cropName, reason, resetMode)
                         if ok then
-                            if g_missionManager ~= nil then
-                                info("triggering mission generation after field reset")
-                                if g_missionManager.generationTimer ~= nil then g_missionManager.generationTimer = 0 end
-                                if g_missionManager.startMissionGeneration ~= nil then g_missionManager:startMissionGeneration() end
-                            end
+                            self:scheduleBlockedResetMissionRefresh({field}, removedMissions)
                             return 1, 0
                         else
                             return 0, 1
@@ -4505,7 +5414,7 @@ function CCO:getBlockedCountForGuiScope(scope)
     return count
 end
 
-function CCO:resetBlockedFieldsDryRunFromGui(scope, resetMode)
+function CCO:_resetBlockedFieldsDryRunFromGuiLocal(scope, resetMode)
     local s = self:normaliseGuiResetScope(scope)
     local wouldQueue, skipped = 0, 0
 
@@ -4532,6 +5441,36 @@ function CCO:resetBlockedFieldsDryRunFromGui(scope, resetMode)
     print("CCO GUI RESET DRY-RUN: " .. msg)
     self._guiNotice = msg
     return msg, tonumber(wouldQueue or 0) or 0, tonumber(skipped or 0) or 0
+end
+
+function CCO:multiplayerResetScopeArg(scope)
+    local s = self:normaliseGuiResetScope(scope)
+    if s.mode == "crop" then
+        return "crop:" .. tostring(upper(s.crop or ""))
+    elseif s.mode == "field" then
+        return "field:" .. tostring(s.fieldId or "")
+    end
+    return "all:"
+end
+
+function CCO:resetBlockedFieldsDryRunFromGui(scope, resetMode)
+    if not self:canEditRules() then
+        local msg = "CCO validation dry-run is read-only for remote multiplayer clients. Log in as server admin/master user to continue."
+        self._guiNotice = msg
+        return false, msg, 0, 0, false
+    end
+
+    if isClientOnlyMultiplayer() then
+        local sent, msg, _, pending = self:_sendMultiplayerEvent(
+            "resetBlockedDryRun",
+            self:multiplayerResetScopeArg(scope),
+            tostring(resetMode or "cultivated")
+        )
+        return sent, msg, 0, 0, pending == true
+    end
+
+    local msg, wouldQueue, skipped = self:_resetBlockedFieldsDryRunFromGuiLocal(scope, resetMode)
+    return true, msg, wouldQueue, skipped, false
 end
 
 function CCO:_resetBlockedFieldsFromGuiLocal(scope, resetMode)
@@ -4572,19 +5511,22 @@ function CCO:resetBlockedFieldsFromGui(scope, resetMode)
     if not self:canEditRules() then
         local msg = "CCO reset is read-only for remote multiplayer clients. Log in as server admin/master user to change fields."
         self._guiNotice = msg
-        return msg, 0, 0
+        return false, msg, 0, 0, false
     end
-    if self:_shouldUseMultiplayerEvent() then
-        local s = self:normaliseGuiResetScope(scope)
-        local scopeArg = "all:"
-        if s.mode == "crop" then
-            scopeArg = "crop:" .. tostring(upper(s.crop or ""))
-        elseif s.mode == "field" then
-            scopeArg = "field:" .. tostring(s.fieldId or "")
-        end
-        return self:_sendMultiplayerEvent("resetBlocked", scopeArg, tostring(resetMode or "cultivated"))
+    if isClientOnlyMultiplayer() then
+        local sent, msg, _, pending = self:_sendMultiplayerEvent(
+            "resetBlocked",
+            self:multiplayerResetScopeArg(scope),
+            tostring(resetMode or "cultivated")
+        )
+        return sent, msg, 0, 0, pending == true
     end
-    return self:_resetBlockedFieldsFromGuiLocal(scope, resetMode)
+    local msg, queued, skipped = self:_resetBlockedFieldsFromGuiLocal(scope, resetMode)
+    if g_server ~= nil and tonumber(queued or 0) > 0 then
+        self:sendSettingsSnapshotToClient(nil, "resetBlocked")
+        self._pendingValidationSyncTimer = 5000
+    end
+    return true, msg, queued, skipped, false
 end
 
 function CCO:consoleResetNpcFields(cropNameArg, modeArg)
@@ -4608,6 +5550,1320 @@ end
 addConsoleCommand("ccoResetBlocked", "Reset all currently blocked NPC fields. Usage: ccoResetBlocked [dryrun]", "consoleResetBlocked", CCO)
 
 
+-- Experimental 2.1 alpha: rebuild every NPC-owned field using enabled crops,
+-- per-crop reseed weights, and a calendar-derived plausible growth state.
+local CCO_REGEN_STATE_KEYS = {
+    "growthState", "targetGrowthState", "newGrowthState", "nextGrowthState",
+    "foliageState", "targetState", "newState", "state"
+}
+
+local function getCalendarYearToken()
+    local env = g_currentMission ~= nil and g_currentMission.environment or nil
+    if env == nil then return 0 end
+    return tonumber(env.currentYear or env.year or env.currentSeason or 0) or 0
+end
+
+local function getFruitMaximumPlausibleState(ft)
+    if ft == nil then return nil end
+    local maximum = tonumber(ft.maxHarvestingGrowthState)
+    if maximum == nil or maximum < 1 then
+        maximum = tonumber(ft.minHarvestingGrowthState)
+    end
+    if maximum == nil or maximum < 1 then
+        local count = tonumber(ft.numFoliageStates)
+        if count == nil and type(ft.growthStateToName) == "table" then
+            count = #ft.growthStateToName
+        end
+        if count ~= nil and count > 1 then maximum = count - 1 end
+    end
+    if maximum ~= nil then return math.max(1, math.floor(maximum)) end
+    return nil
+end
+
+local function getFruitHarvestStateRange(ft)
+    if ft == nil then return nil, nil end
+    local minimum = tonumber(ft.minHarvestingGrowthState)
+    local maximum = tonumber(ft.maxHarvestingGrowthState)
+    if minimum ~= nil then minimum = math.max(1, math.floor(minimum)) end
+    if maximum ~= nil then maximum = math.max(1, math.floor(maximum)) end
+    if minimum ~= nil and maximum == nil then maximum = minimum end
+    if maximum ~= nil and minimum == nil then minimum = maximum end
+    if minimum ~= nil and maximum ~= nil and maximum < minimum then maximum = minimum end
+    return minimum, maximum
+end
+
+local CCO_REGEN_PLANTING_KEYS = { "plantingAllowed", "sowingAllowed", "seedingAllowed" }
+local CCO_REGEN_HARVEST_KEYS = { "isHarvestable", "harvestingAllowed", "harvestAllowed", "harvestable", "isHarvestPeriod" }
+
+local function getSeasonalBoolean(entry, keys)
+    if type(entry) ~= "table" then return nil, nil end
+    for _, key in ipairs(keys) do
+        if entry[key] ~= nil then return entry[key] == true, key end
+    end
+    return nil, nil
+end
+
+local function isSeasonalPeriodAllowed(entry, keys)
+    local value, source = getSeasonalBoolean(entry, keys)
+    return value == true, source
+end
+
+local function findExplicitSeasonalGrowthState(value, maximum, depth, visited)
+    if type(value) ~= "table" then return nil, nil end
+    depth = depth or 0
+    if depth > 3 then return nil, nil end
+    visited = visited or {}
+    if visited[value] then return nil, nil end
+    visited[value] = true
+
+    for _, key in ipairs(CCO_REGEN_STATE_KEYS) do
+        local candidate = tonumber(value[key])
+        if candidate ~= nil then
+            candidate = math.floor(candidate)
+            if candidate >= 1 and (maximum == nil or candidate <= maximum) then
+                return candidate, key
+            end
+        end
+    end
+
+    for key, child in pairs(value) do
+        if type(child) == "table" then
+            local state, source = findExplicitSeasonalGrowthState(child, maximum, depth + 1, visited)
+            if state ~= nil then return state, tostring(key) .. "." .. tostring(source) end
+        end
+    end
+    return nil, nil
+end
+
+local function findNearestSeasonalOffset(periods, period, keys, direction)
+    if type(periods) ~= "table" or period == nil then return nil, nil end
+    for offset = 0, 11 do
+        local testPeriod = period
+        for _ = 1, offset do
+            if direction < 0 then testPeriod = periodIndexBefore(testPeriod) else testPeriod = periodIndexAfter(testPeriod) end
+        end
+        local allowed, source = isSeasonalPeriodAllowed(periods[testPeriod], keys)
+        if allowed then return offset, testPeriod, source end
+    end
+    return nil, nil, nil
+end
+
+local function getSeasonalGrowthMapping(entry)
+    if type(entry) ~= "table" or type(entry.growthMapping) ~= "table" then return nil end
+    return entry.growthMapping
+end
+
+local function applySeasonalGrowthMapping(periods, state, period)
+    local entry = type(periods) == "table" and periods[period] or nil
+    local mapping = getSeasonalGrowthMapping(entry)
+    if mapping == nil then return nil, "period " .. tostring(period) .. " has no growthMapping" end
+    local mapped = tonumber(mapping[state])
+    if mapped == nil then return nil, "period " .. tostring(period) .. " has no mapping for state " .. tostring(state) end
+    mapped = math.floor(mapped)
+    if mapped < 1 then return nil, "period " .. tostring(period) .. " mapped to invalid state " .. tostring(mapped) end
+    return mapped, nil
+end
+
+local function replaySeasonalGrowthFromPlanting(periods, plantingPeriod, currentPeriod, maximum, harvestMin, harvestMax)
+    local state = 1
+    local period = plantingPeriod
+    local steps = 0
+    local passedHarvestReady = false
+
+    -- The planting period contains the transition that establishes a newly
+    -- seeded crop (for example invisible -> greenSmall). Skipping this first
+    -- mapping leaves year-crossing crops stuck in state 1 for their entire
+    -- replay. Apply the planting period itself before advancing through later
+    -- periods. When planting happens in the current period, retain state 1 so
+    -- the result represents a newly seeded crop before the period transition.
+    if plantingPeriod ~= currentPeriod then
+        local mapped, reason = applySeasonalGrowthMapping(periods, state, plantingPeriod)
+        if mapped == nil then return nil, steps, reason, passedHarvestReady end
+        state = mapped
+        steps = steps + 1
+        if maximum ~= nil and state > maximum then
+            return nil, steps, "mapped state exceeds plausible maximum " .. tostring(maximum), passedHarvestReady
+        end
+
+        if harvestMin ~= nil and harvestMax ~= nil then
+            local plantingEntry = periods[plantingPeriod]
+            local harvestable = isSeasonalPeriodAllowed(plantingEntry, CCO_REGEN_HARVEST_KEYS)
+            if harvestable and state >= harvestMin and state <= harvestMax then
+                passedHarvestReady = true
+            end
+        end
+    end
+
+    while period ~= currentPeriod and steps < 12 do
+        period = periodIndexAfter(period)
+        local mapped, reason = applySeasonalGrowthMapping(periods, state, period)
+        if mapped == nil then return nil, steps, reason, passedHarvestReady end
+        state = mapped
+        steps = steps + 1
+        if maximum ~= nil and state > maximum then
+            return nil, steps, "mapped state exceeds plausible maximum " .. tostring(maximum), passedHarvestReady
+        end
+
+        -- A crop that was already harvest-ready in an earlier period has
+        -- completed the useful standing lifecycle for regeneration purposes.
+        -- Do not allow later mappings to wrap it back to a young state.
+        if period ~= currentPeriod and harvestMin ~= nil and harvestMax ~= nil then
+            local entry = periods[period]
+            local harvestable = isSeasonalPeriodAllowed(entry, CCO_REGEN_HARVEST_KEYS)
+            if harvestable and state >= harvestMin and state <= harvestMax then
+                passedHarvestReady = true
+            end
+        end
+    end
+    if period ~= currentPeriod then return nil, steps, "calendar replay did not reach current period", passedHarvestReady end
+    return state, steps, nil, passedHarvestReady
+end
+
+local function isRejectedMappedState(ft, state, currentHarvestable)
+    if state == nil then return true, "missing state" end
+    local withered = tonumber(ft ~= nil and ft.witheredState or nil)
+    if withered ~= nil and state == math.floor(withered) then return true, "withered state" end
+    local harvestMin, harvestMax = getFruitHarvestStateRange(ft)
+    if harvestMin ~= nil and harvestMax ~= nil and state >= harvestMin and state <= harvestMax and currentHarvestable ~= true then
+        return true, "harvest state outside current harvest period"
+    end
+    return false, nil
+end
+
+function CCO:resolveRegenerationGrowthState(ft)
+    if ft == nil then return nil, "invalid fruit", false end
+    local cropName = upper(ft.name or "")
+    local maximum = getFruitMaximumPlausibleState(ft)
+    local harvestMin, harvestMax = getFruitHarvestStateRange(ft)
+    local period = getCurrentPeriodIndex()
+    if period == nil then return nil, "current seasonal period unavailable", false end
+
+    local periods = ft.growthDataSeasonal ~= nil and ft.growthDataSeasonal.periods or nil
+    if type(periods) ~= "table" then
+        return nil, "seasonal growth periods unavailable", false
+    end
+
+    local currentEntry = periods[period]
+    local currentHarvestable, harvestSource = isSeasonalPeriodAllowed(currentEntry, CCO_REGEN_HARVEST_KEYS)
+
+    -- Permanent/regrowing crops do not have one unambiguous planting origin.
+    -- Use their real harvesting range when the current period is harvestable,
+    -- otherwise use firstRegrowthState and advance it through the current
+    -- period's authoritative mapping when available.
+    if CCO_LIFECYCLE_RESEED_CROPS[cropName] == true or ft.regrows == true then
+        if currentHarvestable and harvestMin ~= nil then
+            return harvestMin, ("authoritative lifecycle harvest state via %s; harvestRange=%s-%s"):format(
+                tostring(harvestSource), tostring(harvestMin), tostring(harvestMax)), true
+        end
+        local state = tonumber(ft.firstRegrowthState) or tonumber(ft.cutState) or 1
+        state = math.max(1, math.floor(state))
+        local mapped = applySeasonalGrowthMapping(periods, state, period)
+        if mapped ~= nil then state = mapped end
+        local rejected, reason = isRejectedMappedState(ft, state, currentHarvestable)
+        if not rejected then
+            return state, ("authoritative lifecycle state via growthMapping; currentHarvestable=%s"):format(tostring(currentHarvestable)), true
+        end
+        return nil, "lifecycle mapping rejected: " .. tostring(reason), false
+    end
+
+    local outcomes = {}
+    local replayedOrigins = 0
+    local rejectedOrigins = 0
+    local rejectionReasons = {}
+    for plantingPeriod = 1, 12 do
+        local plantingAllowed = isSeasonalPeriodAllowed(periods[plantingPeriod], CCO_REGEN_PLANTING_KEYS)
+        if plantingAllowed then
+            replayedOrigins = replayedOrigins + 1
+            local state, steps, replayReason, passedHarvestReady = replaySeasonalGrowthFromPlanting(
+                periods, plantingPeriod, period, maximum, harvestMin, harvestMax)
+            if state ~= nil then
+                local rejected, rejectReason = isRejectedMappedState(ft, state, currentHarvestable)
+                local inHarvestRange = harvestMin ~= nil and harvestMax ~= nil and state >= harvestMin and state <= harvestMax
+
+                -- During an active harvest period, a plausible standing crop
+                -- must actually be in its authoritative harvesting range.
+                if not rejected and currentHarvestable == true and harvestMin ~= nil and harvestMax ~= nil and not inHarvestRange then
+                    rejected = true
+                    rejectReason = "current harvest period but mapped state is outside harvest range"
+                end
+
+                -- A multi-period harvest window may legitimately keep a
+                -- crop harvest-ready across more than one seasonal period.
+                -- Reject an origin only when it previously reached harvest
+                -- readiness but no longer ends inside the current harvest
+                -- range.
+                if not rejected and passedHarvestReady == true and not inHarvestRange then
+                    rejected = true
+                    rejectReason = "planting origin already passed a harvest-ready period"
+                end
+
+                -- Catch long year-crossing paths that have wrapped back to a
+                -- newly planted state without the current period being a valid
+                -- planting period for the crop.
+                if not rejected and steps >= 8 and state <= 2 then
+                    local plantingNow = isSeasonalPeriodAllowed(currentEntry, CCO_REGEN_PLANTING_KEYS)
+                    if not plantingNow then
+                        rejected = true
+                        rejectReason = "long lifecycle wrapped to early growth state"
+                    end
+                end
+
+                if not rejected then
+                    table.insert(outcomes, {
+                        state = state,
+                        plantingPeriod = plantingPeriod,
+                        steps = steps,
+                        harvestReady = currentHarvestable == true and inHarvestRange == true,
+                    })
+                else
+                    rejectedOrigins = rejectedOrigins + 1
+                    rejectionReasons[tostring(rejectReason or "rejected")] = (rejectionReasons[tostring(rejectReason or "rejected")] or 0) + 1
+                end
+            else
+                rejectedOrigins = rejectedOrigins + 1
+                rejectionReasons[tostring(replayReason or "replay failed")] = (rejectionReasons[tostring(replayReason or "replay failed")] or 0) + 1
+            end
+        end
+    end
+
+    local function summarizeRejections()
+        local parts = {}
+        for reason, count in pairs(rejectionReasons) do
+            table.insert(parts, tostring(reason) .. "=" .. tostring(count))
+        end
+        table.sort(parts)
+        return #parts > 0 and table.concat(parts, "|") or "none"
+    end
+
+    if #outcomes == 0 then
+        -- Some map growth XMLs expose an authoritative harvest window and
+        -- harvesting-state range even when replay from every planting origin
+        -- has already rolled past, reset, or otherwise cannot reproduce the
+        -- standing map-initialisation state. In that narrow case, initialise
+        -- the crop directly at its first authoritative harvest-ready state.
+        if currentHarvestable == true
+            and harvestMin ~= nil
+            and harvestMax ~= nil
+            and harvestMin >= 1
+            and harvestMin <= harvestMax
+            and ft.useForFieldMissions ~= false then
+            return harvestMin, ("authoritative harvest-window fallback; source=%s harvestRange=%s-%s naturalOrigins=0 replayedOrigins=%d rejectedOrigins=%d rejectionReasons=%s fallbackUsed=true"):format(
+                tostring(harvestSource), tostring(harvestMin), tostring(harvestMax), replayedOrigins, rejectedOrigins, summarizeRejections()), true
+        end
+
+        return nil, ("no authoritative mapped outcome for current period; harvestable=%s harvestRange=%s-%s"):format(
+            tostring(currentHarvestable), tostring(harvestMin), tostring(harvestMax)), false
+    end
+
+    table.sort(outcomes, function(a, b)
+        if a.harvestReady ~= b.harvestReady then return a.harvestReady == true end
+        if a.state ~= b.state then return a.state > b.state end
+        if a.steps ~= b.steps then return a.steps > b.steps end
+        return a.plantingPeriod < b.plantingPeriod
+    end)
+    local selected = outcomes[1]
+    return selected.state, ("authoritative seasonal growthMapping replay; plantedPeriod=%d steps=%d currentHarvestable=%s harvestReady=%s harvestRange=%s-%s naturalOrigins=%d replayedOrigins=%d rejectedOrigins=%d fallbackUsed=false"):format(
+        selected.plantingPeriod, selected.steps, tostring(currentHarvestable), tostring(selected.harvestReady),
+        tostring(harvestMin), tostring(harvestMax), #outcomes, replayedOrigins, rejectedOrigins), true
+end
+
+local function deterministicRegenerationValue(fieldId, period, year, totalWeight)
+    if totalWeight == nil or totalWeight <= 0 then return nil end
+
+    -- Build a deterministic hash from the complete field/calendar key rather
+    -- than using fieldId as a near-linear arithmetic seed. The two rolling
+    -- passes and final LCG rounds deliberately avalanche adjacent field IDs so
+    -- neighbouring fields do not walk through adjacent weighted-pool slots.
+    local key = tostring(math.floor(tonumber(fieldId) or 1)) .. ":"
+        .. tostring(math.floor(tonumber(period) or 0)) .. ":"
+        .. tostring(math.floor(tonumber(year) or 0))
+    local modulus = 2147483647
+    local hash = 104729
+    for i = 1, #key do
+        hash = (hash * 131 + string.byte(key, i) + i * 17) % modulus
+    end
+    for i = #key, 1, -1 do
+        hash = (hash * 137 + string.byte(key, i) + i * 31) % modulus
+    end
+    hash = (hash * 48271 + 1) % modulus
+    hash = (hash * 69621 + 17) % modulus
+    return (hash % totalWeight) + 1
+end
+
+function CCO:buildRegenerationCandidatesForField(field)
+    local candidates = {}
+    local totalWeight = 0
+    if field == nil then return candidates, totalWeight end
+    local fieldHa = getFieldSizeHa(field)
+
+    for _, ft in ipairs(iterFruitTypesSorted()) do
+        local cropName = upper(ft.name)
+        local flagOk = isFruitUsableForNpcCandidate(ft)
+        local policyOk = self:isNpcCropAllowedForField(fieldHa, cropName)
+        local rule = self._rules ~= nil and self._rules[cropName] or nil
+        local weight = clampWeight(rule ~= nil and rule.reseedWeight or nil, DEFAULT_FRUIT_RESEED_WEIGHT)
+        if flagOk == true and policyOk == true and weight > 0 then
+            local state, stateReason, stateAuthoritative = self:resolveRegenerationGrowthState(ft)
+            if state ~= nil then
+                totalWeight = totalWeight + weight
+                table.insert(candidates, {
+                    action = "crop", fruit = ft, cropName = cropName, growthState = state,
+                    weight = weight, cumulativeWeight = totalWeight, reason = stateReason, authoritative = stateAuthoritative == true,
+                })
+            end
+        end
+    end
+
+    local leaveWeight = self:getReseedWeights().leaveCultivated
+    if leaveWeight > 0 then
+        totalWeight = totalWeight + leaveWeight
+        table.insert(candidates, {
+            action = "cultivated", cropName = "NONE", growthState = 0,
+            weight = leaveWeight, cumulativeWeight = totalWeight,
+            reason = "authoritative weighted leave cultivated", authoritative = true,
+        })
+    end
+    return candidates, totalWeight
+end
+
+function CCO:selectRegenerationActionForField(field, fallbackIndex)
+    local candidates, totalWeight = self:buildRegenerationCandidatesForField(field)
+    if totalWeight <= 0 then return nil, "no weighted calendar-valid candidates" end
+    local fieldId = getFieldId(field, fallbackIndex)
+    local pick = deterministicRegenerationValue(fieldId, getCurrentPeriodIndex(), getCalendarYearToken(), totalWeight)
+    for _, candidate in ipairs(candidates) do
+        if pick <= candidate.cumulativeWeight then return candidate, "deterministic weighted pick=" .. tostring(pick) end
+    end
+    return nil, "weighted selection failed"
+end
+
+function CCO:buildNpcMapRegenerationPlan()
+    if g_currentMission == nil or not g_currentMission:getIsServer() then
+        return nil, "must run on server/host"
+    end
+    if g_fieldManager == nil or g_fieldManager.getFields == nil then
+        return nil, "field manager not ready"
+    end
+
+    local plan = {
+        period = getCurrentPeriodIndex(), year = getCalendarYearToken(), actions = {},
+        distribution = {}, excluded = 0, npcFields = 0, unverified = 0,
+    }
+    for idx, field in pairs(g_fieldManager:getFields() or {}) do
+        if field ~= nil and isNpcField(field) then
+            plan.npcFields = plan.npcFields + 1
+            local polygon = field.getDensityMapPolygon ~= nil and field:getDensityMapPolygon() or nil
+            if polygon == nil then
+                plan.excluded = plan.excluded + 1
+            else
+                local candidate, pickReason = self:selectRegenerationActionForField(field, idx)
+                if candidate ~= nil then
+                    local action = {
+                        field = field, fieldId = getFieldId(field, idx), fieldHa = getFieldSizeHa(field),
+                        action = candidate.action, fruit = candidate.fruit, cropName = candidate.cropName,
+                        growthState = candidate.growthState, reason = candidate.reason,
+                        pickReason = pickReason, authoritative = candidate.authoritative == true,
+                    }
+                    table.insert(plan.actions, action)
+                    plan.distribution[action.cropName] = (plan.distribution[action.cropName] or 0) + 1
+                    if action.authoritative ~= true then plan.unverified = plan.unverified + 1 end
+                else
+                    plan.excluded = plan.excluded + 1
+                    print(("CCO: regeneration excludes field=%s size=%.2fha reason=%s"):format(
+                        tostring(getFieldId(field, idx)), getFieldSizeHa(field), tostring(pickReason)))
+                end
+            end
+        end
+    end
+    return plan, "ok"
+end
+
+function CCO:printNpcMapRegenerationPlan(plan)
+    if plan == nil then return end
+    print(("CCO: NPC map regeneration dry-run period=%s year=%s npcFields=%d planned=%d excluded=%d"):format(
+        tostring(plan.period), tostring(plan.year), tonumber(plan.npcFields or 0), #plan.actions, tonumber(plan.excluded or 0)))
+    print(("CCO: regeneration verification authoritative=%d unverified=%d confirmAllowed=%s"):format(
+        #plan.actions - tonumber(plan.unverified or 0), tonumber(plan.unverified or 0), tostring(tonumber(plan.unverified or 0) == 0)))
+    table.sort(plan.actions, function(a, b) return tonumber(a.fieldId or 0) < tonumber(b.fieldId or 0) end)
+    for _, action in ipairs(plan.actions) do
+        print(("CCO: dry-run regenerate field=%s size=%.2fha action=%s crop=%s growthState=%s stateReason=%s selection=%s"):format(
+            tostring(action.fieldId), tonumber(action.fieldHa or 0), string.upper(tostring(action.action)),
+            tostring(action.cropName), tostring(action.growthState), tostring(action.reason), tostring(action.pickReason)) ..
+            " authoritative=" .. tostring(action.authoritative == true))
+    end
+    local names = {}
+    for name in pairs(plan.distribution or {}) do table.insert(names, name) end
+    table.sort(names)
+    for _, name in ipairs(names) do
+        print(("CCO: regeneration distribution %s=%d"):format(tostring(name), tonumber(plan.distribution[name] or 0)))
+    end
+    if tonumber(plan.unverified or 0) > 0 then
+        print("CCO: dry-run made no save-state changes. CONFIRM IS BLOCKED because one or more selected crop states are unverified. Run ccoGrowthProbe CROP and upload the diagnostic output.")
+    else
+        print("CCO: dry-run made no save-state changes. All selected states are authoritative; run ccoRegenerateNpcFields confirm to apply.")
+    end
+end
+
+function CCO:getActiveContractCount()
+    if g_missionManager == nil then return 0 end
+    local count = 0
+    for _, mission in ipairs(g_missionManager:getMissions() or {}) do
+        local wasStarted = false
+        if mission.getWasStarted ~= nil then
+            local ok, value = pcall(mission.getWasStarted, mission)
+            wasStarted = ok and value == true
+        end
+        if wasStarted or mission.farmId ~= nil or mission.activeMissionId ~= nil then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function CCO:getContractBoardSummary()
+    local summary = { total = 0, active = 0, available = 0 }
+    if g_missionManager == nil or g_missionManager.getMissions == nil then return summary end
+
+    for _, mission in ipairs(g_missionManager:getMissions() or {}) do
+        summary.total = summary.total + 1
+        local wasStarted = false
+        if mission ~= nil and mission.getWasStarted ~= nil then
+            local ok, value = pcall(mission.getWasStarted, mission)
+            wasStarted = ok and value == true
+        end
+        local active = mission ~= nil and (wasStarted or mission.farmId ~= nil or mission.activeMissionId ~= nil)
+        if active then summary.active = summary.active + 1
+        else summary.available = summary.available + 1 end
+    end
+    return summary
+end
+
+function CCO:purgeAvailableContractsForRegeneration()
+    if g_missionManager == nil then return 0, "mission manager unavailable" end
+    if self:getActiveContractCount() > 0 then
+        return 0, "one or more accepted/active contracts exist"
+    end
+
+    -- Stop automatic generation while field tasks are being applied.
+    g_missionManager.missionGenerationInProgress = false
+    if g_missionManager.generationTimer ~= nil then
+        g_missionManager.generationTimer = 2147483647
+    end
+
+    local missions = {}
+    for _, mission in ipairs(g_missionManager:getMissions() or {}) do
+        table.insert(missions, mission)
+    end
+
+    local removed = 0
+    for _, mission in ipairs(missions) do
+        local ok, err = pcall(function() mission:delete() end)
+        if ok then
+            removed = removed + 1
+        else
+            warn("failed deleting stale available contract: " .. tostring(err))
+        end
+    end
+    return removed, "ok"
+end
+
+function CCO:getMissionCountForRegeneration()
+    if g_missionManager == nil then return 0 end
+    return #(g_missionManager:getMissions() or {})
+end
+
+function CCO:finishCalendarContractRefill(state, reason)
+    state = state or self._calendarContractRefillState or {}
+    local summary = self:getContractBoardSummary()
+    local reasonText = tostring(reason or "complete")
+    local safetyLimited = reasonText == "safety-cycle-limit"
+    local outcome = safetyLimited and "stopped at safety limit" or "complete"
+    local operationLabel = state.operationLabel
+    if operationLabel == nil or operationLabel == "" then
+        operationLabel = ("shift=%+d"):format(tonumber(state.shift or 0))
+    end
+    local msg = ("Contract-board rebuild %s for %s %s: removed=%d regenerated=%d accepted/active=%d cycles=%d reason=%s."):format(
+        outcome, tostring(state.crop or "UNKNOWN"), tostring(operationLabel),
+        tonumber(state.removedMissions or 0), tonumber(summary.available or 0), tonumber(summary.active or 0),
+        tonumber(state.refillCycles or 0), reasonText)
+    if safetyLimited then
+        msg = msg .. " The contract board is usable, but mission generation did not reach the normal consecutive-empty-cycle stop."
+        warn("CCO CALENDAR CONTRACTS: " .. msg)
+    else
+        print("CCO CALENDAR CONTRACTS: " .. msg)
+    end
+    self._guiNotice = msg
+    if g_currentMission ~= nil and g_currentMission.addIngameNotification ~= nil then
+        local notificationType = FSBaseMission.INGAME_NOTIFICATION_OK
+        if safetyLimited and FSBaseMission.INGAME_NOTIFICATION_WARNING ~= nil then
+            notificationType = FSBaseMission.INGAME_NOTIFICATION_WARNING
+        end
+        g_currentMission:addIngameNotification(notificationType, "CCO: " .. msg)
+    end
+    self._calendarContractRefillState = nil
+end
+
+function CCO:startCalendarContractRefill(removedMissions, cropName, shift, operationLabel)
+    if self._npcMapRegenerationState ~= nil then
+        return false, "NPC map regeneration is in progress"
+    end
+    if self._calendarContractRefillState ~= nil then
+        return false, "a calendar contract rebuild is already in progress"
+    end
+    if g_missionManager == nil or g_missionManager.startMissionGeneration == nil then
+        return false, "mission manager unavailable"
+    end
+
+    g_missionManager.missionGenerationInProgress = false
+    if g_missionManager.generationTimer ~= nil then g_missionManager.generationTimer = 0 end
+
+    local initialSummary = self:getContractBoardSummary()
+    local state = {
+        crop = upper(cropName or ""),
+        shift = normalizeCalendarShift(shift),
+        operationLabel = tostring(operationLabel or (("shift=%+d"):format(normalizeCalendarShift(shift)))),
+        removedMissions = tonumber(removedMissions or 0) or 0,
+        lastMissionCount = tonumber(initialSummary.total or 0) or 0,
+        refillCycles = 0,
+        maxRefillCycles = math.max(30, math.min(100,
+            tonumber((MissionManager ~= nil and MissionManager.MAX_MISSIONS) or 100) + 10)),
+        requiredEmptyCycles = 5,
+        emptyCycleStreak = 0,
+    }
+    self._calendarContractRefillState = state
+
+    local started = self:startFreshMissionGenerationAfterRegeneration()
+    if not started then
+        self._calendarContractRefillState = nil
+        return false, "mission generation could not be started"
+    end
+    state.refillCycles = 1
+    info(("calendar contract rebuild started crop=%s mode=%s removed=%d initialMissions=%d"):format(
+        tostring(state.crop), tostring(state.operationLabel), tonumber(state.removedMissions or 0), tonumber(state.lastMissionCount or 0)))
+    return true, "started"
+end
+
+function CCO:updateCalendarContractRefill(dt)
+    local state = self._calendarContractRefillState
+    if state == nil then return end
+    if self._npcMapRegenerationState ~= nil then
+        self:finishCalendarContractRefill(state, "superseded-by-npc-regeneration")
+        return
+    end
+    if g_missionManager == nil then
+        self:finishCalendarContractRefill(state, "mission-manager-unavailable")
+        return
+    end
+    if g_missionManager.missionGenerationInProgress == true then return end
+
+    local summary = self:getContractBoardSummary()
+    local missionCount = tonumber(summary.total or 0) or 0
+    local previousCount = tonumber(state.lastMissionCount or 0) or 0
+    local added = missionCount - previousCount
+    local requiredEmptyCycles = tonumber(state.requiredEmptyCycles or 5) or 5
+    if added > 0 then state.emptyCycleStreak = 0
+    else state.emptyCycleStreak = tonumber(state.emptyCycleStreak or 0) + 1 end
+
+    debug(("calendar contract refill cycle=%d missions=%d available=%d active=%d added=%d emptyStreak=%d/%d"):format(
+        tonumber(state.refillCycles or 0), missionCount, tonumber(summary.available or 0), tonumber(summary.active or 0),
+        added, tonumber(state.emptyCycleStreak or 0), requiredEmptyCycles))
+
+    local maxMissions = tonumber((MissionManager ~= nil and MissionManager.MAX_MISSIONS) or 100) or 100
+    if missionCount >= maxMissions then
+        self:finishCalendarContractRefill(state, "mission-limit-reached")
+        return
+    end
+    if tonumber(state.emptyCycleStreak or 0) >= requiredEmptyCycles then
+        self:finishCalendarContractRefill(state, "consecutive-empty-cycles")
+        return
+    end
+    if tonumber(state.refillCycles or 0) >= tonumber(state.maxRefillCycles or 100) then
+        self:finishCalendarContractRefill(state, "safety-cycle-limit")
+        return
+    end
+
+    state.lastMissionCount = missionCount
+    local started = self:startFreshMissionGenerationAfterRegeneration()
+    if not started then
+        self:finishCalendarContractRefill(state, "next-generation-start-failed")
+        return
+    end
+    state.refillCycles = tonumber(state.refillCycles or 0) + 1
+end
+
+function CCO:refreshRegeneratedFieldStates(state)
+    local refreshed, failed = 0, 0
+    for _, field in ipairs(state.fields or {}) do
+        local ok, err = pcall(function()
+            if field ~= nil and field.getFieldState ~= nil and field.getIndicatorPosition ~= nil then
+                local fieldState = field:getFieldState()
+                local posX, posZ = field:getIndicatorPosition()
+                if fieldState ~= nil and fieldState.update ~= nil and posX ~= nil and posZ ~= nil then
+                    fieldState:update(posX, posZ)
+                    refreshed = refreshed + 1
+                    return
+                end
+            end
+            failed = failed + 1
+        end)
+        if not ok then
+            failed = failed + 1
+            warn("failed refreshing regenerated field state: " .. tostring(err))
+        end
+    end
+    info(("refreshed regenerated field-state caches refreshed=%d failed=%d"):format(refreshed, failed))
+    return refreshed, failed
+end
+
+function CCO:startFreshMissionGenerationAfterRegeneration()
+    if g_missionManager == nil or g_missionManager.startMissionGeneration == nil then return false end
+    if g_missionManager.missionGenerationInProgress == true then return false end
+    -- Directly start a base-game generation cycle. Each cycle creates at most
+    -- one mission and advances the mission-type cursor. Native generation can
+    -- occasionally add nothing even while other eligible contracts remain, so
+    -- the refill controller requires several consecutive empty cycles before
+    -- it concludes that the board is exhausted.
+    g_missionManager:startMissionGeneration()
+    return true
+end
+
+local function normalizeRegenerationFieldId(value)
+    if value == nil then return nil end
+    if type(value) == "number" or type(value) == "string" then
+        return tonumber(value) or value
+    end
+    return nil
+end
+
+local function getRegenerationFieldIdFromValue(value)
+    local direct = normalizeRegenerationFieldId(value)
+    if direct ~= nil then return direct end
+    if type(value) ~= "table" then return nil end
+
+    local keys = {"fieldId", "fieldID", "id", "fieldIndex", "index"}
+    for _, key in ipairs(keys) do
+        local resolved = normalizeRegenerationFieldId(value[key])
+        if resolved ~= nil then return resolved end
+    end
+
+    local getters = {"getFieldId", "getFieldID", "getId", "getIndex"}
+    for _, getter in ipairs(getters) do
+        local fn = value[getter]
+        if type(fn) == "function" then
+            local ok, result = pcall(fn, value)
+            if ok then
+                local resolved = normalizeRegenerationFieldId(result)
+                if resolved ~= nil then return resolved end
+            end
+        end
+    end
+
+    if g_fieldManager ~= nil and g_fieldManager.getFields ~= nil then
+        for _, field in ipairs(g_fieldManager:getFields() or {}) do
+            if value == field then
+                return normalizeRegenerationFieldId(field.fieldId or field.id or field.fieldIndex)
+            end
+        end
+    end
+    return nil
+end
+
+local function getRegenerationMissionClassName(mission)
+    if mission == nil then return "UNKNOWN" end
+    if mission.className ~= nil then return tostring(mission.className) end
+    if mission.typeName ~= nil then return tostring(mission.typeName) end
+    if mission.missionTypeName ~= nil then return tostring(mission.missionTypeName) end
+    if type(mission.type) == "table" then
+        if mission.type.className ~= nil then return tostring(mission.type.className) end
+        if mission.type.typeName ~= nil then return tostring(mission.type.typeName) end
+        if mission.type.name ~= nil then return tostring(mission.type.name) end
+    elseif mission.type ~= nil then
+        return tostring(mission.type)
+    end
+    if type(mission.missionType) == "table" then
+        if mission.missionType.className ~= nil then return tostring(mission.missionType.className) end
+        if mission.missionType.typeName ~= nil then return tostring(mission.missionType.typeName) end
+        if mission.missionType.name ~= nil then return tostring(mission.missionType.name) end
+    elseif mission.missionType ~= nil then
+        return tostring(mission.missionType)
+    end
+    local mt = getmetatable(mission)
+    if mt ~= nil and type(mt.__index) == "table" then
+        local idx = mt.__index
+        if idx.className ~= nil then return tostring(idx.className) end
+        if idx.typeName ~= nil then return tostring(idx.typeName) end
+    end
+    return tostring(mission)
+end
+
+local function describeRegenerationMissionFieldCandidates(mission)
+    if type(mission) ~= "table" then return "NONE" end
+    local entries = {}
+    local seen = {}
+    local function add(path, value)
+        if seen[path] then return end
+        seen[path] = true
+        local valueType = type(value)
+        local suffix = valueType
+        local resolved = getRegenerationFieldIdFromValue(value)
+        if resolved ~= nil then suffix = suffix .. ":" .. tostring(resolved) end
+        table.insert(entries, path .. "=" .. suffix)
+    end
+    local function scan(tbl, prefix, depth, visited)
+        if type(tbl) ~= "table" or depth > 3 or visited[tbl] then return end
+        visited[tbl] = true
+        local keys = {}
+        for key in pairs(tbl) do table.insert(keys, key) end
+        table.sort(keys, function(a,b) return tostring(a) < tostring(b) end)
+        for _, key in ipairs(keys) do
+            local value = tbl[key]
+            local keyText = string.lower(tostring(key))
+            local path = prefix .. tostring(key)
+            if string.find(keyText, "field", 1, true) ~= nil then
+                add(path, value)
+                if type(value) == "table" then scan(value, path .. ".", depth + 1, visited) end
+            elseif type(value) == "table" and depth < 2 and (keyText == "data" or keyText == "info" or keyText == "mission" or keyText == "job") then
+                scan(value, path .. ".", depth + 1, visited)
+            end
+        end
+    end
+    scan(mission, "mission.", 0, {})
+    table.sort(entries)
+    if #entries == 0 then return "NONE" end
+    if #entries > 16 then
+        local clipped = {}
+        for i=1,16 do clipped[i] = entries[i] end
+        return table.concat(clipped, "|") .. "|..."
+    end
+    return table.concat(entries, "|")
+end
+
+local function getRegenerationMissionFieldId(mission)
+    if mission == nil then return nil, "none" end
+
+    local directPaths = {
+        {"mission.fieldId", mission.fieldId},
+        {"mission.fieldID", mission.fieldID},
+        {"mission.fieldIndex", mission.fieldIndex},
+        {"mission.field", mission.field},
+        {"mission.fieldData", mission.fieldData},
+        {"mission.fieldInfo", mission.fieldInfo},
+        {"mission.fieldMissionInfo", mission.fieldMissionInfo},
+        {"mission.missionInfo", mission.missionInfo},
+        {"mission.data", mission.data},
+        {"mission.job", mission.job}
+    }
+    for _, candidate in ipairs(directPaths) do
+        local resolved = getRegenerationFieldIdFromValue(candidate[2])
+        if resolved ~= nil then return resolved, candidate[1] end
+        if type(candidate[2]) == "table" then
+            local nested = candidate[2]
+            local nestedPaths = {
+                {candidate[1] .. ".fieldId", nested.fieldId},
+                {candidate[1] .. ".fieldID", nested.fieldID},
+                {candidate[1] .. ".fieldIndex", nested.fieldIndex},
+                {candidate[1] .. ".field", nested.field},
+                {candidate[1] .. ".data", nested.data},
+                {candidate[1] .. ".info", nested.info}
+            }
+            for _, nestedCandidate in ipairs(nestedPaths) do
+                local nestedResolved = getRegenerationFieldIdFromValue(nestedCandidate[2])
+                if nestedResolved ~= nil then return nestedResolved, nestedCandidate[1] end
+            end
+        end
+    end
+
+    local getters = {"getFieldId", "getFieldID", "getFieldIndex", "getField", "getFieldData", "getFieldInfo"}
+    for _, getter in ipairs(getters) do
+        local fn = mission[getter]
+        if type(fn) == "function" then
+            local ok, result = pcall(fn, mission)
+            if ok then
+                local resolved = getRegenerationFieldIdFromValue(result)
+                if resolved ~= nil then return resolved, "mission:" .. getter .. "()" end
+            end
+        end
+    end
+
+    local visited = {}
+    local function recursiveScan(tbl, path, depth)
+        if type(tbl) ~= "table" or depth > 4 or visited[tbl] then return nil, nil end
+        visited[tbl] = true
+        for key, value in pairs(tbl) do
+            local keyText = string.lower(tostring(key))
+            local valuePath = path .. "." .. tostring(key)
+            local isFieldReference = keyText == "field" or keyText == "fieldid" or keyText == "fieldindex"
+                or keyText == "fielddata" or keyText == "fieldinfo" or keyText == "fieldmissioninfo"
+            if isFieldReference then
+                local resolved = getRegenerationFieldIdFromValue(value)
+                if resolved ~= nil then return resolved, valuePath end
+                if type(value) == "table" then
+                    local nestedId, nestedPath = recursiveScan(value, valuePath, depth + 1)
+                    if nestedId ~= nil then return nestedId, nestedPath end
+                end
+            elseif type(value) == "table" and depth < 2 then
+                local nestedId, nestedPath = recursiveScan(value, valuePath, depth + 1)
+                if nestedId ~= nil then return nestedId, nestedPath end
+            end
+        end
+        return nil, nil
+    end
+    return recursiveScan(mission, "mission", 0)
+end
+
+local function getRegenerationMissionCropName(mission)
+    if mission == nil then return "UNKNOWN" end
+    local fruit = mission.fruitType
+    if fruit ~= nil and fruit.name ~= nil then return upper(fruit.name) end
+    local fruitIndex = mission.fruitTypeIndex or mission.fruitIndex
+    if fruitIndex ~= nil and g_fruitTypeManager ~= nil then
+        local ft = g_fruitTypeManager:getFruitTypeByIndex(fruitIndex)
+        if ft ~= nil and ft.name ~= nil then return upper(ft.name) end
+    end
+    return "UNKNOWN"
+end
+
+local function getRegenerationMissionTypeName(mission)
+    if mission == nil then return "UNKNOWN" end
+    if mission.type ~= nil then
+        if type(mission.type) == "table" then
+            if mission.type.name ~= nil then return tostring(mission.type.name) end
+            if mission.type.typeName ~= nil then return tostring(mission.type.typeName) end
+        else
+            return tostring(mission.type)
+        end
+    end
+    if mission.missionType ~= nil then return tostring(mission.missionType) end
+    if mission.className ~= nil then return tostring(mission.className) end
+    return tostring(mission)
+end
+
+function CCO:auditNpcMapRegenerationMissions(state)
+    local actions = state.actions or {}
+    local missions = g_missionManager ~= nil and (g_missionManager:getMissions() or {}) or {}
+    local missionsByField = {}
+    local unmatchedMissions = 0
+    for missionIndex, mission in ipairs(missions) do
+        local fieldId, fieldSource = getRegenerationMissionFieldId(mission)
+        local missionClass = getRegenerationMissionClassName(mission)
+        local missionCrop = getRegenerationMissionCropName(mission)
+        local candidates = describeRegenerationMissionFieldCandidates(mission)
+        debug(("mission inspect index=%d class=%s crop=%s resolvedFieldId=%s fieldSource=%s fieldCandidates=%s"):format(
+            missionIndex, tostring(missionClass), tostring(missionCrop), tostring(fieldId or "NONE"), tostring(fieldSource or "NONE"), candidates))
+        if fieldId ~= nil then
+            local key = tostring(fieldId)
+            missionsByField[key] = missionsByField[key] or {}
+            table.insert(missionsByField[key], mission)
+        else
+            unmatchedMissions = unmatchedMissions + 1
+        end
+    end
+
+    local cropStats = {}
+    local readyFields, readyWithMission, readyWithoutMission = 0, 0, 0
+    local naturalReady, naturalContracts, fallbackReady, fallbackContracts = 0, 0, 0, 0
+    for _, action in ipairs(actions) do
+        if action.action == "crop" and action.fruit ~= nil then
+            local minState = tonumber(action.fruit.minHarvestingGrowthState)
+            local maxState = tonumber(action.fruit.maxHarvestingGrowthState)
+            local stateValue = tonumber(action.growthState)
+            local harvestReady = minState ~= nil and maxState ~= nil and stateValue ~= nil
+                and stateValue >= minState and stateValue <= maxState
+            if harvestReady then
+                readyFields = readyFields + 1
+                local crop = upper(action.cropName or (action.fruit.name or "UNKNOWN"))
+                local fallback = string.find(tostring(action.reason or ""), "harvest%-window fallback") ~= nil
+                local matches = missionsByField[tostring(action.fieldId)] or {}
+                local hasMission = #matches > 0
+                cropStats[crop] = cropStats[crop] or {ready=0, contracts=0, naturalReady=0, naturalContracts=0, fallbackReady=0, fallbackContracts=0}
+                local stats = cropStats[crop]
+                stats.ready = stats.ready + 1
+                if fallback then
+                    fallbackReady = fallbackReady + 1
+                    stats.fallbackReady = stats.fallbackReady + 1
+                else
+                    naturalReady = naturalReady + 1
+                    stats.naturalReady = stats.naturalReady + 1
+                end
+                if hasMission then
+                    readyWithMission = readyWithMission + 1
+                    stats.contracts = stats.contracts + 1
+                    if fallback then fallbackContracts = fallbackContracts + 1; stats.fallbackContracts = stats.fallbackContracts + 1
+                    else naturalContracts = naturalContracts + 1; stats.naturalContracts = stats.naturalContracts + 1 end
+                else
+                    readyWithoutMission = readyWithoutMission + 1
+                end
+                local missionDetails = {}
+                for _, mission in ipairs(matches) do
+                    table.insert(missionDetails, getRegenerationMissionTypeName(mission) .. "/" .. getRegenerationMissionCropName(mission))
+                end
+                debug(("mission audit field=%s crop=%s state=%s source=%s harvestReady=true missionPresent=%s missions=%s"):format(
+                    tostring(action.fieldId), crop, tostring(action.growthState), fallback and "fallback" or "natural",
+                    tostring(hasMission), #missionDetails > 0 and table.concat(missionDetails, ",") or "NONE"))
+            end
+        end
+    end
+
+    local crops = {}
+    for crop in pairs(cropStats) do table.insert(crops, crop) end
+    table.sort(crops)
+    for _, crop in ipairs(crops) do
+        local stats = cropStats[crop]
+        debug(("mission audit crop=%s ready=%d contracts=%d naturalReady=%d naturalContracts=%d fallbackReady=%d fallbackContracts=%d"):format(
+            crop, stats.ready, stats.contracts, stats.naturalReady, stats.naturalContracts, stats.fallbackReady, stats.fallbackContracts))
+    end
+    info(("mission audit summary harvestReadyFields=%d readyWithMission=%d readyWithoutMission=%d naturalReady=%d naturalContracts=%d fallbackReady=%d fallbackContracts=%d totalMissions=%d unmatchedMissionFields=%d"):format(
+        readyFields, readyWithMission, readyWithoutMission, naturalReady, naturalContracts, fallbackReady, fallbackContracts, #missions, unmatchedMissions))
+end
+
+function CCO:finishNpcMapRegenerationMissionRefill(state, reason)
+    self:auditNpcMapRegenerationMissions(state)
+    local missions = self:getMissionCountForRegeneration()
+    local msg = ("CCO: NPC map regeneration complete. queued=%d skipped=%d staleContractsRemoved=%d freshContracts=%d refillCycles=%d reason=%s"):format(
+        tonumber(state.queued or 0), tonumber(state.skipped or 0), tonumber(state.removedMissions or 0),
+        tonumber(missions or 0), tonumber(state.refillCycles or 0), tostring(reason or "complete"))
+    print(msg)
+    if g_currentMission ~= nil and g_currentMission.addIngameNotification ~= nil then
+        g_currentMission:addIngameNotification(FSBaseMission.INGAME_NOTIFICATION_OK, msg)
+    end
+    self._npcMapRegenerationState = nil
+end
+
+function CCO:updateNpcMapRegeneration(dt)
+    local state = self._npcMapRegenerationState
+    if state == nil then return end
+
+    state.elapsedMs = (state.elapsedMs or 0) + (tonumber(dt) or 0)
+
+    if state.phase == "waitingForFieldTasks" then
+        if state.elapsedMs < 5000 then return end
+
+        state.elapsedMs = 0
+        self:refreshRegeneratedFieldStates(state)
+        state.phase = "refillingContracts"
+        state.refillCycles = 0
+        state.lastMissionCount = self:getMissionCountForRegeneration()
+        state.maxRefillCycles = math.max(30, math.min(100,
+            tonumber((MissionManager ~= nil and MissionManager.MAX_MISSIONS) or 100) + 10))
+        state.requiredEmptyCycles = 5
+        state.emptyCycleStreak = 0
+
+        local started = self:startFreshMissionGenerationAfterRegeneration()
+        if not started then
+            warn("field regeneration completed but fresh mission generation could not be started")
+            self:finishNpcMapRegenerationMissionRefill(state, "mission-generation-start-failed")
+            return
+        end
+        state.refillCycles = 1
+        info(("field regeneration settle delay complete; starting contract refill after removing %d stale contract(s); initialMissions=%d"):format(
+            tonumber(state.removedMissions or 0), tonumber(state.lastMissionCount or 0)))
+        return
+    end
+
+    if state.phase ~= "refillingContracts" then return end
+    if g_missionManager == nil then
+        self:finishNpcMapRegenerationMissionRefill(state, "mission-manager-unavailable")
+        return
+    end
+
+    -- Let MissionManager:update() finish the active generation cycle first.
+    if g_missionManager.missionGenerationInProgress == true then return end
+
+    local missionCount = self:getMissionCountForRegeneration()
+    local previousCount = tonumber(state.lastMissionCount or 0)
+    local maxMissions = tonumber((MissionManager ~= nil and MissionManager.MAX_MISSIONS) or 100)
+    local added = missionCount - previousCount
+    local requiredEmptyCycles = tonumber(state.requiredEmptyCycles or 5)
+    if added > 0 then
+        state.emptyCycleStreak = 0
+    else
+        state.emptyCycleStreak = tonumber(state.emptyCycleStreak or 0) + 1
+    end
+    info(("contract refill cycle=%d missions=%d added=%d emptyStreak=%d/%d"):format(
+        tonumber(state.refillCycles or 0), missionCount, added,
+        tonumber(state.emptyCycleStreak or 0), requiredEmptyCycles))
+
+    if missionCount >= maxMissions then
+        self:finishNpcMapRegenerationMissionRefill(state, "mission-limit-reached")
+        return
+    end
+
+    -- A single empty native cycle is not conclusive. Stop only after several
+    -- consecutive cycles add no missions; any successful cycle resets the streak.
+    if tonumber(state.emptyCycleStreak or 0) >= requiredEmptyCycles then
+        self:finishNpcMapRegenerationMissionRefill(state, "consecutive-empty-cycles")
+        return
+    end
+
+    if tonumber(state.refillCycles or 0) >= tonumber(state.maxRefillCycles or 100) then
+        self:finishNpcMapRegenerationMissionRefill(state, "safety-cycle-limit")
+        return
+    end
+
+    state.lastMissionCount = missionCount
+    local started = self:startFreshMissionGenerationAfterRegeneration()
+    if not started then
+        self:finishNpcMapRegenerationMissionRefill(state, "next-generation-start-failed")
+        return
+    end
+    state.refillCycles = tonumber(state.refillCycles or 0) + 1
+end
+
+function CCO:confirmNpcMapRegeneration()
+    if self._calendarContractRefillState ~= nil then
+        print("CCO: NPC map regeneration refused while a calendar contract-board rebuild is in progress.")
+        return 0, 0
+    end
+    local plan = self._npcMapRegenerationPlan
+    if plan == nil then
+        print("CCO: no armed regeneration plan. Run ccoRegenerateNpcFields dryrun first.")
+        return 0, 0
+    end
+    if self._npcMapRegenerationState ~= nil then
+        print("CCO: NPC map regeneration is already in progress.")
+        return 0, 0
+    end
+    if tonumber(plan.unverified or 0) > 0 then
+        print(("CCO: regeneration confirmation blocked: %d planned field action(s) use unverified growth states. Run a new dry-run and ccoGrowthProbe for the affected crops."):format(tonumber(plan.unverified or 0)))
+        return 0, 0
+    end
+    if plan.period ~= getCurrentPeriodIndex() or plan.year ~= getCalendarYearToken() then
+        self._npcMapRegenerationPlan = nil
+        print("CCO: regeneration plan expired because the calendar changed. Run a new dry-run.")
+        return 0, 0
+    end
+
+    local activeContracts = self:getActiveContractCount()
+    if activeContracts > 0 then
+        print(("CCO: regeneration refused because %d accepted/active contract(s) exist. Complete or cancel them, then run a new dry-run."):format(activeContracts))
+        return 0, 0
+    end
+
+    local removedMissions, purgeReason = self:purgeAvailableContractsForRegeneration()
+    if purgeReason ~= "ok" then
+        print("CCO: regeneration refused: " .. tostring(purgeReason))
+        return 0, 0
+    end
+    info(("removed %d stale available contract(s) before full NPC map regeneration"):format(removedMissions))
+
+    local queued, skipped = 0, 0
+    local regeneratedFields = {}
+    for _, action in ipairs(plan.actions or {}) do
+        local ok, reason
+        if action.action == "crop" then
+            ok, reason = self:setFieldReseeded(action.field, action.fruit, action.growthState)
+        else
+            ok = self:setFieldCultivated(action.field)
+            reason = ok and "queued" or "field update failed"
+        end
+        if ok then
+            queued = queued + 1
+            table.insert(regeneratedFields, action.field)
+            info(("regenerate queued field=%s action=%s crop=%s growthState=%s"):format(
+                tostring(action.fieldId), tostring(action.action), tostring(action.cropName), tostring(action.growthState)))
+        else
+            skipped = skipped + 1
+            warn(("regenerate skipped field=%s action=%s crop=%s reason=%s"):format(
+                tostring(action.fieldId), tostring(action.action), tostring(action.cropName), tostring(reason)))
+        end
+    end
+    self._npcMapRegenerationPlan = nil
+
+    self._npcMapRegenerationState = {
+        phase = "waitingForFieldTasks", elapsedMs = 0, queued = queued, skipped = skipped,
+        removedMissions = removedMissions,
+        fields = regeneratedFields,
+        actions = plan.actions,
+    }
+    print(("CCO: NPC map regeneration queued. queued=%d skipped=%d staleContractsRemoved=%d; waiting for field tasks before fresh mission generation."):format(
+        queued, skipped, removedMissions))
+    return queued, skipped
+end
+
+function CCO:buildNpcMapRegenerationGuiSummary(plan)
+    if plan == nil then return "No regeneration plan is available." end
+    local lines = {
+        ("NPC fields: %d | Planned: %d | Excluded: %d"):format(
+            tonumber(plan.npcFields or 0), #(plan.actions or {}), tonumber(plan.excluded or 0)),
+        ("Authoritative: %d | Unverified: %d"):format(
+            #(plan.actions or {}) - tonumber(plan.unverified or 0), tonumber(plan.unverified or 0)),
+        "Crop distribution:",
+    }
+    local names = {}
+    for name in pairs(plan.distribution or {}) do table.insert(names, name) end
+    table.sort(names)
+    local chunks = {}
+    for _, name in ipairs(names) do
+        table.insert(chunks, tostring(name) .. "=" .. tostring(plan.distribution[name]))
+    end
+    table.insert(lines, #chunks > 0 and table.concat(chunks, " | ") or "NONE")
+    return table.concat(lines, "\n")
+end
+
+function CCO:regenerateNpcFieldsDryRunFromGui()
+    if g_currentMission == nil or g_currentMission.getIsServer == nil or not g_currentMission:getIsServer() then
+        self._npcMapRegenerationPlan = nil
+        return "Regeneration can only be run by the server/host.", 0, false
+    end
+    if self.canEditRules ~= nil and not self:canEditRules() then
+        self._npcMapRegenerationPlan = nil
+        return "Regeneration is read-only for remote multiplayer clients.", 0, false
+    end
+    if self._npcMapRegenerationState ~= nil then
+        return "NPC map regeneration is already in progress.", 0, false
+    end
+    local activeContracts = self:getActiveContractCount()
+    if activeContracts > 0 then
+        self._npcMapRegenerationPlan = nil
+        return ("Preview blocked: %d accepted/active contract(s) exist. Complete or cancel them first."):format(activeContracts), 0, false
+    end
+    local plan, reason = self:buildNpcMapRegenerationPlan()
+    if plan == nil then
+        self._npcMapRegenerationPlan = nil
+        return "Preview failed: " .. tostring(reason), 0, false
+    end
+    self._npcMapRegenerationPlan = plan
+    self:printNpcMapRegenerationPlan(plan)
+    local confirmAllowed = tonumber(plan.unverified or 0) == 0 and #(plan.actions or {}) > 0
+    return self:buildNpcMapRegenerationGuiSummary(plan), #(plan.actions or {}), confirmAllowed
+end
+
+function CCO:regenerateNpcFieldsFromGui()
+    if g_currentMission == nil or g_currentMission.getIsServer == nil or not g_currentMission:getIsServer() then
+        return "Regeneration can only be run by the server/host."
+    end
+    if self.canEditRules ~= nil and not self:canEditRules() then
+        return "Regeneration is read-only for remote multiplayer clients."
+    end
+    local plan = self._npcMapRegenerationPlan
+    if plan == nil then
+        return "No preview is armed. Run PREVIEW NPC REGENERATION first."
+    end
+    local planned = #(plan.actions or {})
+    local queued, skipped = self:confirmNpcMapRegeneration()
+    queued = tonumber(queued or 0) or 0
+    skipped = tonumber(skipped or 0) or 0
+    if queued <= 0 then
+        return "Regeneration was not started. Review the game log for the refusal reason."
+    end
+    return ("Regeneration queued for %d of %d planned NPC field(s); skipped=%d. Field caches and contracts will rebuild after the settle delay."):format(queued, planned, skipped)
+end
+
+function CCO:consoleRegenerateNpcFields(modeArg)
+    local mode = string.lower(tostring(modeArg or "dryrun"))
+    if mode == "dryrun" or mode == "dry" or mode == "preview" then
+        local plan, reason = self:buildNpcMapRegenerationPlan()
+        if plan == nil then
+            print("CCO: NPC map regeneration dry-run failed: " .. tostring(reason))
+            return
+        end
+        self._npcMapRegenerationPlan = plan
+        self:printNpcMapRegenerationPlan(plan)
+        return
+    end
+    if mode == "confirm" or mode == "apply" then
+        self:confirmNpcMapRegeneration()
+        return
+    end
+    if mode == "clear" or mode == "cancel" then
+        self._npcMapRegenerationPlan = nil
+        print("CCO: armed NPC map regeneration plan cleared.")
+        return
+    end
+    print("CCO: usage ccoRegenerateNpcFields [dryrun|confirm|clear]")
+end
+addConsoleCommand("ccoRegenerateNpcFields", "Experimental: regenerate all NPC fields using weighted enabled crops at calendar-derived growth states. Usage: ccoRegenerateNpcFields [dryrun|confirm|clear]", "consoleRegenerateNpcFields", CCO)
+
+function CCO:consoleCalendarCustomPreview(cropNameArg, plantingArg, harvestArg)
+    if cropNameArg == nil or cropNameArg == "" or plantingArg == nil or harvestArg == nil then
+        print("CCO: usage ccoCalendarCustomPreview <CROP> <PLANT_MONTHS> <HARVEST_MONTHS>")
+        print("CCO: example ccoCalendarCustomPreview WHEAT MAR-APR JUL-AUG")
+        return
+    end
+    local planting = CCO_CropCalendar:parseMonthExpression(plantingArg)
+    local harvest = CCO_CropCalendar:parseMonthExpression(harvestArg)
+    local ok, msg = self:previewCalendarCustom(cropNameArg, planting, harvest, true)
+    if not ok then print("CCO: " .. tostring(msg)) end
+    return nil
+end
+addConsoleCommand("ccoCalendarCustomPreview", "Preview custom planting/harvest windows. Usage: ccoCalendarCustomPreview <CROP> <PLANT_MONTHS> <HARVEST_MONTHS>", "consoleCalendarCustomPreview", CCO)
+
+function CCO:consoleCalendarCustomApply(cropNameArg, plantingArg, harvestArg)
+    if cropNameArg == nil or cropNameArg == "" or plantingArg == nil or harvestArg == nil then
+        print("CCO: usage ccoCalendarCustomApply <CROP> <PLANT_MONTHS> <HARVEST_MONTHS>")
+        return
+    end
+    local planting = CCO_CropCalendar:parseMonthExpression(plantingArg)
+    local harvest = CCO_CropCalendar:parseMonthExpression(harvestArg)
+    local ok, msg = self:applyCalendarCustom(cropNameArg, planting, harvest)
+    print("CCO: " .. tostring(msg))
+    return nil
+end
+addConsoleCommand("ccoCalendarCustomApply", "Apply custom windows after matching preview. Usage: ccoCalendarCustomApply <CROP> <PLANT_MONTHS> <HARVEST_MONTHS>", "consoleCalendarCustomApply", CCO)
+
+function CCO:consoleCalendarShiftPreview(cropNameArg, shiftArg)
+    if cropNameArg == nil or cropNameArg == "" or shiftArg == nil or shiftArg == "" then
+        print("CCO: usage ccoCalendarShiftPreview <CROP> <-6..6>")
+        return
+    end
+    local shift, reason = parseStrictCalendarShift(shiftArg)
+    if shift == nil then
+        print("CCO: invalid calendar shift: " .. tostring(reason))
+        print("CCO: usage ccoCalendarShiftPreview <CROP> <-6..6>")
+        return
+    end
+    local ok, msg = self:previewCalendarShift(cropNameArg, shift, true)
+    if not ok then print("CCO CALENDAR: " .. tostring(msg)) end
+end
+addConsoleCommand("ccoCalendarShiftPreview", "Preview a whole-lifecycle crop calendar shift. Usage: ccoCalendarShiftPreview <CROP> <-6..6>", "consoleCalendarShiftPreview", CCO)
+
+function CCO:consoleCalendarShiftApply(cropNameArg, shiftArg)
+    if cropNameArg == nil or cropNameArg == "" or shiftArg == nil or shiftArg == "" then
+        print("CCO: usage ccoCalendarShiftApply <CROP> <-6..6>")
+        return
+    end
+    local shift, reason = parseStrictCalendarShift(shiftArg)
+    if shift == nil then
+        print("CCO: invalid calendar shift: " .. tostring(reason))
+        print("CCO: no calendar changes were made.")
+        return
+    end
+    local ok, msg = self:applyCalendarShift(cropNameArg, shift)
+    print("CCO CALENDAR: " .. tostring(msg))
+end
+addConsoleCommand("ccoCalendarShiftApply", "Apply a validated whole-lifecycle shift after preview. Usage: ccoCalendarShiftApply <CROP> <-6..6>", "consoleCalendarShiftApply", CCO)
+
+function CCO:consoleCalendarRestore(cropNameArg)
+    if cropNameArg == nil or cropNameArg == "" then
+        print("CCO: usage ccoCalendarRestore <CROP> (run ccoCalendarShiftPreview <CROP> 0 first)")
+        return
+    end
+    local ok, msg = self:applyCalendarShift(cropNameArg, 0)
+    print("CCO CALENDAR: " .. tostring(msg))
+end
+addConsoleCommand("ccoCalendarRestore", "Restore a crop after a matching zero-offset preview. Usage: ccoCalendarShiftPreview <CROP> 0, then ccoCalendarRestore <CROP>", "consoleCalendarRestore", CCO)
+
+function CCO:consoleCalendarReport(cropNameArg)
+    if CCO_CropCalendar == nil or CCO_CropCalendar.printReport == nil then
+        print("CCO CALENDAR: discovery module is not available")
+        return
+    end
+    CCO_CropCalendar:printReport(cropNameArg)
+end
+addConsoleCommand("ccoCalendarReport", "Show dynamically discovered crop-calendar data. Usage: ccoCalendarReport [CROP]", "consoleCalendarReport", CCO)
+
+function CCO:consoleCalendarRecapture()
+    if CCO_CropCalendar == nil or CCO_CropCalendar.captureMapDefaults == nil then
+        print("CCO CALENDAR: discovery module is not available")
+        return
+    end
+    local ok, message = CCO_CropCalendar:captureMapDefaults(true)
+    print("CCO CALENDAR: " .. tostring(message))
+    return ok
+end
+addConsoleCommand("ccoCalendarRecapture", "Recapture the current live calendar as the session baseline for diagnostics", "consoleCalendarRecapture", CCO)
+
+
 function CCO:consoleStatus()
     local disabled, npcDisabledRules, limited = 0, 0, 0
     for _, rule in pairs(self._rules or {}) do
@@ -4629,6 +6885,13 @@ function CCO:consoleStatus()
         tonumber(summary.total or 0), tonumber(summary.npcTotal or 0), tonumber(summary.playerTotal or 0), tonumber(summary.offending or 0)))
     local weights = self:getReseedWeights()
     print(("CCO: reseedWeights perCrop=0-5 leaveCultivated=%d"):format(weights.leaveCultivated))
+    if CCO_CropCalendar ~= nil and CCO_CropCalendar.getSummary ~= nil then
+        local calendarSummary = CCO_CropCalendar:getSummary()
+        print(("CCO: calendar seasonal=%d/%d activeShifts=%d activeCustom=%d warnings=%d errors=%d"):format(
+            tonumber(calendarSummary.seasonal or 0), tonumber(calendarSummary.loaded or 0),
+            tonumber(calendarSummary.activeShifts or 0), tonumber(calendarSummary.activeCustom or 0), tonumber(calendarSummary.warnings or 0),
+            tonumber(calendarSummary.errors or 0)))
+    end
     if summary.offending ~= nil and summary.offending > 0 then
         print("CCO: status=ATTENTION run ccoScanBlocked, then ccoResetBlocked dryrun if cleanup is intended")
     else
@@ -4662,6 +6925,14 @@ function CCO:consoleHelp(topic)
         print("CCO:   ccoListNpcCandidates <FIELD_ID>")
         print("CCO:   ccoSeasonProbe [CROP]")
         print("CCO:   ccoGrowthProbe [CROP]")
+        print("CCO:   ccoCalendarReport [CROP]")
+        print("CCO:   ccoCalendarShiftPreview <CROP> <-6..6>")
+        print("CCO:   ccoCalendarShiftApply <CROP> <-6..6>")
+        print("CCO:   ccoCalendarCustomPreview <CROP> <PLANT_MONTHS> <HARVEST_MONTHS>")
+        print("CCO:   ccoCalendarCustomApply <CROP> <PLANT_MONTHS> <HARVEST_MONTHS>")
+        print("CCO:   ccoCalendarRestore <CROP>")
+        print("CCO:   ccoCalendarRecapture")
+        print("CCO:   ccoRegenerateNpcFields [dryrun|confirm|clear]  (experimental alpha)")
         print("CCO:   Seasonal reseed candidates use growthDataSeasonal.periods[currentPeriod].plantingAllowed.")
         print("CCO:   Each <fruit> has reseedWeight='0-5'; leaveCultivated remains under <settings><reseedCandidateWeights leaveCultivated='0-5'/>.")
         print("CCO:   ccoFieldSizeProbe <FIELD_ID>")
@@ -4688,5 +6959,5 @@ info("loaded " .. CCO.MOD_ID .. " v" .. CCO.VERSION)
 function CCO:consoleGui(topic, pageArg)
     self:openGui(topic, pageArg)
 end
-addConsoleCommand("ccoGui", "Open CCO GUI. Usage: ccoGui [status|rules|disabled|limited|blocked|undiscovered|help]", "consoleGui", CCO)
+addConsoleCommand("ccoGui", "Open CCO GUI. Usage: ccoGui [status|rules|disabled|limited|blocked|calendar|undiscovered|help]", "consoleGui", CCO)
 addConsoleCommand("ccoGuiTest", "Open a minimal CCO GUI dialog test", "consoleGuiTest", CCO)
