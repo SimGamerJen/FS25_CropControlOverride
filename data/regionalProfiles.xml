@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  CCO Alpha 18 regional-profile metadata.
+
+  This file is deliberately descriptive rather than executable. The Lua manager
+  remains the authoritative prototype until the regional-profile schema settles.
+
+  Crop calendars below are preliminary gameplay profiles and MUST be validated
+  against agronomic sources and FS25 lifecycle behaviour before release.
+-->
+<regionalProfiles schemaVersion="1">
+    <profile id="mapDefault" title="Map Default" />
+
+    <profile id="ukTemperate" title="UK Temperate" moistureAliases="ukwest ukeast" />
+    <profile id="centralEurope" title="Central Europe" moistureAliases="centraleurope" />
+    <profile id="mediterranean" title="Mediterranean" moistureAliases="mediterranean" />
+    <profile id="usMidwest" title="US Midwest" moistureAliases="usmidwest" />
+    <profile id="brazilCentral" title="Brazil Central" moistureAliases="brazilcentral" />
+    <profile id="brazilSouth" title="Brazil South" moistureAliases="brazilsouth" />
+</regionalProfiles>
