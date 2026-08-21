@@ -27,6 +27,7 @@ local function publishApi(mission)
     if cco == nil then return false end
 
     API.CCO_VERSION = tostring(cco.VERSION or "unknown")
+    API.VERSION = API.CCO_VERSION
 
     API.buildNpcMapRegenerationPlan = type(cco.buildNpcMapRegenerationPlan) == "function"
         and function(_) return cco:buildNpcMapRegenerationPlan() end or nil
