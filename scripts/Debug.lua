@@ -71,4 +71,9 @@ end
 addConsoleCommand("ccoDebug", "Toggle/Set CropControlOverride debug (on|off|toggle)", "consoleToggleDebug", CCO_Debug)
 addConsoleCommand("ccoLogLevel", "Set CCO log level (DEBUG|INFO|WARN|ERROR)", "consoleSetLogLevel", CCO_Debug)
 
+-- Load the optional cross-mod integration adapter without modifying the proven
+-- CropControlOverride core implementation. The adapter publishes itself only
+-- after the mission has finished loading and CCO's core table is available.
+source((g_currentModDirectory or "") .. "scripts/CCOIntegrationApi.lua")
+
 return CCO_Debug
