@@ -71,9 +71,13 @@ end
 addConsoleCommand("ccoDebug", "Toggle/Set CropControlOverride debug (on|off|toggle)", "consoleToggleDebug", CCO_Debug)
 addConsoleCommand("ccoLogLevel", "Set CCO log level (DEBUG|INFO|WARN|ERROR)", "consoleSetLogLevel", CCO_Debug)
 
--- Load the optional cross-mod integration adapter without modifying the proven
--- CropControlOverride core implementation. The adapter publishes itself only
--- after the mission has finished loading and CCO's core table is available.
+-- P6.0 shared regeneration extraction. Load the product-neutral core and the
+-- CCO host bridge before the integration adapter. At mission load the bridge
+-- attaches first, so the adapter publishes against the delegated CCO methods.
+-- CropControlOverride.lua itself remains unchanged from the proven Alpha 10.3
+-- regeneration baseline.
+source((g_currentModDirectory or "") .. "scripts/shared/FieldRegenerationCore.lua")
+source((g_currentModDirectory or "") .. "scripts/shared/CCOFieldRegenerationCoreBridge.lua")
 source((g_currentModDirectory or "") .. "scripts/CCOIntegrationApi.lua")
 
 return CCO_Debug
