@@ -200,6 +200,11 @@ local function publishApi(mission)
     local cco = getCco()
     if cco == nil then return false end
 
+    if API._publishedMission ~= mission then
+        API._publishedMission = mission
+        API._lastRun = nil
+    end
+
     API.CCO_VERSION = tostring(cco.VERSION or "unknown")
     API.VERSION = API.CCO_VERSION
 
