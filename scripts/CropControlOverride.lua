@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.0.3.5",
+    VERSION = "2.0.3.6",
 
     _origFlags = {},
     _rules = {},
@@ -33,6 +33,7 @@ CropControlOverride = {
     _permissionHooksApplied = false,
     _clientReportedMasterUser = false,
     _seedGuardHooksApplied = false,
+    _sowUpdateGuardApplied = false,
     _serverSettingsRetryTimer = 0,
     _serverSettingsRetryCount = 0,
 }
@@ -553,7 +554,7 @@ function CCO:_applyNpcBlockedFlags(fruit)
     -- doing so can cause contract-list flicker and affects player-facing crop data.
 end
 
-function CCO:applyRules(rules)
+function CCO:applyRules(rules, seedSyncMode)
     if g_fruitTypeManager == nil then return end
     rules = rules or self._rules or {}
 
@@ -581,7 +582,8 @@ function CCO:applyRules(rules)
     -- machines that are already loaded cached their seed list at vehicle load
     -- time, so a mid-session rule change (GUI APPLY, server sync on a remote
     -- client) never reached them. Rebuild those cached lists now.
-    local ok, e = pcall(function() self:refreshAllSowingMachines() end)
+    local preserveNetworkIndex = seedSyncMode == "serverSnapshot" and isClientOnlyMultiplayer()
+    local ok, e = pcall(function() self:refreshAllSowingMachines(preserveNetworkIndex) end)
     if not ok then debug("refreshAllSowingMachines skipped: " .. tostring(e)) end
 end
 
@@ -1061,7 +1063,7 @@ function CCO:getVehicleSelectedSeedFruitIndex(vehicle)
     return nil
 end
 
-function CCO:filterSowingMachineSeeds(vehicle)
+function CCO:filterSowingMachineSeeds(vehicle, preserveNetworkIndex)
     local spec = getSowingMachineSpec(vehicle)
     if spec == nil or type(spec.seeds) ~= "table" then return false end
 
@@ -1081,12 +1083,9 @@ function CCO:filterSowingMachineSeeds(vehicle)
     end
 
     local filtered = {}
-    local removed = 0
     for _, fruitIndex in ipairs(spec.ccoOriginalSeeds) do
         if self:isFruitIndexAllowedForPlayer(fruitIndex) then
             table.insert(filtered, fruitIndex)
-        else
-            removed = removed + 1
         end
     end
 
@@ -1096,29 +1095,74 @@ function CCO:filterSowingMachineSeeds(vehicle)
         filtered = spec.ccoOriginalSeeds
     end
 
+    -- Multiplayer rule snapshots are frequently re-applied when clients join.
+    -- A no-op policy sync must not rebuild the list or touch the live seed index.
+    local listUnchanged = (#filtered == #spec.seeds)
+    if listUnchanged then
+        for i, fruitIndex in ipairs(filtered) do
+            if spec.seeds[i] ~= fruitIndex then
+                listUnchanged = false
+                break
+            end
+        end
+    end
+    if listUnchanged then
+        return false
+    end
+
     -- Replace contents in-place so any engine references to the table survive.
     for i = #spec.seeds, 1, -1 do spec.seeds[i] = nil end
     for i, fruitIndex in ipairs(filtered) do spec.seeds[i] = fruitIndex end
 
-    -- Keep the current selection valid; move to the same fruit if it survived,
-    -- otherwise snap to the first allowed entry.
-    local newIndex = 1
-    if previousSelected ~= nil then
-        for i, fruitIndex in ipairs(spec.seeds) do
-            if fruitIndex == previousSelected then newIndex = i break end
+    local newIndex = nil
+
+    if preserveNetworkIndex == true and selIndex ~= nil then
+        -- On a remote client's server snapshot, currentSeed/seedIndex is an
+        -- authoritative network slot. Before CCO filtering, the client's stale
+        -- seed list can map that slot to the wrong fruit, so preserve the slot
+        -- itself rather than deriving a crop from the pre-filter list.
+        newIndex = math.min(math.max(1, math.floor(selIndex)), #spec.seeds)
+    else
+        -- For authoritative local/server rule changes, keep the same fruit if
+        -- it remains permitted even when filtering moves it to another slot.
+        if previousSelected ~= nil then
+            for i, fruitIndex in ipairs(spec.seeds) do
+                if fruitIndex == previousSelected then
+                    newIndex = i
+                    break
+                end
+            end
+        end
+
+        if newIndex == nil then
+            newIndex = 1
+            if previousSelected ~= nil then
+                warn(("seed selection for %s was reset to slot 1 because its previous crop is no longer permitted here")
+                    :format(vehicle.getName ~= nil and vehicle:getName() or tostring(vehicle)))
+            end
         end
     end
-    if spec.currentSeed ~= nil then
-        if vehicle.setSeedIndex ~= nil then
-            pcall(function() vehicle:setSeedIndex(newIndex) end)
+
+    -- If the numeric slot is unchanged, rebuilding the list is sufficient.
+    if selIndex ~= nil and selIndex == newIndex then
+        return true
+    end
+
+    if vehicle.setSeedIndex ~= nil then
+        if isClientOnlyMultiplayer() then
+            -- Never let a remote client's CCO cache refresh send a native
+            -- SetSeedIndexEvent back to the authoritative server.
+            pcall(function() vehicle:setSeedIndex(newIndex, true) end)
         else
-            spec.currentSeed = math.min(math.max(1, newIndex), #spec.seeds)
+            pcall(function() vehicle:setSeedIndex(newIndex) end)
         end
+    elseif spec.currentSeed ~= nil then
+        spec.currentSeed = math.min(math.max(1, newIndex), #spec.seeds)
     elseif spec.seedIndex ~= nil then
         spec.seedIndex = math.min(math.max(1, newIndex), #spec.seeds)
     end
 
-    return removed > 0
+    return true
 end
 
 local function iterMissionVehicles()
@@ -1132,11 +1176,11 @@ local function iterMissionVehicles()
     return vehicles or {}
 end
 
-function CCO:refreshAllSowingMachines()
+function CCO:refreshAllSowingMachines(preserveNetworkIndex)
     local refreshed = 0
     for _, vehicle in pairs(iterMissionVehicles()) do
         if getSowingMachineSpec(vehicle) ~= nil then
-            local ok, changed = pcall(function() return self:filterSowingMachineSeeds(vehicle) end)
+            local ok, changed = pcall(function() return self:filterSowingMachineSeeds(vehicle, preserveNetworkIndex) end)
             if ok and changed == true then refreshed = refreshed + 1 end
         end
     end
@@ -1145,7 +1189,6 @@ function CCO:refreshAllSowingMachines()
     end
     return refreshed
 end
-
 
 local CCO_SPECIAL_RESEED_EXCLUSIONS = {
     GRAPE = true,
@@ -2278,14 +2321,50 @@ function CCO:applyRuntimeHooks()
                     return replacement.index
                 end
 
-                debug(("blocked NPC crop choice %s on field %s (%.2f ha): %s; %s"):format(
-                    cropName, tostring(getFieldId(field)), fieldHa, tostring(reason), tostring(replacementReason)))
-                return nil
+                warn(("blocked NPC crop choice %s on field %s (%.2f ha): %s; retaining engine fruit index %s so mission data remains valid (%s)"):format(
+                    cropName, tostring(getFieldId(field)), fieldHa, tostring(reason), tostring(fruitIndex), tostring(replacementReason)))
+                return fruitIndex
             end
 
             return fruitIndex
         end
         debug("hooked FieldManager.getFruitIndexForField")
+    end
+end
+
+local function getSowMissionCropName(mission)
+    if mission == nil or g_fruitTypeManager == nil then return nil end
+
+    local fruit = mission.fruitType
+    if type(fruit) == "table" then
+        return fruit.name
+    end
+
+    local fruitIndex = tonumber(mission.fruitTypeIndex or mission.fruitIndex or fruit)
+    if fruitIndex == nil or (FruitType ~= nil and fruitIndex == FruitType.UNKNOWN) then return nil end
+    local descriptor = g_fruitTypeManager:getFruitTypeByIndex(fruitIndex)
+    return descriptor ~= nil and descriptor.name or nil
+end
+
+function CCO:discardInvalidSowMission(mission, failure)
+    if mission == nil then return end
+    if mission._ccoInvalidFruitQueued ~= true then
+        mission._ccoInvalidFruitQueued = true
+        local field = mission.field
+        warn(("discarding invalid SowMission before repeated update failure field=%s fruitType=%s fruitTypeIndex=%s error=%s"):format(
+            tostring(field ~= nil and getFieldId(field) or "UNKNOWN"),
+            tostring(mission.fruitType), tostring(mission.fruitTypeIndex or mission.fruitIndex), tostring(failure)))
+    end
+
+    if g_missionManager ~= nil and g_missionManager.markMissionForDeletion ~= nil then
+        g_missionManager:markMissionForDeletion(mission)
+    elseif mission.delete ~= nil then
+        local ok, deleteError = pcall(mission.delete, mission)
+        if not ok then warn("failed deleting invalid SowMission: " .. tostring(deleteError)) end
+    end
+
+    if g_missionManager ~= nil and g_missionManager.generationTimer ~= nil then
+        g_missionManager.generationTimer = 0
     end
 end
 
@@ -2297,15 +2376,7 @@ function CCO:applyLateHooks()
             local result = originalSowIsAvailable(field, mission, ...)
             if not result then return false end
 
-            local cropName = nil
-            if mission ~= nil then
-                if mission.fruitType ~= nil then
-                    cropName = mission.fruitType.name
-                elseif mission.fruitTypeIndex ~= nil and g_fruitTypeManager ~= nil then
-                    local ft = g_fruitTypeManager:getFruitTypeByIndex(mission.fruitTypeIndex)
-                    if ft ~= nil then cropName = ft.name end
-                end
-            end
+            local cropName = getSowMissionCropName(mission)
 
             if cropName == nil then return result end
 
@@ -2319,6 +2390,24 @@ function CCO:applyLateHooks()
             return result
         end
         debug("hooked SowMission.isAvailableForField")
+    end
+
+    if SowMission ~= nil and SowMission.update ~= nil and not self._sowUpdateGuardApplied then
+        self._sowUpdateGuardApplied = true
+        SowMission.update = Utils.overwrittenFunction(SowMission.update, function(mission, superFunc, dt)
+            local ok, result = pcall(superFunc, mission, dt)
+            if ok then return result end
+
+            local failure = tostring(result)
+            if failure:find("attempt to index nil", 1, true) ~= nil
+                and failure:find("getIsPlantableInPeriod", 1, true) ~= nil then
+                CCO:discardInvalidSowMission(mission, failure)
+                return
+            end
+
+            error(result, 0)
+        end)
+        debug("hooked SowMission.update (invalid fruit recovery guard)")
     end
 end
 
@@ -3230,7 +3319,7 @@ function CCO:applyServerSettingsPayload(payload, configPath, saveId, canEdit)
     -- applyRules also rebuilds the seed lists of already-loaded sowing
     -- machines, so a snapshot that arrives after vehicles loaded still takes
     -- effect immediately.
-    self:applyRules(self._rules)
+    self:applyRules(self._rules, "serverSnapshot")
     local msg = self._serverCanEditRules == true
         and "Server CCO rules synced. Admin editing is enabled for this session. Local CCO XML files were not read or written."
         or "Server CCO rules synced. Local CCO XML files were not read or written."
