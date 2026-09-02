@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modDesc descVersion="110">
-    <author>SimGamerJen, Hyper138</author>
-    <version>2.0.3.6</version>
+    <author>SimGamerJen</author>
+    <version>2.1.0.0</version>
     <title>
         <en>Crop Control Override</en>
         <de>Crop Control Override Öffnen</de>
@@ -12,6 +12,8 @@
 Description:
 Crop Control Override is a per-save crop policy manager for Farming Simulator 25. It lets players control which crops are permitted for the player, which crops NPC farmers may plant, and whether NPC crop planting should be limited by field size.
 
+Contributor acknowledgement: Hyper138, who's NPC field-size limitation concept and development inspired me to build size-limitation functionality into the mod.
+
 The mod includes an editable FS25-style GUI, per-save XML rule files, NPC field validation, blocked NPC field reporting, and a guarded Apply / Force Apply workflow to prevent accidental invalid save states.
 
 Main GUI features:
@@ -20,6 +22,8 @@ Main GUI features:
 - SIZE LIMITED: view crops with NPC field-size limits.
 - NPC DISABLED: view crops NPCs should not plant.
 - VALIDATION: view existing NPC fields that violate the active policy and use the guarded dry-run / confirm reset workflow.
+- CALENDAR: review every loaded crop using native-style planting and harvesting bars, then use guarded whole-lifecycle shifts or custom planting/harvest windows with dry-run validation and map-default restore.
+- The built-in game Calendar page includes an EDIT CALENDAR button that opens CCO directly on the Calendar editor.
 - SUMMARY: view active config, rule counts, and validation state.
 - HELP: view in-game guidance.
 
@@ -35,75 +39,22 @@ Configuration:
 - A crop weight of 0 excludes that crop from NPC-field reseeding without disabling it for the player.
 - The global leaveCultivated weight remains available, allowing weighted resets to leave some fields cultivated instead of reseeding them.
 
-Changelog 2.0.3.5:
-- Replaced the seasonalMission and seasonalLifecycle category weights with an individual 0-5 reseed weight for every crop.
-- Added GUI controls for editing the reseed weight of the selected crop.
-- A crop weight of 0 now excludes that crop from NPC-field reseeding while leaving the crop otherwise enabled.
-- Retained the global leaveCultivated weighting.
-- Added automatic migration of existing per-save XML files, assigning the default weight of 5 where reseedWeight is missing and removing obsolete category weights when files are normalised.
-- Added multiplayer synchronisation for per-crop reseed weights.
-
-Changelog 2.0.3.4:
-- Disabled player crops are now removed immediately from the selectable seed list of loaded, newly purchased, and newly loaded sowing machines.
-- Re-enabling a crop restores it to compatible seeders without requiring a savegame reload.
-- Added server-authoritative sowing and direct-sowing safeguards so stale selections, helpers, multiplayer clients, and compatible third-party worker systems cannot plant prohibited crops.
-- Active AI fieldwork is stopped when a disabled crop is selected, the sowing implement is switched off, and a centre-screen Crop Control Override warning explains why seeding is not permitted.
-- Improved multiplayer crop-rule delivery with a server push after client loading, client retry handling, and deferred client-side policy application until the authoritative server snapshot arrives.
-- Added and completed French localisation support.
-
-Changelog 2.0.1.9:
-- Expanded external l10n support so GUI and gameplay text can be translated through language files.
-- Added German and French language-file support and prepared the mod for community-contributed translations.
-
-Changelog 2.0.1.8:
-- Rebuilt cached sowing-machine seed lists whenever crop rules change, so disabled crops disappear from seed selectors immediately.
-- Added a live sowing guard and filtering for newly loaded or purchased seeders.
-- Improved dedicated-server rule synchronisation with a server-side push and client retry process.
-- Prevented remote clients from applying temporary all-enabled placeholder rules while waiting for the server snapshot.
-- Reset multiplayer and original fruit-state data fully when leaving a mission.
-- Fixed config normalisation and template-backup handling for custom reseed settings.
-
-Changelog 2.0.1.7:
-- Fixed the permission-hook installer load order so the admin-permission build loads cleanly before installing Farm Management admin listeners.
-
-Changelog 2.0.1.6:
-- Remote dedicated-server clients that elevate to game admin/master user through the Farm Management admin console can now unlock CCO editing for that session.
-- Added a permission refresh handshake so admin status changes are sent to the server and the CCO GUI refreshes without using local client XML files.
-- Server-side validation still protects rule changes; normal remote clients remain read-only.
-
-Changelog 2.0.1.5:
-- Added dedicated-server admin/master-user edit permissions using the EasyDevControls-style authority model.
-- Remote server admins can edit CCO rules through server-validated multiplayer events while normal remote clients remain read-only.
-- Dedicated-server clients still do not read, create, or write local CCO XML files.
-
-Changelog 2.0.1.4:
-- Fixed the custom CCO GUI opening path by removing the unstable paging selector that could trigger a TextElement stack overflow in some FS25 builds.
-- Remote multiplayer clients now show a waiting/sync state instead of rendering local default rules before the server snapshot arrives.
-
-Changelog 2.0.1.3:
-- Fixed remote multiplayer client sync requests firing before the server connection is ready.
-
-Changelog 2.0.1.2:
-- Dedicated/cloud multiplayer clients now ignore local CCO XML files and use an in-memory ruleset synced from the server.
-- Remote multiplayer clients are read-only by default, preventing local savegame XML creation or accidental rule writes.
-- Single-player, local-host multiplayer, and server-side file behaviour remain unchanged.
-
-Changelog 2.0.1.1:
-- Fixed dedicated/cloud multiplayer client GUI refresh after server-side rule changes; the originating client now receives the server-authoritative update and refreshes an open CCO GUI.
-
-Changelog 2.0.1.0:
-- Added multiplayer event handling so GUI changes and server-side reset/apply actions are sent to the server on dedicated multiplayer games.
-- Updated NPC crop planning to use FieldManager.generatePlannedFruitForField instead of the old mission-generation flag mutation.
-- Added defensive error handling around NPC crop replacement during planned fruit generation.
-- Moved localisation to external l10n files so additional languages can be added more easily.
-
-Hotkeys:
-ALT+C opens the Crop Control Override GUI. This keybind can be changed in the in-game controls menu.
-Mouse: use the GUI tabs, table rows, and buttons.
-Keyboard: use the displayed FS25 footer actions for tab navigation, Load Defaults, and back.
+Changelog 2.1.0.0 Pre-Release:
+- Added a full Crop Calendar editor with visual planting/harvest periods, preview/cancel workflow, restore-to-map-default support, and clear calendar legend/status indicators.
+- Added Regional Profiles, including built-in regional crop calendars and player-authored XML profiles loaded from modSettings.
+- Added regional crop suitability data and optional player policy for unsuitable crops: allow, hide, or block.
+- Added read-only MoistureSystem environmental status integration so selected CCO regions can be compared with the active weather profile without changing weather settings.
+- Added guarded full-map NPC field regeneration using the active crop policy/calendar, including seasonal growth-state validation, deterministic planning, contract safety, field-state refresh, and contract-board rebuilding.
+- Added existing-field reconciliation so calendar/profile changes can be applied safely to NPC fields while protecting player-owned fields.
+- Added automatic hiding of CCO-disabled crops from the game's native Crop Calendar.
+- Added a Weight column to the crop-rules table so each crop's current 0-5 NPC reseed weighting is visible without opening its details.
+- Added a Show disabled toggle to the main rules table so disabled crops can be hidden from the list without changing their saved rules.
+- Added and preserved the supported CCO Integration API 1.2 / shared field-regeneration compatibility surface used during Farm Sim Manager development.
+- Added automatic creation of a starter custom regional-profile template under the CCO modSettings folder.
+- Includes dedicated-server / multiplayer fixes, crop-selection safeguards, UI refinements, diagnostics, and localisation updates developed throughout the 2.1 alpha cycle.
 
 Useful console commands:
-ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoHelp
+ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoCalendarReport, ccoCalendarShiftPreview, ccoCalendarShiftApply, ccoCalendarCustomPreview, ccoCalendarCustomApply, ccoCalendarRestore, ccoHelp
 
 GitHub link:
 https://github.com/SimGamerJen/FS25_CropControlOverride
@@ -111,6 +62,8 @@ https://github.com/SimGamerJen/FS25_CropControlOverride
         <de><![CDATA[
 Beschreibung:
 Crop Control Override ist ein speicherstandbasiertes Fruchtarten-Regelwerk für Farming Simulator 25. Mit dem Mod kann festgelegt werden, welche Fruchtarten für Spieler erlaubt sind, welche Fruchtarten NPC-Landwirte anbauen dürfen und ob der NPC-Anbau durch eine maximale Feldgröße begrenzt werden soll.
+
+Mitwirkenden-Hinweis: Das Konzept und die Entwicklung der NPC-Feldgrößenbegrenzung von Hyper138 haben mich dazu inspiriert, eine Funktion zur Feldgrößenbegrenzung in den Mod einzubauen.
 
 Der Mod enthält eine bearbeitbare GUI im FS25-Stil, XML-Regeldateien pro Spielstand, Validierung von NPC-Feldern, Anzeige blockierter NPC-Felder sowie einen geschützten Anwenden-/Erzwingen-Ablauf, um unbeabsichtigte ungültige Spielstände zu vermeiden.
 
@@ -120,6 +73,7 @@ Wichtige GUI-Funktionen:
 - BEGRENZT: Fruchtarten mit NPC-Feldgrößenbegrenzung anzeigen.
 - NPC DEAKTIVIERT: Fruchtarten anzeigen, die NPCs nicht anbauen sollen.
 - VALIDIERUNG: bestehende NPC-Felder anzeigen, die gegen die aktive Regel verstoßen, und den geschützten Testlauf-/Bestätigungsablauf zum Zurücksetzen verwenden.
+- KALENDER: alle geladenen Fruchtarten in einem visuellen Monatsraster prüfen und anschließend geschützte Lebenszyklusverschiebungen oder eigene Saat-/Erntefenster mit Testlauf und Wiederherstellung des Kartenstandards verwenden.
 - ZUSAMMENFASSUNG: aktive Konfiguration, Regelanzahl und Validierungsstatus anzeigen.
 - HILFE: Hinweise zur Bedienung im Spiel anzeigen.
 
@@ -134,67 +88,19 @@ Konfiguration:
 - Eine Gewichtung von 0 schließt die Fruchtart von der Nachsaat auf NPC-Feldern aus, ohne sie für den Spieler zu deaktivieren.
 - Die globale Gewichtung leaveCultivated bleibt erhalten, sodass ein gewichteter Reset einige Felder im kultivierten Zustand belassen kann.
 
-Änderungen 2.0.3.5:
-- Die Kategoriegewichtungen seasonalMission und seasonalLifecycle wurden durch eine individuelle Nachsaatgewichtung von 0 bis 5 für jede Fruchtart ersetzt.
-- GUI-Steuerelemente zum Bearbeiten der Nachsaatgewichtung der ausgewählten Fruchtart hinzugefügt.
-- Eine Fruchtart mit Gewichtung 0 wird nun von der Nachsaat auf NPC-Feldern ausgeschlossen, bleibt aber ansonsten aktiviert.
-- Die globale Gewichtung leaveCultivated wurde beibehalten.
-- Bestehende Spielstand-XML-Dateien werden automatisch migriert: Fehlt reseedWeight, wird der Standardwert 5 gesetzt; veraltete Kategoriegewichtungen werden bei der Normalisierung entfernt.
-- Multiplayer-Synchronisation für individuelle Nachsaatgewichtungen hinzugefügt.
-
-Änderungen 2.0.3.4:
-- Für Spieler deaktivierte Fruchtarten werden nun sofort aus der auswählbaren Saatgutliste bereits geladener, neu gekaufter und neu geladener Sämaschinen entfernt.
-- Wird eine Fruchtart wieder aktiviert, erscheint sie ohne Neuladen des Spielstands erneut in kompatiblen Sämaschinen.
-- Serverseitig verbindliche Schutzprüfungen für normale und direkte Aussaat verhindern, dass veraltete Auswahlen, Helfer, Multiplayer-Clients oder kompatible Drittanbieter-Helfersysteme gesperrte Fruchtarten säen.
-- Aktive KI-Feldarbeit wird beendet, wenn eine deaktivierte Fruchtart ausgewählt ist; die Sämaschine wird ausgeschaltet und eine zentrale Crop-Control-Override-Warnung erklärt, warum die Aussaat nicht erlaubt ist.
-- Die Übertragung der Multiplayer-Regeln wurde durch einen Server-Push nach dem Client-Ladevorgang, Wiederholungsversuche des Clients und eine verzögerte clientseitige Anwendung bis zum Eingang des verbindlichen Server-Snapshots verbessert.
-- Französische Lokalisierung hinzugefügt und vervollständigt.
-
-Änderungen 2.0.1.9:
-- Die externe l10n-Unterstützung wurde erweitert, damit GUI- und Spieltexte über Sprachdateien übersetzt werden können.
-- Unterstützung für deutsche und französische Sprachdateien hinzugefügt und der Mod für Community-Übersetzungen vorbereitet.
-
-Änderungen 2.0.1.8:
-- Zwischengespeicherte Saatgutlisten von Sämaschinen werden bei Regeländerungen neu aufgebaut, sodass deaktivierte Fruchtarten sofort aus der Auswahl verschwinden.
-- Eine aktive Aussaat-Schutzprüfung sowie Filterung für neu geladene oder gekaufte Sämaschinen wurden hinzugefügt.
-- Die Regel-Synchronisation auf dedizierten Servern wurde durch Server-Push und Wiederholungsversuche des Clients verbessert.
-- Entfernte Clients wenden während des Wartens auf den Server-Snapshot keine vorübergehend vollständig aktivierten Platzhalterregeln mehr an.
-- Multiplayer-Status und ursprüngliche Fruchtartenwerte werden beim Verlassen einer Mission vollständig zurückgesetzt.
-- Fehler bei der Konfigurationsnormalisierung und bei Vorlagen-Sicherungen für benutzerdefinierte Nachsaat-Einstellungen wurden behoben.
-
-Änderungen 2.0.1.7:
-- Die Lade-Reihenfolge des Berechtigungs-Hook-Installers korrigiert, damit der Admin-Berechtigungs-Build sauber lädt, bevor Listener für Farmverwaltungs-Administratoren installiert werden.
-
-Änderungen 2.0.1.6:
-- Entfernte Clients auf dedizierten Servern, die sich über die Farmverwaltung als Spieladministrator/Master User anmelden, können CCO-Bearbeitung nun für diese Sitzung freischalten.
-- Eine Berechtigungsaktualisierung sendet Admin-Statusänderungen an den Server und aktualisiert die CCO-GUI, ohne lokale Client-XML-Dateien zu verwenden.
-- Die serverseitige Validierung schützt Regeländerungen weiterhin; normale entfernte Clients bleiben schreibgeschützt.
-
-Änderungen 2.0.1.5:
-- Admin-/Master-User-Bearbeitungsrechte für dedizierte Server nach dem EasyDevControls-Berechtigungsmodell hinzugefügt.
-- Entfernte Serveradministratoren können CCO-Regeln über serverseitig validierte Mehrspieler-Ereignisse bearbeiten, während normale entfernte Clients schreibgeschützt bleiben.
-- Clients auf dedizierten Servern lesen, erstellen oder schreiben weiterhin keine lokalen CCO-XML-Dateien.
-
-Änderungen 2.0.1.4:
-- Korrigiert den CCO-GUI-Start, indem der instabile Seitenwahlschalter entfernt wurde, der in manchen FS25-Versionen einen TextElement-Stack-Overflow auslösen konnte.
-- Entfernte Mehrspieler-Clients zeigen nun einen Warte-/Synchronisationsstatus, statt lokale Standardregeln vor dem Server-Snapshot darzustellen.
-
-Änderungen 2.0.1.3:
-- Synchronisationsanfragen entfernter Multiplayer-Clients werden nun erst gesendet, wenn die Serververbindung bereit ist.
-
-Änderungen 2.0.1.2:
-- Clients im dedizierten/Cloud-Multiplayer ignorieren lokale CCO-XML-Dateien und verwenden einen vom Server synchronisierten Regelsatz im Speicher.
-- Entfernte Multiplayer-Clients sind standardmäßig schreibgeschützt, wodurch lokale savegame-XML-Erstellung und unbeabsichtigte Regeländerungen verhindert werden.
-- Einzelspieler-, lokaler Host-Multiplayer- und serverseitiges Dateiverhalten bleiben unverändert.
-
-Änderungen 2.0.1.1:
-- Client-GUI-Aktualisierung im dedizierten/Cloud-Multiplayer nach serverseitigen Regeländerungen korrigiert; der auslösende Client erhält nun die serverseitige Aktualisierung und aktualisiert eine geöffnete CCO-GUI.
-
-Änderungen 2.0.1.0:
-- Multiplayer-Ereignisverarbeitung hinzugefügt, damit GUI-Änderungen und serverseitige Zurücksetzen-/Anwenden-Aktionen in dedizierten Multiplayer-Spielen an den Server gesendet werden.
-- Die NPC-Fruchtplanung verwendet nun FieldManager.generatePlannedFruitForField anstelle der bisherigen Änderung von Missions-Flags.
-- Defensive Fehlerbehandlung für die NPC-Ersatzfruchtwahl hinzugefügt.
-- Lokalisierung in externe l10n-Dateien verschoben, damit weitere Sprachen einfacher ergänzt werden können.
+Änderungen 2.1.0.0 Vorabversion:
+- Einen vollständigen Fruchtkalender-Editor mit visuellen Saat-/Erntezeiträumen, Vorschau-/Abbrechen-Ablauf, Wiederherstellung der Kartenstandards sowie klarer Kalenderlegende und Statusanzeige hinzugefügt.
+- Regionale Profile hinzugefügt, einschließlich integrierter regionaler Fruchtkalender und vom Spieler definierter XML-Profile aus dem modSettings-Ordner.
+- Regionale Eignungsbewertungen für Fruchtarten sowie eine optionale Spielerregel für ungeeignete Kulturen hinzugefügt: erlauben, ausblenden oder blockieren.
+- Schreibgeschützte MoistureSystem-Umgebungsstatusintegration hinzugefügt, damit ausgewählte CCO-Regionen mit dem aktiven Wetterprofil verglichen werden können, ohne Wettereinstellungen zu verändern.
+- Abgesicherte vollständige Regenerierung von NPC-Feldern anhand der aktiven Fruchtregeln/des Kalenders hinzugefügt, einschließlich saisonaler Wachstumsvalidierung, deterministischer Planung, Auftragssicherheit, Feldstatus-Aktualisierung und Neuaufbau der Auftragsliste.
+- Abgleich bestehender NPC-Felder hinzugefügt, damit Kalender-/Profiländerungen sicher angewendet werden können, während spielereigene Felder geschützt bleiben.
+- CCO-deaktivierte Fruchtarten werden nun automatisch aus dem nativen Fruchtkalender des Spiels ausgeblendet.
+- Der Fruchtregel-Tabelle wurde eine Spalte „Gewichtung“ hinzugefügt, damit die aktuelle NPC-Nachsaatgewichtung von 0–5 für jede Frucht direkt sichtbar ist.
+- Der Haupt-Regeltabelle wurde ein Schalter zum Anzeigen/Ausblenden deaktivierter Fruchtarten hinzugefügt, ohne die gespeicherten Regeln zu verändern.
+- Die unterstützte CCO Integration API 1.2 sowie die gemeinsame Feldregenerierungs-Kompatibilität aus der Farm-Sim-Manager-Entwicklung wurden übernommen und geschützt.
+- Automatische Erstellung einer Vorlage für benutzerdefinierte Regionalprofile im CCO-modSettings-Ordner hinzugefügt.
+- Enthält außerdem Dedicated-Server-/Multiplayer-Korrekturen, Schutzmechanismen für die Fruchtauswahl, UI-Verbesserungen, Diagnosen und Lokalisierungsupdates aus dem gesamten 2.1-Alpha-Zyklus.
 
 Tastenkombinationen:
 ALT+C öffnet die Crop Control Override GUI. Diese Tastenkombination kann im Steuerungsmenü des Spiels geändert werden.
@@ -202,7 +108,7 @@ Maus: GUI-Reiter, Tabellenzeilen und Schaltflächen verwenden.
 Tastatur: die angezeigten FS25-Fußleistenaktionen für Reiterwechsel, Standardwerte laden und Zurück verwenden.
 
 Nützliche Konsolenbefehle:
-ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoHelp
+ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoCalendarReport, ccoCalendarShiftPreview, ccoCalendarShiftApply, ccoCalendarCustomPreview, ccoCalendarCustomApply, ccoCalendarRestore, ccoHelp
 
 GitHub-Link:
 https://github.com/SimGamerJen/FS25_CropControlOverride
@@ -210,6 +116,8 @@ https://github.com/SimGamerJen/FS25_CropControlOverride
         <fr><![CDATA[
 Description :
 Crop Control Override est un gestionnaire de règles de cultures par sauvegarde pour Farming Simulator 25. Il permet de contrôler quelles cultures sont autorisées pour le joueur, quelles cultures les agriculteurs PNJ peuvent semer, et si les cultures PNJ doivent être limitées par taille de champ.
+
+Remerciement au contributeur : le concept et le développement par Hyper138 de la limitation de taille des champs PNJ ont inspiré l’ajout d’une fonctionnalité de limitation par taille dans le mod.
 
 Le mod inclut une interface modifiable de style FS25, des fichiers XML de règles par sauvegarde, une validation des champs PNJ, un affichage des champs PNJ bloqués, ainsi qu’un flux sécurisé Appliquer / Forcer l’application pour éviter les états de sauvegarde invalides accidentels.
 
@@ -219,6 +127,7 @@ Fonctions principales de l’interface :
 - LIMITÉES : afficher les cultures avec une limite de taille de champ PNJ.
 - PNJ DÉSACTIVÉ : afficher les cultures que les PNJ ne doivent pas semer.
 - VALIDATION : afficher les champs PNJ existants qui ne respectent pas la règle active et utiliser le flux sécurisé d’essai / confirmation de réinitialisation.
+- CALENDRIER : afficher toutes les cultures chargées dans une grille mensuelle visuelle, puis utiliser des décalages sécurisés du cycle ou des fenêtres personnalisées de semis/récolte avec prévisualisation et restauration des valeurs de la carte.
 - RÉSUMÉ : afficher la configuration active, le nombre de règles et l’état de validation.
 - AIDE : afficher l’aide intégrée.
 
@@ -233,88 +142,29 @@ Configuration :
 - Une pondération de 0 exclut la culture du ressemis des champs PNJ sans la désactiver pour le joueur.
 - La pondération globale leaveCultivated est conservée, ce qui permet à une réinitialisation pondérée de laisser certains champs cultivés sans les ressemer.
 
-Journal des modifications 2.0.3.5 :
-- Remplacement des pondérations de catégorie seasonalMission et seasonalLifecycle par une pondération de ressemis individuelle de 0 à 5 pour chaque culture.
-- Ajout de commandes dans l’interface pour modifier la pondération de ressemis de la culture sélectionnée.
-- Une culture avec une pondération de 0 est désormais exclue du ressemis des champs PNJ tout en restant activée pour les autres usages.
-- Conservation de la pondération globale leaveCultivated.
-- Migration automatique des fichiers XML de sauvegarde existants : la valeur par défaut 5 est attribuée lorsque reseedWeight est absent et les anciennes pondérations de catégorie sont supprimées lors de la normalisation.
-- Ajout de la synchronisation multijoueur des pondérations de ressemis par culture.
-
-Journal des modifications 2.0.3.4 :
-- Les cultures désactivées pour le joueur sont désormais retirées immédiatement de la liste de semences des semoirs déjà chargés, nouvellement achetés ou nouvellement chargés.
-- Lorsqu’une culture est réactivée, elle réapparaît dans les semoirs compatibles sans nécessiter le rechargement de la sauvegarde.
-- Des protections autoritaires côté serveur pour le semis normal et le semis direct empêchent les anciennes sélections, les ouvriers, les clients multijoueurs et les systèmes d’ouvriers tiers compatibles de semer des cultures interdites.
-- Le travail de champ d’un ouvrier IA est arrêté lorsqu’une culture désactivée est sélectionnée, le semoir est éteint et un avertissement central Crop Control Override explique pourquoi le semis n’est pas autorisé.
-- La synchronisation multijoueur des règles a été améliorée grâce à un envoi serveur après le chargement du client, à des tentatives répétées côté client et au report de l’application locale jusqu’à la réception de l’instantané serveur faisant autorité.
-- Ajout et finalisation de la localisation française.
-
-Journal des modifications 2.0.1.9 :
-- Extension de la prise en charge l10n externe afin que les textes de l’interface et du jeu puissent être traduits via des fichiers de langue.
-- Ajout de la prise en charge des fichiers allemands et français et préparation du mod aux traductions fournies par la communauté.
-
-Journal des modifications 2.0.1.8 :
-- Reconstruction des listes de semences mises en cache par les semoirs à chaque modification des règles, afin que les cultures désactivées disparaissent immédiatement du sélecteur.
-- Ajout d’une protection active pendant le semis et du filtrage des semoirs nouvellement chargés ou achetés.
-- Amélioration de la synchronisation des règles sur serveur dédié avec un envoi serveur et des tentatives répétées côté client.
-- Les clients distants n’appliquent plus de règles temporaires entièrement activées en attendant l’instantané serveur.
-- Réinitialisation complète de l’état multijoueur et des valeurs d’origine des cultures à la sortie d’une mission.
-- Correction de la normalisation de la configuration et de la sauvegarde des modèles pour les paramètres personnalisés de réensemencement.
-
-Journal des modifications 2.0.1.7 :
-- Correction de l’ordre de chargement de l’installation des hooks de permissions afin que la version avec permissions administrateur se charge correctement avant d’installer les écouteurs d’administration de la gestion de ferme.
-
-Journal des modifications 2.0.1.6 :
-- Les clients distants d’un serveur dédié qui élèvent leurs droits en administrateur/master user via la gestion de ferme peuvent désormais déverrouiller l’édition CCO pour la session.
-- Ajout d’une actualisation des permissions afin d’envoyer les changements de statut administrateur au serveur et de rafraîchir l’interface CCO sans utiliser de fichiers XML locaux côté client.
-- La validation côté serveur protège toujours les changements de règles ; les clients distants normaux restent en lecture seule.
-
-Journal des modifications 2.0.1.5 :
-- Ajout de la détection des droits d’édition administrateur/master user sur serveur dédié, inspirée du modèle de permissions d’EasyDevControls.
-- Les administrateurs distants du serveur peuvent désormais modifier les règles CCO via des événements multijoueurs validés par le serveur, tandis que les clients distants normaux restent en lecture seule.
-- Les clients dédiés ne lisent, ne créent et n’écrivent toujours aucun fichier XML CCO local.
-
-Journal des modifications 2.0.1.4 :
-- Correction de l’ouverture de l’interface CCO en supprimant le sélecteur de pages instable qui pouvait provoquer un dépassement de pile TextElement dans certaines versions de FS25.
-- Les clients multijoueurs distants affichent désormais un état d’attente/synchronisation au lieu d’afficher les règles locales par défaut avant la réception de l’instantané serveur.
-
-Journal des modifications 2.0.1.3 :
-- Correction des demandes de synchronisation des clients multijoueurs distants déclenchées avant que la connexion serveur soit prête.
-
-Journal des modifications 2.0.1.2 :
-- Les clients en multijoueur dédié/cloud ignorent désormais les fichiers XML CCO locaux et utilisent un jeu de règles en mémoire synchronisé depuis le serveur.
-- Les clients multijoueurs distants sont en lecture seule par défaut, empêchant la création de XML savegame locaux ou les écritures de règles accidentelles.
-- Le comportement fichier en solo, hôte multijoueur local et côté serveur reste inchangé.
-
-Journal des modifications 2.0.1.1 :
-- Correction de l’actualisation de l’interface client en multijoueur dédié/cloud après les changements de règles côté serveur ; le client à l’origine de la demande reçoit désormais la mise à jour serveur et actualise l’interface CCO ouverte.
-
-Journal des modifications 2.0.1.0 :
-- Ajout de la gestion des événements multijoueur afin que les changements de l’interface et les actions serveur d’application/réinitialisation soient envoyés au serveur dans les parties multijoueur dédiées.
-- La planification des cultures PNJ utilise désormais FieldManager.generatePlannedFruitForField au lieu de modifier temporairement les indicateurs de missions.
-- Ajout d’une gestion défensive des erreurs lors du choix d’une culture PNJ de remplacement.
-- Déplacement de la localisation vers des fichiers l10n externes afin de faciliter l’ajout d’autres langues.
-
-Raccourcis :
-ALT+C ouvre l’interface Crop Control Override. Ce raccourci peut être modifié dans le menu des commandes du jeu.
-Souris : utiliser les onglets, les lignes du tableau et les boutons de l’interface.
-Clavier : utiliser les actions affichées dans la barre inférieure FS25 pour changer d’onglet, charger les valeurs par défaut et revenir en arrière.
+Journal des modifications 2.1.0.0 Préversion :
+- Ajout d’un éditeur complet du calendrier des cultures avec périodes visuelles de semis/récolte, aperçu/annulation, restauration des valeurs par défaut de la carte et légende/indicateurs d’état clairs.
+- Ajout des profils régionaux, avec calendriers intégrés par région et profils XML personnalisés par le joueur chargés depuis modSettings.
+- Ajout des niveaux d’adéquation régionale des cultures et d’une politique optionnelle pour les cultures inadaptées : autoriser, masquer ou bloquer.
+- Ajout d’une intégration en lecture seule avec MoistureSystem afin de comparer la région CCO sélectionnée au profil météo actif sans modifier les paramètres météo.
+- Ajout d’une régénération sécurisée de l’ensemble des champs PNJ selon les règles/calendrier actifs, avec validation des états de croissance saisonniers, planification déterministe, sécurité des contrats, actualisation de l’état des champs et reconstruction du tableau des contrats.
+- Ajout de la réconciliation des champs existants afin d’appliquer en toute sécurité les changements de calendrier/profil aux champs PNJ tout en protégeant les champs du joueur.
+- Les cultures désactivées dans CCO sont désormais automatiquement masquées du calendrier des cultures natif du jeu.
+- Ajout d’une colonne « Poids » au tableau des règles afin d’afficher directement la pondération actuelle de ressemis PNJ (0–5) de chaque culture.
+- Ajout d’un bouton permettant d’afficher ou masquer les cultures désactivées dans le tableau principal sans modifier leurs règles enregistrées.
+- Conservation et protection de l’API d’intégration CCO 1.2 et de la surface de compatibilité du moteur partagé de régénération des champs développées avec Farm Sim Manager.
+- Ajout de la création automatique d’un modèle de profil régional personnalisé dans le dossier modSettings de CCO.
+- Comprend également les correctifs serveur dédié/multijoueur, les protections de sélection des cultures, les améliorations d’interface, les diagnostics et les mises à jour de localisation développés pendant tout le cycle alpha 2.1.
 
 Commandes console utiles :
-ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoHelp
+ccoGui, ccoStatus, ccoWhichConfig, ccoReload, ccoValidateSave, ccoScanBlocked, ccoResetBlocked dryrun, ccoResetBlocked, ccoListNpcCandidates, ccoSeasonProbe, ccoGrowthProbe, ccoCalendarReport, ccoCalendarShiftPreview, ccoCalendarShiftApply, ccoCalendarCustomPreview, ccoCalendarCustomApply, ccoCalendarRestore, ccoHelp
 
 Lien GitHub :
 https://github.com/SimGamerJen/FS25_CropControlOverride
 ]]></fr>
     </description>
 
-    <l10n filenamePrefix="l10n/l10n">
-        <text name="input_CCO_OPEN_GUI">
-            <en>Open Crop Control Override</en>
-            <de>Crop Control Override Öffnen</de>
-            <fr>Ouvrir Crop Control Override</fr>
-        </text>
-    </l10n>
+    <l10n filenamePrefix="l10n/l10n"/>
     <iconFilename>icon_CropControlOverride.dds</iconFilename>
     <inputBinding>
         <actionBinding action="CCO_OPEN_GUI">
@@ -330,7 +180,10 @@ https://github.com/SimGamerJen/FS25_CropControlOverride
     <extraSourceFiles>
         <sourceFile filename="scripts/Debug.lua"/>
         <sourceFile filename="scripts/CropControlOverrideChangeSettingsEvent.lua"/>
+        <sourceFile filename="scripts/RegionalProfileManager.lua"/>
+        <sourceFile filename="scripts/CropCalendarManager.lua"/>
         <sourceFile filename="scripts/gui/CropControlOverrideMenu.lua"/>
         <sourceFile filename="scripts/CropControlOverride.lua"/>
+        <sourceFile filename="scripts/CCOIntegrationApi.lua"/>
     </extraSourceFiles>
 </modDesc>

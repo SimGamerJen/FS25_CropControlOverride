@@ -27,10 +27,13 @@
             <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[5]" text="VALIDATION" onClick="onClickValidate">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[6]" text="SUMMARY" onClick="onClickStatus">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[6]" text="$l10n_cco_tab_calendar" onClick="onClickCalendar">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
-            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[7]" text="HELP" onClick="onClickHelp">
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[7]" text="SUMMARY" onClick="onClickStatus">
+                <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
+            </Button>
+            <Button profile="fs25_subCategorySelectorTabbedTab" id="subCategoryTabs[8]" text="HELP" onClick="onClickHelp">
                 <ThreePartBitmap profile="fs25_subCategorySelectorTabbedTabBg" name="background"/>
             </Button>
         </BoxLayout>
@@ -46,6 +49,9 @@
             <Button profile="ccoValidationActionButton" id="resetBlockedDryRunButton" position="1180px -92px" size="320px 34px" text="RESET BLOCKED DRY-RUN" onClick="onClickResetBlockedDryRun" visible="false"/>
             <Button profile="ccoValidationDangerButton" id="confirmBlockedResetButton" position="1180px -134px" size="320px 34px" text="CONFIRM RESET" onClick="onClickConfirmBlockedReset" visible="false"/>
 
+            <Button profile="ccoValidationActionButton" id="regenerateNpcPreviewButton" position="1180px -184px" size="320px 34px" text="$l10n_cco_button_regenerate_npc_preview" onClick="onClickRegenerateNpcPreview" visible="false"/>
+            <Button profile="ccoValidationDangerButton" id="confirmNpcRegenerationButton" position="1180px -226px" size="320px 34px" text="$l10n_cco_button_confirm_npc_regeneration" onClick="onClickConfirmNpcRegeneration" visible="false"/>
+
             <Text id="bodyTextElement" text="" position="40px 150px" size="1480px 585px" textSize="16px" textColor="0.88 0.90 0.86 1" textVerticalAlignment="top" textAlignment="left" textMaxNumLines="36"/>
 
             <GuiElement id="ruleTableContainer" visible="false" position="0px 260px" size="1520px 520px">
@@ -55,7 +61,14 @@
                         <Text profile="ccoColumnHeader" position="205px -3px"  size="140px 34px" text="Player"/>
                         <Text profile="ccoColumnHeader" position="355px -3px"  size="140px 34px" text="NPC"/>
                         <Text profile="ccoColumnHeader" position="505px -3px"  size="190px 34px" text="Max Field"/>
-                        <Text profile="ccoColumnHeader" position="720px -3px"  size="280px 34px" text="Status"/>
+                        <Text profile="ccoColumnHeader" position="720px -3px"  size="90px 34px" text="Weight"/>
+                        <Text profile="ccoColumnHeader" position="830px -3px"  size="170px 34px" text="Status"/>
+                        <!-- Subtle column dividers shared by policy-table headers and rows. -->
+                        <RoundCorner position="197px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="350px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="500px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="707px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="817px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
                     </GuiElement>
 
                     <SmoothList id="ruleList" profile="ccoRulesList" position="0px -70px" size="1015px 505px" listItemSpacing="-1px">
@@ -65,7 +78,13 @@
                             <Text profile="ccoRowCellCenter" position="205px 0px"  size="140px 34px" name="cellEnabled"/>
                             <Text profile="ccoRowCellCenter" position="355px 0px"  size="140px 34px" name="cellNpc"/>
                             <Text profile="ccoRowCellCenter" position="505px 0px"  size="190px 34px" name="cellMaxHa"/>
-                            <Text profile="ccoRowCellCenter" position="720px 0px"  size="280px 34px" name="cellStatus"/>
+                            <Text profile="ccoRowCellCenter" position="720px 0px"  size="90px 34px" name="cellWeight"/>
+                            <Text profile="ccoRowCellCenter" position="830px 0px"  size="170px 34px" name="cellStatus"/>
+                            <RoundCorner position="197px 2px" size="1px 30px" color="0.22 0.24 0.22 0.52" cornerSize="0.0"/>
+                            <RoundCorner position="350px 2px" size="1px 30px" color="0.22 0.24 0.22 0.52" cornerSize="0.0"/>
+                            <RoundCorner position="500px 2px" size="1px 30px" color="0.22 0.24 0.22 0.52" cornerSize="0.0"/>
+                            <RoundCorner position="707px 2px" size="1px 30px" color="0.22 0.24 0.22 0.52" cornerSize="0.0"/>
+                            <RoundCorner position="817px 2px" size="1px 30px" color="0.22 0.24 0.22 0.52" cornerSize="0.0"/>
                         </ListItem>
                     </SmoothList>
 
@@ -74,6 +93,7 @@
                     </ThreePartBitmap>
 
                     <Button profile="ccoEditButtonWide" id="notLoadedToggleButton" position="20px -590px" size="220px 30px" text="NOT LOADED: HIDDEN" onClick="onClickToggleNotLoaded" visible="false"/>
+                    <Button profile="ccoEditButtonWide" id="disabledToggleButton" position="255px -590px" size="220px 30px" text="DISABLED: SHOWN" onClick="onClickToggleDisabled" visible="false"/>
                 </GuiElement>
 
                 <GuiElement id="ruleDetailsPanel" position="1080px -50px" size="420px 565px">
@@ -95,7 +115,7 @@
                     <Text profile="ccoDetailsValue" id="editMaxHaText" position="276px -238px" size="70px 28px" text="-"/>
                     <Button profile="ccoEditButton" id="editMaxUpButton" position="350px -238px" size="54px 28px" text="+1" onClick="onClickMaxUp"/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -278px" size="170px 28px" text="Reset NPC Fields"/>
+                    <Text profile="ccoDetailsLabel" position="20px -278px" size="180px 28px" text="$l10n_cco_label_reset_npc_fields"/>
                     <MultiTextOption profile="ccoSelectorOption" id="editResetOption" position="210px -278px" texts="-" onClick="onClickResetOption" wrap="false"/>
 
                     <Text profile="ccoDetailsLabel" position="20px -318px" size="180px 28px" text="$l10n_cco_label_reseed_weight"/>
@@ -121,6 +141,138 @@
                     <Text profile="ccoDetailsInfo" id="selectedInfoText" position="20px -548px" size="380px 32px" text="Use the selector/value controls to stage changes, then APPLY."/>
                 </GuiElement>
                 <Text id="emptyStateText" profile="ccoEmptyStateText" position="220px -220px" text="No matching crop rules." visible="false"/>
+            </GuiElement>
+            <GuiElement id="calendarTableContainer" visible="false" position="0px 260px" size="1520px 520px">
+                <GuiElement id="calendarTableListArea" position="0px 0px" size="990px 520px">
+                    <GuiElement profile="fs25_statisticsHeaderBox" position="0px -18px" size="975px 38px">
+                        <Text profile="ccoColumnHeader" position="12px -3px" size="150px 34px" text="Crop" textAlignment="left"/>
+                        <Text profile="ccoColumnHeader" position="170px -3px" size="60px 34px" text="JAN"/>
+                        <Text profile="ccoColumnHeader" position="235px -3px" size="60px 34px" text="FEB"/>
+                        <Text profile="ccoColumnHeader" position="300px -3px" size="60px 34px" text="MAR"/>
+                        <Text profile="ccoColumnHeader" position="365px -3px" size="60px 34px" text="APR"/>
+                        <Text profile="ccoColumnHeader" position="430px -3px" size="60px 34px" text="MAY"/>
+                        <Text profile="ccoColumnHeader" position="495px -3px" size="60px 34px" text="JUN"/>
+                        <Text profile="ccoColumnHeader" position="560px -3px" size="60px 34px" text="JUL"/>
+                        <Text profile="ccoColumnHeader" position="625px -3px" size="60px 34px" text="AUG"/>
+                        <Text profile="ccoColumnHeader" position="690px -3px" size="60px 34px" text="SEP"/>
+                        <Text profile="ccoColumnHeader" position="755px -3px" size="60px 34px" text="OCT"/>
+                        <Text profile="ccoColumnHeader" position="820px -3px" size="60px 34px" text="NOV"/>
+                        <Text profile="ccoColumnHeader" position="885px -3px" size="60px 34px" text="DEC"/>
+                        <!-- Month dividers remain visible through joined planting/harvest runs. -->
+                        <RoundCorner position="171px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="236px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="301px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="366px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="431px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="496px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="561px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="626px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="691px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="756px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="821px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                        <RoundCorner position="886px 3px" size="1px 30px" color="0.30 0.33 0.30 0.42" cornerSize="0.0"/>
+                    </GuiElement>
+
+                    <SmoothList id="calendarList" profile="ccoRulesList" position="0px -70px" size="975px 495px" listItemSpacing="-1px">
+                        <ListItem profile="ccoRulesListItem">
+                            <ThreePartBitmap profile="ccoListItemGradient" name="alternating"/>
+                            <RoundCorner position="2px 4px" size="4px 26px" color="1.00 0.78 0.20 1" cornerSize="0.4" visible="false" name="calendarModifiedMarker"/>
+                            <Bitmap position="10px 7px" size="20px 20px" name="calendarCropIcon" visible="false"/>
+                            <Text profile="ccoRowCellLeft" position="36px 0px" size="126px 34px" name="calendarCellCrop"/>
+                            <RoundCorner position="171px 6px" size="781px 22px" color="0.055 0.060 0.055 0.72" cornerSize="0.18"/>
+                            <RoundCorner position="171px 8px" size="66px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.08" visible="false" name="calendarPlantCell1"/>
+                            <RoundCorner position="171px 18px" size="66px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.08" visible="false" name="calendarHarvestCell1"/>
+                            <RoundCorner position="236px 8px" size="66px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.08" visible="false" name="calendarPlantCell2"/>
+                            <RoundCorner position="236px 18px" size="66px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.08" visible="false" name="calendarHarvestCell2"/>
+                            <RoundCorner position="301px 8px" size="66px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.08" visible="false" name="calendarPlantCell3"/>
+                            <RoundCorner position="301px 18px" size="66px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.08" visible="false" name="calendarHarvestCell3"/>
+                            <RoundCorner position="366px 8px" size="66px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.08" visible="false" name="calendarPlantCell4"/>
+                            <RoundCorner position="366px 18px" size="66px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.08" visible="false" name="calendarHarvestCell4"/>
+                            <RoundCorner position="431px 8px" size="66px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.08" visible="false" name="calendarPlantCell5"/>
+                            <RoundCorner position="431px 18px" size="66px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.08" visible="false" name="calendarHarvestCell5"/>
+                            <RoundCorner position="496px 8px" size="66px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.08" visible="false" name="calendarPlantCell6"/>
+                            <RoundCorner position="496px 18px" size="66px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.08" visible="false" name="calendarHarvestCell6"/>
+                            <RoundCorner position="561px 8px" size="66px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.08" visible="false" name="calendarPlantCell7"/>
+                            <RoundCorner position="561px 18px" size="66px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.08" visible="false" name="calendarHarvestCell7"/>
+                            <RoundCorner position="626px 8px" size="66px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.08" visible="false" name="calendarPlantCell8"/>
+                            <RoundCorner position="626px 18px" size="66px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.08" visible="false" name="calendarHarvestCell8"/>
+                            <RoundCorner position="691px 8px" size="66px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.08" visible="false" name="calendarPlantCell9"/>
+                            <RoundCorner position="691px 18px" size="66px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.08" visible="false" name="calendarHarvestCell9"/>
+                            <RoundCorner position="756px 8px" size="66px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.08" visible="false" name="calendarPlantCell10"/>
+                            <RoundCorner position="756px 18px" size="66px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.08" visible="false" name="calendarHarvestCell10"/>
+                            <RoundCorner position="821px 8px" size="66px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.08" visible="false" name="calendarPlantCell11"/>
+                            <RoundCorner position="821px 18px" size="66px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.08" visible="false" name="calendarHarvestCell11"/>
+                            <RoundCorner position="886px 8px" size="66px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.08" visible="false" name="calendarPlantCell12"/>
+                            <RoundCorner position="886px 18px" size="66px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.08" visible="false" name="calendarHarvestCell12"/>
+                            <!-- Column guides overlay the joined bars without reopening month gaps. -->
+                            <RoundCorner position="171px 5px" size="1px 24px" color="0.16 0.18 0.16 0.72" cornerSize="0.0"/>
+                            <RoundCorner position="236px 5px" size="1px 24px" color="0.16 0.18 0.16 0.72" cornerSize="0.0"/>
+                            <RoundCorner position="301px 5px" size="1px 24px" color="0.16 0.18 0.16 0.72" cornerSize="0.0"/>
+                            <RoundCorner position="366px 5px" size="1px 24px" color="0.16 0.18 0.16 0.72" cornerSize="0.0"/>
+                            <RoundCorner position="431px 5px" size="1px 24px" color="0.16 0.18 0.16 0.72" cornerSize="0.0"/>
+                            <RoundCorner position="496px 5px" size="1px 24px" color="0.16 0.18 0.16 0.72" cornerSize="0.0"/>
+                            <RoundCorner position="561px 5px" size="1px 24px" color="0.16 0.18 0.16 0.72" cornerSize="0.0"/>
+                            <RoundCorner position="626px 5px" size="1px 24px" color="0.16 0.18 0.16 0.72" cornerSize="0.0"/>
+                            <RoundCorner position="691px 5px" size="1px 24px" color="0.16 0.18 0.16 0.72" cornerSize="0.0"/>
+                            <RoundCorner position="756px 5px" size="1px 24px" color="0.16 0.18 0.16 0.72" cornerSize="0.0"/>
+                            <RoundCorner position="821px 5px" size="1px 24px" color="0.16 0.18 0.16 0.72" cornerSize="0.0"/>
+                            <RoundCorner position="886px 5px" size="1px 24px" color="0.16 0.18 0.16 0.72" cornerSize="0.0"/>
+                        </ListItem>
+                    </SmoothList>
+
+                    <ThreePartBitmap profile="ccoSliderBox" position="990px -70px" size="6px 495px" id="calendarListSliderBox">
+                        <Slider profile="fs25_listSlider" dataElementId="calendarList"/>
+                    </ThreePartBitmap>
+
+                </GuiElement>
+                <GuiElement id="calendarDetailsPanel" position="1020px -50px" size="480px 565px">
+                    <Bitmap position="0px 0px" size="480px 565px" imageColor="0.012 0.014 0.012 0.52"/>
+                    <Text profile="ccoDetailsHeader" position="20px -18px" size="440px 34px" text="REGIONAL CROP PROFILE"/>
+                    <Text profile="ccoDetailsLabel" position="20px -58px" size="150px 28px" text="Region"/>
+                    <MultiTextOption profile="ccoSelectorOption" id="regionalProfileOption" position="170px -58px"
+                        size="290px 30px" texts="Map Default" onClick="onClickRegionalProfile" wrap="false"/>
+                    <Text profile="ccoDetailsValue" id="regionalCurrentProfileText" position="20px -102px"
+                        size="440px 28px" text="ACTIVE: MAP DEFAULT" textAlignment="left"/>
+                    <Text profile="ccoDetailsInfo" id="regionalProfileDescriptionText" position="20px -136px"
+                        size="440px 50px" text="Choose a regional agronomy profile." textMaxNumLines="3"/>
+
+                    <Text profile="ccoDetailsLabel" position="20px -188px" size="120px 24px" text="Selected crop"/>
+                    <Text profile="ccoDetailsValue" id="regionalSelectedCropText" position="140px -188px"
+                        size="170px 24px" text="-" textAlignment="left"/>
+                    <Text profile="ccoRegionalSuitabilityBadge" id="regionalSuitabilityText" position="315px -188px"
+                        size="145px 24px" text="-" textAlignment="center"/>
+
+                    <Text profile="ccoDetailsInfo" id="regionalCalendarSourceText" position="20px -214px"
+                        size="440px 22px" text="Calendar source: -" textMaxNumLines="1"/>
+
+                    <ThreePartBitmap profile="fs25_contractsContentSeparator" position="20px -244px" size="440px 2px"/>
+                    <Text profile="ccoDetailsHeader" position="20px -258px" size="440px 28px" text="ENVIRONMENTAL STATUS"/>
+                    <Text profile="ccoEnvironmentStatus" id="regionalEnvironmentStatusText"
+                        position="20px -290px" size="440px 28px" text="MOISTURESYSTEM NOT ACTIVE" textAlignment="left"/>
+                    <Text profile="ccoDetailsInfo" id="regionalMoistureText" position="20px -320px" size="440px 38px"
+                        text="CCO agronomy operates independently. No weather mod is required." textMaxNumLines="2"/>
+                    <ThreePartBitmap profile="fs25_contractsContentSeparator" position="20px -362px" size="440px 2px"/>
+                    <Button profile="ccoValidationActionButton" id="regionalPreviewButton" position="20px -378px"
+                        size="210px 38px" text="PREVIEW" onClick="onClickRegionalPreview"/>
+                    <Button profile="ccoApplyActionButton" id="regionalApplyButton" position="250px -378px"
+                        size="210px 38px" text="APPLY PROFILE" onClick="onClickRegionalApply"/>
+                    <Text profile="ccoDetailsHeader" position="20px -426px" size="440px 28px" text="PREVIEW / SAFETY"/>
+                    <Text profile="ccoDetailsInfo" id="regionalPreviewText" position="20px -458px" size="440px 94px"
+                        text="Choose a regional profile, then PREVIEW. Preview makes no field or calendar changes."
+                        textVerticalAlignment="top" textMaxNumLines="8"/>
+                </GuiElement>
+                <Text id="calendarEmptyStateText" profile="ccoEmptyStateText" position="220px -220px" text="No seasonal crop calendars are available." visible="false"/>
+            </GuiElement>
+
+            <!-- Fixed calendar legend: sibling of the table so list clipping cannot hide it. -->
+            <GuiElement id="calendarLegendContainer" visible="false" position="171px 165px" size="781px 36px">
+                <ThreePartBitmap profile="fs25_contractsContentSeparator" position="0px 34px" size="781px 2px"/>
+                <RoundCorner position="0px 10px" size="34px 8px" color="0.2271 0.4151 0.0014 1" cornerSize="0.30"/>
+                <Text profile="ccoDetailsInfo" position="44px 0px" size="150px 28px" text="$l10n_cco_calendar_legend_planting"/>
+                <RoundCorner position="202px 10px" size="34px 8px" color="0.5647 0.0802 0.0116 1" cornerSize="0.30"/>
+                <Text profile="ccoDetailsInfo" position="246px 0px" size="160px 28px" text="$l10n_cco_calendar_legend_harvesting"/>
+                <RoundCorner position="420px 5px" size="5px 18px" color="1.00 0.78 0.20 1.00" cornerSize="0.40"/>
+                <Text profile="ccoDetailsInfo" position="436px 0px" size="330px 28px" text="$l10n_cco_calendar_legend_override_preview"/>
             </GuiElement>
         </GuiElement>
 
