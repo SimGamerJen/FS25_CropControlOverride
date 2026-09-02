@@ -1,0 +1,141 @@
+name: Release CCO 2.1.0.0 Beta 1
+
+on:
+  push:
+    branches:
+      - release/v2.1.0.0-beta.1
+    paths:
+      - .github/workflows/release-beta1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cco-beta1-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out Beta 1 source
+        uses: actions/checkout@v4
+        with:
+          ref: release/v2.1.0.0-beta.1
+          fetch-depth: 1
+
+      - name: Validate Beta 1 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f BETA1_RELEASE_NOTES.md
+          python - <<'PY'
+          import re
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          required_xml = [
+              'modDesc.xml',
+              'gui/CropControlOverrideMenu.xml',
+              'gui/guiProfiles.xml',
+              'l10n/l10n_en.xml',
+              'l10n/l10n_de.xml',
+              'l10n/l10n_fr.xml',
+              'templates/customRegionalProfile.xml',
+          ]
+          for path in required_xml:
+              ET.parse(path)
+
+          if ET.parse('modDesc.xml').getroot().findtext('version') != '2.1.0.0':
+              raise SystemExit('modDesc.xml is not 2.1.0.0')
+
+          runtime = Path('scripts/CropControlOverride.lua').read_text(encoding='utf-8')
+          match = re.search(r'VERSION\s*=\s*"([^"]+)"', runtime)
+          if match is None or match.group(1) != '2.1.0.0-beta.1':
+              raise SystemExit('Runtime version is not 2.1.0.0-beta.1')
+
+          gui = Path('gui/CropControlOverrideMenu.xml').read_text(encoding='utf-8')
+          menu = Path('scripts/gui/CropControlOverrideMenu.lua').read_text(encoding='utf-8')
+          for marker in ['cellWeight', 'disabledToggleButton']:
+              if marker not in gui:
+                  raise SystemExit('Missing GUI marker: ' + marker)
+          for marker in ['showDisabled', 'onClickToggleDisabled', 'row.reseedWeight']:
+              if marker not in menu:
+                  raise SystemExit('Missing rules-table marker: ' + marker)
+
+          api = Path('scripts/CCOIntegrationApi.lua').read_text(encoding='utf-8')
+          if '1.2' not in api:
+              raise SystemExit('CCO Integration API 1.2 marker not found')
+          PY
+
+          if test -f tools/check_fsm_compat.py; then
+            python tools/check_fsm_compat.py
+          fi
+
+      - name: Build Farming Simulator mod ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f FS25_CropControlOverride.zip
+          zip -r FS25_CropControlOverride.zip \
+            modDesc.xml \
+            icon_CropControlOverride.dds \
+            gui \
+            l10n \
+            scripts \
+            templates \
+            modSettings \
+            docs \
+            -x '*.DS_Store' '*__MACOSX*' 'docs/examples/*'
+
+          python - <<'PY'
+          import zipfile
+          import xml.etree.ElementTree as ET
+
+          with zipfile.ZipFile('FS25_CropControlOverride.zip', 'r') as archive:
+              bad = archive.testzip()
+              if bad is not None:
+                  raise SystemExit('Corrupt ZIP member: ' + bad)
+              names = set(archive.namelist())
+              required = {
+                  'modDesc.xml',
+                  'icon_CropControlOverride.dds',
+                  'gui/CropControlOverrideMenu.xml',
+                  'scripts/CropControlOverride.lua',
+                  'scripts/CropCalendarManager.lua',
+                  'scripts/RegionalProfileManager.lua',
+                  'scripts/CCOIntegrationApi.lua',
+                  'templates/customRegionalProfile.xml',
+              }
+              missing = sorted(required - names)
+              if missing:
+                  raise SystemExit('Missing package files: ' + ', '.join(missing))
+              if ET.fromstring(archive.read('modDesc.xml')).findtext('version') != '2.1.0.0':
+                  raise SystemExit('Unexpected packaged version')
+          PY
+
+          sha256sum FS25_CropControlOverride.zip
+
+      - name: Publish GitHub pre-release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='2.1.0.0-beta.1'
+          TITLE='Crop Control Override 2.1.0.0 Beta 1'
+          TARGET='release/v2.1.0.0-beta.1'
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TITLE" --notes-file BETA1_RELEASE_NOTES.md --prerelease
+            gh release upload "$TAG" FS25_CropControlOverride.zip --clobber
+          else
+            gh release create "$TAG" FS25_CropControlOverride.zip \
+              --target "$TARGET" \
+              --title "$TITLE" \
+              --notes-file BETA1_RELEASE_NOTES.md \
+              --prerelease
+          fi
