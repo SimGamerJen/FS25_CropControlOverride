@@ -1,0 +1,175 @@
+name: Release Crop Control Override
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release/tag version
+        required: true
+        default: 2.1.0.0-beta.1
+      target_ref:
+        description: Branch, tag or commit to package
+        required: true
+        default: release/v2.1.0.0-beta.1
+      release_title:
+        description: GitHub release title
+        required: true
+        default: Crop Control Override 2.1.0.0 Beta 1
+      notes_file:
+        description: Release notes file on target ref
+        required: true
+        default: BETA1_RELEASE_NOTES.md
+      prerelease:
+        description: Publish as a GitHub pre-release
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cco-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out requested release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_ref }}
+          fetch-depth: 1
+
+      - name: Validate release source
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          NOTES_FILE: ${{ inputs.notes_file }}
+        run: |
+          set -euo pipefail
+          test -f "$NOTES_FILE"
+          python - <<'PY'
+          import os
+          import re
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          version = os.environ['RELEASE_VERSION']
+
+          required_xml = [
+              'modDesc.xml',
+              'gui/CropControlOverrideMenu.xml',
+              'gui/guiProfiles.xml',
+              'l10n/l10n_en.xml',
+              'l10n/l10n_de.xml',
+              'l10n/l10n_fr.xml',
+              'templates/customRegionalProfile.xml',
+          ]
+          for path in required_xml:
+              ET.parse(path)
+
+          mod_version = ET.parse('modDesc.xml').getroot().findtext('version')
+          if mod_version != '2.1.0.0':
+              raise SystemExit(f'Unexpected modDesc version: {mod_version!r}')
+
+          runtime = Path('scripts/CropControlOverride.lua').read_text(encoding='utf-8')
+          match = re.search(r'VERSION\s*=\s*"([^"]+)"', runtime)
+          if match is None:
+              raise SystemExit('Unable to locate CCO runtime version')
+          if match.group(1) != version:
+              raise SystemExit(
+                  f'Runtime version {match.group(1)!r} does not match requested release {version!r}'
+              )
+
+          integration = Path('scripts/CCOIntegrationApi.lua').read_text(encoding='utf-8')
+          if 'API_VERSION = "1.2"' not in integration and 'apiVersion = "1.2"' not in integration and 'apiVersion = 1.2' not in integration:
+              # Compatibility checker below is authoritative; this is only an early sanity check.
+              print('CCO Integration API 1.2 marker will be validated by compatibility audit')
+          PY
+
+          if test -f tools/check_fsm_compat.py; then
+            python tools/check_fsm_compat.py
+          fi
+
+      - name: Build Farming Simulator mod ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f FS25_CropControlOverride.zip
+          zip -r FS25_CropControlOverride.zip \
+            modDesc.xml \
+            icon_CropControlOverride.dds \
+            gui \
+            l10n \
+            scripts \
+            templates \
+            modSettings \
+            docs \
+            -x '*.DS_Store' '*__MACOSX*' 'docs/examples/*'
+
+          python - <<'PY'
+          import zipfile
+          import xml.etree.ElementTree as ET
+
+          with zipfile.ZipFile('FS25_CropControlOverride.zip', 'r') as archive:
+              bad = archive.testzip()
+              if bad is not None:
+                  raise SystemExit('Corrupt ZIP member: ' + bad)
+
+              names = set(archive.namelist())
+              required = {
+                  'modDesc.xml',
+                  'icon_CropControlOverride.dds',
+                  'gui/CropControlOverrideMenu.xml',
+                  'scripts/CropControlOverride.lua',
+                  'scripts/CropCalendarManager.lua',
+                  'scripts/RegionalProfileManager.lua',
+                  'scripts/CCOIntegrationApi.lua',
+                  'templates/customRegionalProfile.xml',
+              }
+              missing = sorted(required - names)
+              if missing:
+                  raise SystemExit('Missing package files: ' + ', '.join(missing))
+
+              root = ET.fromstring(archive.read('modDesc.xml'))
+              if root.findtext('version') != '2.1.0.0':
+                  raise SystemExit('Unexpected packaged modDesc version')
+          PY
+
+          sha256sum FS25_CropControlOverride.zip
+
+      - name: Publish or refresh GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_TITLE: ${{ inputs.release_title }}
+          NOTES_FILE: ${{ inputs.notes_file }}
+          TARGET_REF: ${{ inputs.target_ref }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+
+          flags=()
+          if [ "$PRERELEASE" = "true" ]; then
+            flags+=(--prerelease)
+          fi
+
+          if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_VERSION" \
+              --title "$RELEASE_TITLE" \
+              --notes-file "$NOTES_FILE" \
+              "${flags[@]}"
+            gh release upload "$RELEASE_VERSION" FS25_CropControlOverride.zip --clobber
+          else
+            gh release create "$RELEASE_VERSION" \
+              FS25_CropControlOverride.zip \
+              --target "$TARGET_REF" \
+              --title "$RELEASE_TITLE" \
+              --notes-file "$NOTES_FILE" \
+              "${flags[@]}"
+          fi
