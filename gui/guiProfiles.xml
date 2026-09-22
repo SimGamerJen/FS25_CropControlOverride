@@ -331,4 +331,24 @@
         <hideButtonOnLimitReached value="true"/>
     </Profile>
 
+
+    <Profile name="ccoRegionalSuitabilityBadge" extends="baseReference" with="anchorTopLeft">
+        <textSize value="12px"/>
+        <textBold value="true"/>
+        <textUpperCase value="true"/>
+        <textColor value="$preset_fs25_colorMainLight"/>
+        <textAlignment value="center"/>
+        <textVerticalAlignment value="middle"/>
+    </Profile>
+
+
+    <Profile name="ccoEnvironmentStatus" extends="baseReference" with="anchorTopLeft">
+        <textSize value="13px"/>
+        <textBold value="true"/>
+        <textUpperCase value="true"/>
+        <textColor value="0.72 0.75 0.70 1"/>
+        <textAlignment value="left"/>
+        <textVerticalAlignment value="middle"/>
+    </Profile>
+
 </GUIProfiles>

@@ -6,19 +6,19 @@ on:
       version:
         description: Release/tag version
         required: true
-        default: 2.1.0.0-beta.1
+        default: 2.1.0.0-beta.2
       target_ref:
         description: Branch, tag or commit to package
         required: true
-        default: release/v2.1.0.0-beta.1
+        default: release/v2.1.0.0-beta.2
       release_title:
         description: GitHub release title
         required: true
-        default: Crop Control Override 2.1.0.0 Beta 1
+        default: Crop Control Override 2.1.0.0 Beta 2
       notes_file:
         description: Release notes file on target ref
         required: true
-        default: BETA1_RELEASE_NOTES.md
+        default: BETA2_RELEASE_NOTES.md
       prerelease:
         description: Publish as a GitHub pre-release
         required: true
@@ -26,7 +26,7 @@ on:
         default: true
   push:
     branches:
-      - release/v2.1.0.0-beta.1
+      - release/v2.1.0.0-beta.2
     paths:
       - .release/READY
 
@@ -44,10 +44,10 @@ jobs:
     timeout-minutes: 5
 
     env:
-      RELEASE_VERSION: ${{ inputs.version || '2.1.0.0-beta.1' }}
+      RELEASE_VERSION: ${{ inputs.version || '2.1.0.0-beta.2' }}
       TARGET_REF: ${{ inputs.target_ref || github.ref_name }}
-      RELEASE_TITLE: ${{ inputs.release_title || 'Crop Control Override 2.1.0.0 Beta 1' }}
-      NOTES_FILE: ${{ inputs.notes_file || 'BETA1_RELEASE_NOTES.md' }}
+      RELEASE_TITLE: ${{ inputs.release_title || 'Crop Control Override 2.1.0.0 Beta 2' }}
+      NOTES_FILE: ${{ inputs.notes_file || 'BETA2_RELEASE_NOTES.md' }}
       PRERELEASE: ${{ github.event_name == 'push' || inputs.prerelease }}
 
     steps:
@@ -74,7 +74,7 @@ jobs:
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git add -A
             if ! git diff --cached --quiet; then
-              git commit -m 'Promote CCO 2.1.0.0-beta.1 release source [skip ci]'
+              git commit -m 'Promote CCO 2.1.0.0-beta.2 release source [skip ci]'
               git push origin HEAD:"${TARGET_REF}"
             fi
           fi

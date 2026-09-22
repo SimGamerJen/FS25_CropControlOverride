@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    CCO Custom Regional Crop Profile Template
+
+    CCO automatically places a copy in the custom-profile modSettings folder
+    as _template.xml. Rename/copy that file before use; _template.xml is ignored.
+
+    unsuitablePolicy:
+      allow = suitability is advisory; player may still select and sow unsuitable crops.
+      hide  = unsuitable crops are removed from normal seeder selections, but a stale or
+              third-party selection is not hard-blocked by the regional policy.
+      block = unsuitable crops are hidden and CCO prevents player/AI sowing at runtime.
+
+    Crops omitted from this profile keep the map calendar and Normal suitability.
+    A crop may omit BOTH planting and harvest to set suitability only.
+-->
+<cropCalendarProfile
+    id="missouriBootheel"
+    displayName="Missouri Bootheel"
+    description="Player-defined regional crop calendar."
+    unsuitablePolicy="allow"
+    moistureAliases="">
+
+    <crop name="WHEAT"
+          suitability="good"
+          planting="SEP-OCT"
+          harvest="JUL-AUG"/>
+
+    <crop name="BARLEY"
+          suitability="good"
+          planting="SEP-OCT,MAR"
+          harvest="JUN-AUG"/>
+
+    <crop name="MAIZE"
+          suitability="excellent"
+          planting="APR-MAY"
+          harvest="SEP-OCT"/>
+
+    <crop name="SOYBEAN"
+          suitability="good"
+          planting="APR-MAY"
+          harvest="SEP-OCT"/>
+
+    <!-- Suitability-only example: uses the map's existing calendar. -->
+    <crop name="COTTON"
+          suitability="marginal"/>
+
+    <!-- With unsuitablePolicy=hide or block this changes player availability. -->
+    <crop name="SUGARCANE"
+          suitability="unsuitable"/>
+</cropCalendarProfile>
