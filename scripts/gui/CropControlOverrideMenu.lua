@@ -2320,14 +2320,27 @@ end
 function CropControlOverrideMenu:updateResetScopeButton()
     if self.resetScopeButton ~= nil then
         self:refreshResetScopes()
-        local value = self.resetScopes[self.resetScopeIndex or 1] or { label = "ALL" }
-        local label = type(value) == "table" and tostring(value.label or "ALL") or tostring(value or "ALL")
-        if self.resetScopeButton.setText ~= nil then
-            self.resetScopeButton:setText("RESET SCOPE: " .. label)
+
+        local labels = {}
+        for index, value in ipairs(self.resetScopes or {}) do
+            labels[index] = type(value) == "table" and tostring(value.label or "ALL") or tostring(value or "ALL")
+        end
+        if #labels == 0 then
+            labels = {"ALL"}
+            self.resetScopeIndex = 1
+        end
+
+        self.suppressResetSelectorCallbacks = true
+        if self.resetScopeButton.setTexts ~= nil then
+            self.resetScopeButton:setTexts(labels)
+        end
+        if self.resetScopeButton.setState ~= nil then
+            self.resetScopeButton:setState(self.resetScopeIndex or 1, true)
         end
         if self.resetScopeButton.setDisabled ~= nil then
-            self.resetScopeButton:setDisabled(#(self.resetScopes or {}) <= 1)
+            self.resetScopeButton:setDisabled(#labels <= 1)
         end
+        self.suppressResetSelectorCallbacks = false
     end
 end
 
@@ -2340,39 +2353,60 @@ end
 
 function CropControlOverrideMenu:updateResetModeButton()
     if self.resetModeButton ~= nil then
-        if self.resetModeButton.setText ~= nil then
-            self.resetModeButton:setText("RESET MODE: " .. self:getResetModeLabel())
+        local state = self.resetMode == "reseedSeasonal" and 2 or 1
+
+        self.suppressResetSelectorCallbacks = true
+        if self.resetModeButton.setTexts ~= nil then
+            self.resetModeButton:setTexts({"CULTIVATED", "RESEED SEASONAL"})
+        end
+        if self.resetModeButton.setState ~= nil then
+            self.resetModeButton:setState(state, true)
         end
         if self.resetModeButton.setDisabled ~= nil then
             self.resetModeButton:setDisabled(false)
         end
+        self.suppressResetSelectorCallbacks = false
     end
 end
 
-function CropControlOverrideMenu:onClickResetMode()
-    if self.serverResetDryRunPending == true or self.serverResetPending == true then return end
-    if self.resetMode == "reseedSeasonal" then
-        self.resetMode = "cultivated"
-    else
-        self.resetMode = "reseedSeasonal"
+function CropControlOverrideMenu:onClickResetMode(state, optionElement)
+    if self.suppressResetSelectorCallbacks == true then return end
+    if self.serverResetDryRunPending == true or self.serverResetPending == true then
+        self:updateResetModeButton()
+        return
     end
-    self.resetConfirmArmed = false
-    self:updateResetModeButton()
+
+    local selectedState = tonumber(state) or 1
+    local newMode = selectedState == 2 and "reseedSeasonal" or "cultivated"
+    if self.resetMode ~= newMode then
+        self.resetMode = newMode
+        self.resetConfirmArmed = false
+    end
+
     self:updateContent()
 end
 
-function CropControlOverrideMenu:onClickResetScope()
-    if self.serverResetDryRunPending == true or self.serverResetPending == true then return end
-    self:refreshResetScopes()
-    if #(self.resetScopes or {}) > 1 then
-        self.resetScopeIndex = (self.resetScopeIndex or 1) + 1
-        if self.resetScopeIndex > #self.resetScopes then
-            self.resetScopeIndex = 1
-        end
-        self.resetConfirmArmed = false
+function CropControlOverrideMenu:onClickResetScope(state, optionElement)
+    if self.suppressResetSelectorCallbacks == true then return end
+    if self.serverResetDryRunPending == true or self.serverResetPending == true then
         self:updateResetScopeButton()
-        self:updateContent()
+        return
     end
+
+    self:refreshResetScopes()
+    local selectedState = tonumber(state) or 1
+    if selectedState < 1 then selectedState = 1 end
+    if selectedState > #(self.resetScopes or {}) then
+        selectedState = #(self.resetScopes or {})
+    end
+    if selectedState < 1 then selectedState = 1 end
+
+    if self.resetScopeIndex ~= selectedState then
+        self.resetScopeIndex = selectedState
+        self.resetConfirmArmed = false
+    end
+
+    self:updateContent()
 end
 
 function CropControlOverrideMenu:onClickResetBlockedDryRun()
