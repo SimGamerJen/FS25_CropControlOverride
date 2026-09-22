@@ -365,12 +365,13 @@ local function parseRuleRows(text)
 end
 
 
-local function filterRuleRows(rows, showNotLoaded, showDisabled)
+local function filterRuleRows(rows, showNotLoaded, showDisabled, topic)
     local filtered = {}
+    local applyDisabledFilter = tostring(topic or "rules") == "rules"
 
     for _, row in ipairs(rows or {}) do
         local visibleByLoadState = showNotLoaded == true or tostring(row.loaded or "") ~= "No"
-        local visibleByEnabledState = showDisabled == true or row.enabledBool ~= false
+        local visibleByEnabledState = not applyDisabledFilter or showDisabled == true or row.enabledBool ~= false
 
         if visibleByLoadState and visibleByEnabledState then
             table.insert(filtered, row)
@@ -378,6 +379,59 @@ local function filterRuleRows(rows, showNotLoaded, showDisabled)
     end
 
     return filtered
+end
+
+
+local function filterCalendarRows(rows, showDisabled)
+    if showDisabled == true then
+        return rows or {}
+    end
+
+    local disabledCrops = {}
+    local rulesResolved = false
+
+    if CropControlOverride ~= nil and CropControlOverride.getGuiRuleRows ~= nil then
+        local ok, ruleRows = pcall(function()
+            return CropControlOverride:getGuiRuleRows("rules")
+        end)
+        if ok and type(ruleRows) == "table" then
+            rulesResolved = true
+            for _, ruleRow in ipairs(ruleRows) do
+                if ruleRow.enabledBool == false then
+                    disabledCrops[string.upper(tostring(ruleRow.crop or ""))] = true
+                end
+            end
+        end
+    end
+
+    if not rulesResolved then
+        return rows or {}
+    end
+
+    local filtered = {}
+    for _, row in ipairs(rows or {}) do
+        local cropName = string.upper(tostring(row.crop or row.name or ""))
+        if disabledCrops[cropName] ~= true then
+            table.insert(filtered, row)
+        end
+    end
+    return filtered
+end
+
+
+local function getCalendarRowsForDisplay(showDisabled)
+    if CropControlOverride == nil or CropControlOverride.getGuiCalendarRows == nil then
+        return {}
+    end
+
+    local ok, rows = pcall(function()
+        return CropControlOverride:getGuiCalendarRows()
+    end)
+    if not ok or type(rows) ~= "table" then
+        return {}
+    end
+
+    return filterCalendarRows(rows, showDisabled)
 end
 
 
@@ -719,9 +773,8 @@ function CropControlOverrideMenu:setContent(title, body, topic)
             parsedRows = parseRuleRows(self.pendingBody)
         end
     end
-    self.ruleRows = self.tableTopic and filterRuleRows(parsedRows, self.showNotLoaded, self.showDisabled) or {}
-    self.calendarRows = self.calendarTopic and CropControlOverride ~= nil and CropControlOverride.getGuiCalendarRows ~= nil
-        and CropControlOverride:getGuiCalendarRows() or {}
+    self.ruleRows = self.tableTopic and filterRuleRows(parsedRows, self.showNotLoaded, self.showDisabled, activeTopic) or {}
+    self.calendarRows = self.calendarTopic and getCalendarRowsForDisplay(self.showDisabled) or {}
     self.selectedCalendarRowIndex = nil
     self.selectedCalendarRow = nil
     self.calendarEditMode = "SHIFT"
@@ -1051,9 +1104,15 @@ function CropControlOverrideMenu:updateContent()
         end
     end
     if self.disabledToggleButton ~= nil then
-        self.disabledToggleButton:setVisible(self.tableTopic)
+        self.disabledToggleButton:setVisible(self.currentTopic == "rules")
         if self.disabledToggleButton.setText ~= nil then
             self.disabledToggleButton:setText(self.showDisabled and "DISABLED: SHOWN" or "DISABLED: HIDDEN")
+        end
+    end
+    if self.calendarDisabledToggleButton ~= nil then
+        self.calendarDisabledToggleButton:setVisible(self.calendarTopic)
+        if self.calendarDisabledToggleButton.setText ~= nil then
+            self.calendarDisabledToggleButton:setText(self.showDisabled and "DISABLED: SHOWN" or "DISABLED: HIDDEN")
         end
     end
     if self.bodyTextElement ~= nil then
@@ -1852,8 +1911,7 @@ end
 
 function CropControlOverrideMenu:clearRegionalVisualPreview()
     if self.regionalVisualPreviewActive ~= true then return end
-    self.calendarRows = CropControlOverride ~= nil and CropControlOverride.getGuiCalendarRows ~= nil
-        and CropControlOverride:getGuiCalendarRows() or {}
+    self.calendarRows = getCalendarRowsForDisplay(self.showDisabled)
     self.regionalVisualPreviewActive = false
     self:reloadCalendarListPreservingSelection()
 end
@@ -1863,8 +1921,7 @@ function CropControlOverrideMenu:applyRegionalVisualPreview()
 
     -- Always start from the live calendar rows so repeated Preview operations do
     -- not stack on top of an earlier regional Preview.
-    self.calendarRows = CropControlOverride ~= nil and CropControlOverride.getGuiCalendarRows ~= nil
-        and CropControlOverride:getGuiCalendarRows() or {}
+    self.calendarRows = getCalendarRowsForDisplay(self.showDisabled)
 
     local plan = CropControlOverride ~= nil and CropControlOverride._regionalProfilePreview or nil
     local planByCrop = {}
@@ -2122,7 +2179,7 @@ function CropControlOverrideMenu:onClickRegionalApply()
         self.regionalPreviewApplyAllowed=false
         if ok==true then
             self.regionalVisualPreviewActive=false
-            self.calendarRows=CropControlOverride:getGuiCalendarRows()
+            self.calendarRows=getCalendarRowsForDisplay(self.showDisabled)
             self:reloadCalendarListPreservingSelection()
             self:initialiseRegionalProfileControls()
         end
@@ -2139,7 +2196,7 @@ function CropControlOverrideMenu:onServerRegionalProfileApplyResult(success,msg,
     if CropControlOverride~=nil then CropControlOverride._guiNotice=tostring(msg or "") end
     if success==true then
         self.regionalVisualPreviewActive=false
-        self.calendarRows=CropControlOverride:getGuiCalendarRows()
+        self.calendarRows=getCalendarRowsForDisplay(self.showDisabled)
         self:reloadCalendarListPreservingSelection()
         self:initialiseRegionalProfileControls()
     end
