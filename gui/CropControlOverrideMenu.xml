@@ -96,11 +96,11 @@
                     <Text profile="ccoDetailsHeader" position="20px -18px" size="380px 28px" text="EXISTING FIELD CLEANUP"/>
                     <Text profile="ccoDetailsInfo" position="20px -48px" size="380px 48px" text="Choose a target and reset mode, then preview the change before confirmation."/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -103px" size="120px 24px" text="Scope"/>
+                    <Text profile="ccoDetailsLabel" position="20px -103px" size="120px 24px" text="SCOPE"/>
                     <MultiTextOption profile="ccoSelectorOption" id="resetScopeButton" position="20px -128px" size="380px 30px"
                         texts="-" onClick="onClickResetScope" wrap="false"/>
 
-                    <Text profile="ccoDetailsLabel" position="20px -173px" size="120px 24px" text="Mode"/>
+                    <Text profile="ccoDetailsLabel" position="20px -173px" size="120px 24px" text="MODE"/>
                     <MultiTextOption profile="ccoSelectorOption" id="resetModeButton" position="20px -198px" size="380px 30px"
                         texts="-" onClick="onClickResetMode" wrap="false"/>
 
