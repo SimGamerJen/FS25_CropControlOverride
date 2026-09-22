@@ -286,6 +286,9 @@
                         <Slider profile="fs25_listSlider" dataElementId="calendarList"/>
                     </ThreePartBitmap>
 
+                    <Button profile="ccoEditButtonWide" id="calendarDisabledToggleButton" position="20px -590px" size="220px 30px"
+                        text="DISABLED: SHOWN" onClick="onClickToggleDisabled" visible="false"/>
+
                 </GuiElement>
                 <GuiElement id="calendarDetailsPanel" position="1020px -50px" size="480px 565px">
                     <Bitmap position="0px 0px" size="480px 565px" imageColor="0.012 0.014 0.012 0.52"/>
