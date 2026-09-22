@@ -97,10 +97,12 @@
                     <Text profile="ccoDetailsInfo" position="20px -48px" size="380px 48px" text="Choose a target and reset mode, then preview the change before confirmation."/>
 
                     <Text profile="ccoDetailsLabel" position="20px -103px" size="120px 24px" text="Scope"/>
-                    <Button profile="ccoValidationActionButton" id="resetScopeButton" position="20px -128px" size="380px 34px" text="RESET SCOPE: ALL" onClick="onClickResetScope"/>
+                    <MultiTextOption profile="ccoSelectorOption" id="resetScopeButton" position="20px -128px" size="380px 30px"
+                        texts="ALL" onClick="onClickResetScope" wrap="false"/>
 
                     <Text profile="ccoDetailsLabel" position="20px -173px" size="120px 24px" text="Mode"/>
-                    <Button profile="ccoValidationActionButton" id="resetModeButton" position="20px -198px" size="380px 34px" text="RESET MODE: CULTIVATED" onClick="onClickResetMode"/>
+                    <MultiTextOption profile="ccoSelectorOption" id="resetModeButton" position="20px -198px" size="380px 30px"
+                        texts="CULTIVATED|RESEED SEASONAL" onClick="onClickResetMode" wrap="false"/>
 
                     <Button profile="ccoValidationActionButton" id="resetBlockedDryRunButton" position="20px -245px" size="380px 34px" text="PREVIEW FIELD CLEANUP" onClick="onClickResetBlockedDryRun"/>
                     <Button profile="ccoValidationDangerButton" id="confirmBlockedResetButton" position="20px -287px" size="380px 34px" text="CONFIRM RESET" onClick="onClickConfirmBlockedReset" visible="false"/>
