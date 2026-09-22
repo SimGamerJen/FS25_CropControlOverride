@@ -70,6 +70,9 @@ function CropControlOverrideMenu.new(target, customMt)
     self.returnScreenName = ""
     self.pendingTitle = "Crop Control Override"
     self.pendingBody = ""
+    self.validationRows = {}
+    self.validationTopic = false
+    self.validationNotice = ""
     self.currentTopic = "rules"
     self.currentPage = 1
     self.ruleRows = {}
@@ -701,8 +704,13 @@ end
 function CropControlOverrideMenu:setContent(title, body, topic)
     self.pendingTitle = title or "Crop Control Override"
     self.pendingBody = body or ""
-    self.tableTopic = TABLE_TOPICS[topic or self.currentTopic or ""] == true
-    self.calendarTopic = (topic or self.currentTopic or "") == "calendar"
+    local activeTopic = topic or self.currentTopic or ""
+    self.tableTopic = TABLE_TOPICS[activeTopic] == true
+    self.calendarTopic = activeTopic == "calendar"
+    self.validationTopic = activeTopic == "blocked" or activeTopic == "validation"
+    if self.validationTopic then
+        self.validationNotice = ""
+    end
     local parsedRows = {}
     if self.tableTopic then
         if CropControlOverride ~= nil and CropControlOverride.getGuiRuleRows ~= nil then
@@ -916,12 +924,116 @@ function CropControlOverrideMenu:updateSelectedDetails()
     self:updateStagedButtons()
 end
 
+function CropControlOverrideMenu:refreshValidationRows()
+    if not self.validationTopic then
+        self.validationRows = {}
+        return
+    end
+
+    local rows = {}
+    if CropControlOverride ~= nil and CropControlOverride.getBlockedFieldRows ~= nil then
+        local ok, sourceRows = pcall(function()
+            return CropControlOverride:getBlockedFieldRows()
+        end)
+        if ok and type(sourceRows) == "table" then
+            for _, source in ipairs(sourceRows) do
+                local candidateCrop = source.candidateCrop
+                if (candidateCrop == nil or tostring(candidateCrop) == "") and source.field ~= nil
+                    and CropControlOverride.getReseedCandidateTextForField ~= nil then
+                    local candidateOk, candidate = pcall(function()
+                        return CropControlOverride:getReseedCandidateTextForField(source.field, source.cropName)
+                    end)
+                    if candidateOk then
+                        candidateCrop = candidate
+                    end
+                end
+
+                table.insert(rows, {
+                    fieldId = tostring(source.fieldId or "-"),
+                    cropName = tostring(source.cropName or "-"),
+                    sizeHa = tonumber(source.sizeHa or 0) or 0,
+                    candidateCrop = tostring(candidateCrop or "NONE"),
+                    reason = tostring(source.reason or "blocked"),
+                })
+            end
+        end
+    end
+
+    self.validationRows = rows
+end
+
+function CropControlOverrideMenu:updateValidationSummary()
+    if not self.validationTopic then return end
+
+    local summary = nil
+    if CropControlOverride ~= nil and CropControlOverride.getGuiValidationSummary ~= nil then
+        local ok, result = pcall(function()
+            return CropControlOverride:getGuiValidationSummary()
+        end)
+        if ok then summary = result end
+    elseif CropControlOverride ~= nil and CropControlOverride.buildFieldSummary ~= nil then
+        local ok, result = pcall(function()
+            return CropControlOverride:buildFieldSummary(nil)
+        end)
+        if ok then summary = result end
+    end
+    summary = summary or {}
+
+    local blocked = tonumber(summary.offending or #self.validationRows or 0) or 0
+    local total = tonumber(summary.total or 0) or 0
+    local npcTotal = tonumber(summary.npcTotal or 0) or 0
+    local playerTotal = tonumber(summary.playerTotal or 0) or 0
+
+    if self.validationStatusText ~= nil and self.validationStatusText.setText ~= nil then
+        self.validationStatusText:setText(blocked > 0 and "ATTENTION REQUIRED" or "PASS")
+        if self.validationStatusText.setTextColor ~= nil then
+            if blocked > 0 then
+                self.validationStatusText:setTextColor(0.95, 0.22, 0.18, 1.00)
+            else
+                self.validationStatusText:setTextColor(0.55, 0.90, 0.25, 1.00)
+            end
+        end
+    end
+
+    if self.validationCountsText ~= nil and self.validationCountsText.setText ~= nil then
+        self.validationCountsText:setText(("Checked %d   |   NPC %d   |   Player %d   |   Blocked %d"):format(
+            total, npcTotal, playerTotal, blocked))
+    end
+
+    if self.validationIntroText ~= nil and self.validationIntroText.setText ~= nil then
+        if blocked > 0 then
+            self.validationIntroText:setText("Existing NPC fields conflict with the active crop policy. Review the affected fields before cleanup.")
+        else
+            self.validationIntroText:setText("No existing NPC fields conflict with the active crop policy.")
+        end
+    end
+
+    if self.validationNoticeText ~= nil and self.validationNoticeText.setText ~= nil then
+        self.validationNoticeText:setText(tostring(self.validationNotice or ""))
+    end
+end
+
 function CropControlOverrideMenu:updateContent()
+    self.validationTopic = (self.currentTopic == "blocked" or self.currentTopic == "validation")
+        and not self.tableTopic and not self.calendarTopic
+
     if self.titleElement ~= nil and self.titleElement.setText ~= nil then
         self.titleElement:setText(tostring(self.pendingTitle or "Crop Control Override"))
     end
 
     self:updateTabs()
+
+    if self.contextHintText ~= nil and self.contextHintText.setText ~= nil then
+        if self.validationTopic then
+            self.contextHintText:setText("Review policy conflicts and preview cleanup actions before changing NPC field state.")
+        else
+            self.contextHintText:setText("Crop policy editor | Apply writes per-save XML | Load Defaults imports config.xml")
+        end
+    end
+
+    if self.validationContainer ~= nil then
+        self.validationContainer:setVisible(self.validationTopic)
+    end
 
     if self.ruleTableContainer ~= nil then
         self.ruleTableContainer:setVisible(self.tableTopic)
@@ -945,13 +1057,13 @@ function CropControlOverrideMenu:updateContent()
         end
     end
     if self.bodyTextElement ~= nil then
-        self.bodyTextElement:setVisible(not self.tableTopic and not self.calendarTopic)
-        if not self.tableTopic and not self.calendarTopic then
+        self.bodyTextElement:setVisible(not self.tableTopic and not self.calendarTopic and not self.validationTopic)
+        if not self.tableTopic and not self.calendarTopic and not self.validationTopic then
             self.bodyTextElement:setText(tostring(self.pendingBody or ""))
         end
     end
 
-    local showResetControls = (self.currentTopic == "blocked" or self.currentTopic == "validation") and not self.tableTopic
+    local showResetControls = self.validationTopic
 
     if showResetControls then
         self:refreshResetScopes()
@@ -1011,6 +1123,26 @@ function CropControlOverrideMenu:updateContent()
         end
     end
 
+    if self.validationTopic then
+        self:refreshValidationRows()
+        self:updateValidationSummary()
+
+        local hasValidationRows = #self.validationRows > 0
+        if self.validationList ~= nil then
+            self.validationList:reloadData()
+            self.validationList:setVisible(hasValidationRows)
+        end
+        if self.validationListSliderBox ~= nil then
+            self.validationListSliderBox:setVisible(#self.validationRows > 9)
+        end
+        if self.validationEmptyStateText ~= nil then
+            self.validationEmptyStateText:setVisible(not hasValidationRows)
+            if self.validationEmptyStateText.setText ~= nil then
+                self.validationEmptyStateText:setText("No blocked NPC fields. The current save passes validation.")
+            end
+        end
+    end
+
     if self.tableTopic then
         local hasRows = #self.ruleRows > 0
         if hasRows then
@@ -1066,6 +1198,7 @@ end
 
 function CropControlOverrideMenu:getNumberOfItemsInSection(list, section)
     if list == self.calendarList then return #self.calendarRows end
+    if list == self.validationList then return #self.validationRows end
     return #self.ruleRows
 end
 
@@ -1078,6 +1211,35 @@ function CropControlOverrideMenu:getSectionHeaderHeight(list, section)
 end
 
 function CropControlOverrideMenu:populateCellForItemInSection(list, section, index, cell)
+    if list == self.validationList then
+        local row = self.validationRows[index]
+        if row == nil or cell == nil then return end
+
+        local COLOR_DEFAULT = {0.88, 0.90, 0.86, 1.00}
+        local COLOR_GREEN = {0.55, 0.90, 0.25, 1.00}
+        local COLOR_YELLOW = {1.00, 0.78, 0.20, 1.00}
+
+        local function set(name, value, color)
+            local element = cell.getDescendantByName ~= nil and cell:getDescendantByName(name) or nil
+            if element ~= nil then
+                if element.setText ~= nil then element:setText(tostring(value or "")) end
+                if color ~= nil and element.setTextColor ~= nil then
+                    element:setTextColor(color[1], color[2], color[3], color[4])
+                end
+            end
+        end
+
+        local candidate = tostring(row.candidateCrop or "NONE")
+        local candidateColor = candidate ~= "" and candidate ~= "NONE" and COLOR_GREEN or COLOR_DEFAULT
+
+        set("validationCellField", row.fieldId, COLOR_DEFAULT)
+        set("validationCellCrop", row.cropName, COLOR_DEFAULT)
+        set("validationCellSize", formatHaAcCompact(row.sizeHa), COLOR_DEFAULT)
+        set("validationCellCandidate", candidate, candidateColor)
+        set("validationCellReason", row.reason, COLOR_YELLOW)
+        return
+    end
+
     if list == self.calendarList then
         local row = self.calendarRows[index]
         if row == nil or cell == nil then return end
@@ -1196,6 +1358,9 @@ function CropControlOverrideMenu:populateCellForItemInSection(list, section, ind
 end
 
 function CropControlOverrideMenu:onListSelectionChanged(list, section, index)
+    if list == self.validationList then
+        return
+    end
     if list == self.calendarList then
         if self.suppressCalendarSelectionCallback == true then return end
         local row = self.calendarRows[index]
@@ -2231,6 +2396,7 @@ function CropControlOverrideMenu:onClickResetBlockedDryRun()
     if success == true and serverPending == true then
         self.serverResetDryRunPending = true
         self.resetConfirmArmed = false
+        self.validationNotice = ccoGuiText("cco_waiting_server_validation", "Waiting for dedicated-server validation...")
         local body = CropControlOverride.buildGuiBlockedText ~= nil and CropControlOverride:buildGuiBlockedText() or ""
         self.pendingTitle = "Crop Control Override - Validation"
         self.pendingBody = tostring(body or "") .. "\n\nDRY-RUN RESULT\n" .. ccoGuiText("cco_waiting_server_validation", "Waiting for dedicated-server validation...")
@@ -2258,6 +2424,13 @@ function CropControlOverrideMenu:onServerResetDryRunResult(success, result, woul
         confirmHint = "\n\nCONFIRM RESET is now available for scope=" .. tostring(self.pendingResetScopeText or "ALL") .. " resetMode=" .. self:getResetModeLabel() .. ". It will apply the selected reset mode."
     elseif not ccoGuiCanEditRules() then
         confirmHint = "\n\nRemote multiplayer clients are read-only. Reset actions can only be run by the server/host."
+    end
+
+    self.validationNotice = msg
+    if self.resetConfirmArmed then
+        self.validationNotice = self.validationNotice .. "  CONFIRM RESET is now available for the selected scope and mode."
+    elseif not ccoGuiCanEditRules() then
+        self.validationNotice = self.validationNotice .. "  Remote multiplayer clients are read-only."
     end
 
     self.pendingTitle = "Crop Control Override - Validation"
@@ -2293,6 +2466,7 @@ function CropControlOverrideMenu:onClickConfirmBlockedReset()
 
     if success == true and serverPending == true then
         self.serverResetPending = true
+        self.validationNotice = ccoGuiText("cco_waiting_server_reset", "Waiting for dedicated-server confirmation...")
         local body = CropControlOverride.buildGuiBlockedText ~= nil and CropControlOverride:buildGuiBlockedText() or ""
         self.pendingTitle = "Crop Control Override - Validation"
         self.pendingBody = tostring(body or "") .. "\n\nRESET RESULT\n" .. ccoGuiText("cco_waiting_server_reset", "Waiting for dedicated-server confirmation...")
@@ -2317,6 +2491,7 @@ function CropControlOverrideMenu:onServerResetResult(success, result, queued, sk
         body = CropControlOverride:buildGuiBlockedText()
     end
 
+    self.validationNotice = msg
     self.pendingTitle = "Crop Control Override - Validation"
     self.pendingBody = tostring(body or "") .. "\n\nRESET RESULT\n" .. msg
     self.currentTopic = "blocked"
@@ -2327,6 +2502,7 @@ end
 function CropControlOverrideMenu:onClickRegenerateNpcPreview()
     if not ccoGuiCanRegenerateNpcFields() then
         self.regenerationConfirmArmed = false
+        self.validationNotice = "Remote multiplayer clients are read-only. NPC map regeneration can only be run by the server/host."
         self.pendingTitle = "Crop Control Override - Validation"
         self.pendingBody = tostring(self.pendingBody or "") .. "\n\nNPC MAP REGENERATION\nRemote multiplayer clients are read-only. Regeneration can only be run by the server/host."
         self:updateContent()
@@ -2349,6 +2525,10 @@ function CropControlOverrideMenu:onClickRegenerateNpcPreview()
     local hint = self.regenerationConfirmArmed
         and "\n\nCONFIRM NPC REGENERATION is now available. This will replace crops on every unowned field, remove available contracts, and rebuild the contract board."
         or ""
+    self.validationNotice = msg
+    if self.regenerationConfirmArmed then
+        self.validationNotice = self.validationNotice .. "  CONFIRM NPC REGENERATION is now available; it can replace crops and rebuild the contract board."
+    end
     self.pendingTitle = "Crop Control Override - Validation"
     self.pendingBody = tostring(body or "") .. "\n\nNPC MAP REGENERATION PREVIEW\n" .. msg .. hint
     self.currentTopic = "blocked"
@@ -2374,6 +2554,7 @@ function CropControlOverrideMenu:onClickConfirmNpcRegeneration()
     if CropControlOverride.buildGuiBlockedText ~= nil then
         body = CropControlOverride:buildGuiBlockedText()
     end
+    self.validationNotice = msg
     self.pendingTitle = "Crop Control Override - Validation"
     self.pendingBody = tostring(body or "") .. "\n\nNPC MAP REGENERATION RESULT\n" .. msg
     self.currentTopic = "blocked"
