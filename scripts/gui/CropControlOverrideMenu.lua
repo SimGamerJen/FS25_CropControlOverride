@@ -2338,7 +2338,8 @@ function CropControlOverrideMenu:updateResetScopeButton()
             self.resetScopeButton:setState(self.resetScopeIndex or 1, true)
         end
         if self.resetScopeButton.setDisabled ~= nil then
-            self.resetScopeButton:setDisabled(#labels <= 1)
+            local disabled = self.serverResetDryRunPending == true or self.serverResetPending == true
+            self.resetScopeButton:setDisabled(disabled)
         end
         self.suppressResetSelectorCallbacks = false
     end
