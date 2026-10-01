@@ -182,6 +182,7 @@ https://github.com/SimGamerJen/FS25_CropControlOverride
         <sourceFile filename="scripts/CropControlOverrideChangeSettingsEvent.lua"/>
         <sourceFile filename="scripts/RegionalProfileManager.lua"/>
         <sourceFile filename="scripts/CropCalendarManager.lua"/>
+        <sourceFile filename="scripts/NativeCalendarSort.lua"/>
         <sourceFile filename="scripts/gui/CropControlOverrideMenu.lua"/>
         <sourceFile filename="scripts/CropControlOverride.lua"/>
         <sourceFile filename="scripts/CCOIntegrationApi.lua"/>
