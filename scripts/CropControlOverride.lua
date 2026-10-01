@@ -2698,6 +2698,10 @@ function CCO:isCalendarFruitEnabled(fruitType)
         return false
     end
 
+    if upper(fruitType.name) == "MEADOW" then
+        return false
+    end
+
     if fruitType.shownOnMap ~= true then
         return false
     end
