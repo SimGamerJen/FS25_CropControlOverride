@@ -234,6 +234,18 @@
         <text name="cco_calendar_legend_planting" text="Aussaat"/>
         <text name="cco_calendar_legend_harvesting" text="Ernte"/>
         <text name="cco_calendar_legend_override_preview" text="Überschreibung / Vorschau"/>
+        <text name="cco_calendar_sort_button" text="SORTIERUNG: %s"/>
+        <text name="cco_calendar_sort_title" text="Fruchtkalender sortieren"/>
+        <text name="cco_calendar_sort_prompt" text="Aktuell: %s - Wähle die Reihenfolge der Kulturen im Kalender."/>
+        <text name="cco_calendar_sort_native" text="Native Reihenfolge"/>
+        <text name="cco_calendar_sort_az" text="Alphabetisch A-Z"/>
+        <text name="cco_calendar_sort_plantable_az" text="Pflanzbar A-Z"/>
+        <text name="cco_calendar_sort_planting_start" text="Saatbeginn"/>
+        <text name="cco_calendar_sort_harvest_start" text="Erntebeginn"/>
+        <text name="cco_calendar_sort_plant_now" text="Jetzt säen"/>
+        <text name="cco_calendar_sort_harvest_now" text="Jetzt ernten"/>
+        <text name="cco_calendar_sort_next_planting" text="Nächste Saat"/>
+        <text name="cco_calendar_sort_next_harvest" text="Nächste Ernte"/>
     </texts>
     <text name="cco_calendar_open_editor" text="Kalender bearbeiten"/>
 </l10n>

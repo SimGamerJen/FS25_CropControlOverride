@@ -234,6 +234,18 @@
         <text name="cco_calendar_legend_planting" text="Planting"/>
         <text name="cco_calendar_legend_harvesting" text="Harvesting"/>
         <text name="cco_calendar_legend_override_preview" text="Override / Preview"/>
+        <text name="cco_calendar_sort_button" text="SORT: %s"/>
+        <text name="cco_calendar_sort_title" text="Crop Calendar Sort"/>
+        <text name="cco_calendar_sort_prompt" text="Current: %s - Choose how crops are ordered in the calendar."/>
+        <text name="cco_calendar_sort_native" text="Native Order"/>
+        <text name="cco_calendar_sort_az" text="Alphabetical A-Z"/>
+        <text name="cco_calendar_sort_plantable_az" text="Plantable A-Z"/>
+        <text name="cco_calendar_sort_planting_start" text="Planting Start"/>
+        <text name="cco_calendar_sort_harvest_start" text="Harvest Start"/>
+        <text name="cco_calendar_sort_plant_now" text="Plant Now"/>
+        <text name="cco_calendar_sort_harvest_now" text="Harvest Now"/>
+        <text name="cco_calendar_sort_next_planting" text="Next Planting"/>
+        <text name="cco_calendar_sort_next_harvest" text="Next Harvest"/>
     </texts>
     <text name="cco_calendar_open_editor" text="Edit Calendar"/>
 </l10n>

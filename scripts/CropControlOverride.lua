@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.1.0.0-beta.2",
+    VERSION = "2.1.0.0-beta.3",
 
     _origFlags = {},
     _rules = {},
@@ -175,6 +175,16 @@ local function upper(s)
     return s and string.upper(tostring(s)) or s
 end
 
+local function isExcludedTechnicalFruitName(name)
+    return upper(name) == "MEADOW"
+end
+
+local function isManagedFruitType(fruitType)
+    return fruitType ~= nil
+        and fruitType.name ~= nil
+        and not isExcludedTechnicalFruitName(fruitType.name)
+end
+
 
 local HA_TO_ACRES = 2.47105
 
@@ -295,10 +305,10 @@ local function ensureFolderForFile(path)
 end
 
 local function getFruitByName(name)
-    if g_fruitTypeManager == nil or name == nil then return nil end
+    if g_fruitTypeManager == nil or name == nil or isExcludedTechnicalFruitName(name) then return nil end
     local target = upper(name)
     for _, ft in ipairs(g_fruitTypeManager.fruitTypes) do
-        if upper(ft.name) == target then
+        if isManagedFruitType(ft) and upper(ft.name) == target then
             return ft
         end
     end
@@ -309,7 +319,7 @@ local function iterFruitTypesSorted()
     local list = {}
     if g_fruitTypeManager ~= nil and g_fruitTypeManager.fruitTypes ~= nil then
         for _, ft in ipairs(g_fruitTypeManager.fruitTypes) do
-            if ft ~= nil and ft.name ~= nil then
+            if isManagedFruitType(ft) then
                 table.insert(list, ft)
             end
         end
@@ -645,22 +655,27 @@ function CCO:applyRules(rules, seedSyncMode)
     rules = rules or self._rules or {}
 
     for _, fruit in ipairs(g_fruitTypeManager.fruitTypes) do
-        local nameU = upper(fruit.name)
-        self:_snapshotFruitIfNeeded(nameU, fruit)
-        self:_restoreFruitFlags(nameU, fruit)
+        if isManagedFruitType(fruit) then
+            local nameU = upper(fruit.name)
+            self:_snapshotFruitIfNeeded(nameU, fruit)
+            self:_restoreFruitFlags(nameU, fruit)
 
-        local rule = rules[nameU]
-        if rule == nil then
-            rule = defaultRuleForFruit(fruit)
-            rules[nameU] = rule
-        end
+            local rule = rules[nameU]
+            if rule == nil then
+                rule = defaultRuleForFruit(fruit)
+                rules[nameU] = rule
+            end
 
-        if rule.enabled == false then
-            self:_applyDisabledFlags(fruit)
-        elseif rule.npcAllowed == false then
-            self:_applyNpcBlockedFlags(fruit)
+            if rule.enabled == false then
+                self:_applyDisabledFlags(fruit)
+            elseif rule.npcAllowed == false then
+                self:_applyNpcBlockedFlags(fruit)
+            end
         end
     end
+
+    -- MEADOW is technical map foliage, not a player-manageable crop.
+    rules["MEADOW"] = nil
 
     self._rules = rules
 
@@ -822,6 +837,7 @@ local function readConfig(path)
         end
     end
 
+    rules["MEADOW"] = nil
     xml:delete()
     return rules, normalizeSettings(settings)
 end
@@ -979,7 +995,11 @@ local function writeConfig(path, rules, settings)
     end
 
     local names = {}
-    for nameU, _ in pairs(rules or {}) do table.insert(names, nameU) end
+    for nameU, _ in pairs(rules or {}) do
+        if not isExcludedTechnicalFruitName(nameU) then
+            table.insert(names, nameU)
+        end
+    end
     table.sort(names)
 
     local i = 0
@@ -1044,7 +1064,11 @@ local function serializeRulesForMultiplayer(rules, settings)
     end
 
     local names = {}
-    for nameU, _ in pairs(rules or {}) do table.insert(names, nameU) end
+    for nameU, _ in pairs(rules or {}) do
+        if not isExcludedTechnicalFruitName(nameU) then
+            table.insert(names, nameU)
+        end
+    end
     table.sort(names)
 
     for _, nameU in ipairs(names) do
@@ -2698,6 +2722,10 @@ function CCO:isCalendarFruitEnabled(fruitType)
         return false
     end
 
+    if isExcludedTechnicalFruitName(fruitType.name) then
+        return false
+    end
+
     if fruitType.shownOnMap ~= true then
         return false
     end
@@ -2719,10 +2747,16 @@ function CCO:collectCalendarFruitTypes()
         return result
     end
 
-    for _, fruitType in pairs(fruitTypes) do
+    for _, fruitType in ipairs(fruitTypes) do
         if self:isCalendarFruitEnabled(fruitType) then
             result[#result + 1] = fruitType
         end
+    end
+
+    local sorter = CCO_NativeCalendarSort
+    if sorter ~= nil and sorter.sortFruitTypes ~= nil then
+        if sorter.ensureSettingsLoaded ~= nil then sorter:ensureSettingsLoaded() end
+        result = sorter:sortFruitTypes(result, sorter.currentMode)
     end
 
     return result
@@ -2781,36 +2815,65 @@ function CCO:addNativeCalendarMenuButton(frame)
     local buttons = {}
     local usedActions = {}
     for _, entry in ipairs(source) do
-        if entry.ccoCalendarEditorButton ~= true then
+        if entry.ccoCalendarEditorButton ~= true and entry.ccoCalendarSortButton ~= true then
             buttons[#buttons + 1] = entry
             if entry.inputAction ~= nil then usedActions[entry.inputAction] = true end
         end
     end
     if #buttons == 0 then return end
 
-    local action = nil
     local candidates = {}
+    if InputAction.MENU_EXTRA_3 ~= nil then candidates[#candidates + 1] = InputAction.MENU_EXTRA_3 end
     if InputAction.MENU_EXTRA_2 ~= nil then candidates[#candidates + 1] = InputAction.MENU_EXTRA_2 end
     if InputAction.MENU_EXTRA_1 ~= nil then candidates[#candidates + 1] = InputAction.MENU_EXTRA_1 end
-    for _, candidate in ipairs(candidates) do
-        if usedActions[candidate] ~= true then
-            action = candidate
-            break
+
+    local function takeUnusedAction()
+        for _, candidate in ipairs(candidates) do
+            if usedActions[candidate] ~= true then
+                usedActions[candidate] = true
+                return candidate
+            end
         end
-    end
-    if action == nil then
-        debug("native Calendar editor button skipped: no unused MENU_EXTRA action")
-        return
+        return nil
     end
 
-    buttons[#buttons + 1] = {
-        ccoCalendarEditorButton = true,
-        inputAction = action,
-        text = ccoNativeCalendarButtonText(),
-        callback = function()
-            if CCO ~= nil and CCO.openGui ~= nil then CCO:openGui("calendar", 1) end
-        end,
-    }
+    -- Preserve CCO's existing EDIT CALENDAR route as the first-priority custom action.
+    local editorAction = takeUnusedAction()
+    if editorAction ~= nil then
+        buttons[#buttons + 1] = {
+            ccoCalendarEditorButton = true,
+            inputAction = editorAction,
+            text = ccoNativeCalendarButtonText(),
+            callback = function()
+                if CCO ~= nil and CCO.openGui ~= nil then CCO:openGui("calendar", 1) end
+            end,
+        }
+    else
+        debug("native Calendar editor button skipped: no unused MENU_EXTRA action")
+    end
+
+    -- The sort selector is internal to CCO and operates on the already-filtered native list.
+    local sorter = CCO_NativeCalendarSort
+    if sorter ~= nil and sorter.showDialog ~= nil then
+        if sorter.ensureSettingsLoaded ~= nil then sorter:ensureSettingsLoaded() end
+
+        local sortAction = takeUnusedAction()
+        if sortAction ~= nil then
+            buttons[#buttons + 1] = {
+                ccoCalendarSortButton = true,
+                inputAction = sortAction,
+                text = sorter:getButtonText(),
+                callback = function()
+                    sorter:showDialog(frame, function(selectedFrame)
+                        CCO:updateNativeCalendarContents(selectedFrame)
+                        CCO:addNativeCalendarMenuButton(selectedFrame)
+                    end)
+                end,
+            }
+        else
+            debug("native Calendar sort button skipped: no unused MENU_EXTRA action")
+        end
+    end
 
     if frame.setMenuButtonInfo ~= nil then
         pcall(frame.setMenuButtonInfo, frame, buttons)

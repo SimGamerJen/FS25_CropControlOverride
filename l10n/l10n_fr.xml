@@ -234,6 +234,18 @@
         <text name="cco_calendar_legend_planting" text="Semis"/>
         <text name="cco_calendar_legend_harvesting" text="Récolte"/>
         <text name="cco_calendar_legend_override_preview" text="Remplacement / Aperçu"/>
+        <text name="cco_calendar_sort_button" text="TRI : %s"/>
+        <text name="cco_calendar_sort_title" text="Tri du calendrier des cultures"/>
+        <text name="cco_calendar_sort_prompt" text="Actuel : %s - Choisissez l’ordre des cultures dans le calendrier."/>
+        <text name="cco_calendar_sort_native" text="Ordre natif"/>
+        <text name="cco_calendar_sort_az" text="Alphabétique A-Z"/>
+        <text name="cco_calendar_sort_plantable_az" text="Cultures semables A-Z"/>
+        <text name="cco_calendar_sort_planting_start" text="Début des semis"/>
+        <text name="cco_calendar_sort_harvest_start" text="Début des récoltes"/>
+        <text name="cco_calendar_sort_plant_now" text="Semer maintenant"/>
+        <text name="cco_calendar_sort_harvest_now" text="Récolter maintenant"/>
+        <text name="cco_calendar_sort_next_planting" text="Prochains semis"/>
+        <text name="cco_calendar_sort_next_harvest" text="Prochaine récolte"/>
     </texts>
     <text name="cco_calendar_open_editor" text="Modifier le calendrier"/>
 </l10n>

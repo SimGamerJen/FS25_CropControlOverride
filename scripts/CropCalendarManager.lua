@@ -47,7 +47,9 @@ local function sortedFruitTypes()
     local fruits = {}
     if g_fruitTypeManager ~= nil and type(g_fruitTypeManager.fruitTypes) == "table" then
         for _, fruitType in pairs(g_fruitTypeManager.fruitTypes) do
-            if type(fruitType) == "table" and fruitType.name ~= nil then
+            if type(fruitType) == "table"
+                and fruitType.name ~= nil
+                and upper(fruitType.name) ~= "MEADOW" then
                 fruits[#fruits + 1] = fruitType
             end
         end

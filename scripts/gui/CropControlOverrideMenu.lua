@@ -65,6 +65,25 @@ CropControlOverrideMenu = {}
 
 local CropControlOverrideMenu_mt = Class(CropControlOverrideMenu, ScreenElement)
 
+local UI_SETTINGS_FOLDER = "FS25_CropControlOverride/"
+local UI_SETTINGS_FILE = "uiSettings.xml"
+local UI_SETTINGS_ROOT = "cropControlUI"
+
+local function getUiSettingsPath()
+    local base = g_modSettingsDirectory
+    if (base == nil or base == "") and getUserProfileAppPath ~= nil then
+        base = getUserProfileAppPath() .. "modSettings/"
+    end
+    if base == nil or base == "" then return nil end
+
+    local last = base:sub(-1)
+    if last ~= "/" and last ~= "\\" then base = base .. "/" end
+
+    local directory = base .. UI_SETTINGS_FOLDER
+    if createFolder ~= nil then pcall(createFolder, directory) end
+    return directory .. UI_SETTINGS_FILE
+end
+
 function CropControlOverrideMenu.new(target, customMt)
     local self = ScreenElement.new(target, customMt or CropControlOverrideMenu_mt)
     self.returnScreenName = ""
@@ -124,6 +143,7 @@ function CropControlOverrideMenu.new(target, customMt)
     self.tableTopic = false
     self.showNotLoaded = false
     self.showDisabled = true
+    self.uiSettingsLoaded = false
     self.menuBackEventId = nil
     self.suppressTabCallback = false
     self.suppressSelectorCallbacks = false
@@ -197,6 +217,11 @@ function CropControlOverrideMenu.show(title, body, modDirectory, topic, page)
     if controller == nil then
         return false
     end
+
+    -- Load player UI preferences before the first setContent() call. setContent()
+    -- builds the rule/calendar row arrays, so loading showDisabled later in
+    -- onOpen() would update only the button label while leaving stale rows.
+    controller:loadUiSettings()
 
     controller.currentTopic = topic or controller.currentTopic or "status"
     controller.currentPage = tonumber(page or controller.currentPage or 1) or 1
@@ -691,8 +716,44 @@ function CropControlOverrideMenu:setNpcSelectorState(npcValue, disabled)
     self.suppressSelectorCallbacks = false
 end
 
+function CropControlOverrideMenu:loadUiSettings()
+    if self.uiSettingsLoaded == true then return true end
+
+    local path = getUiSettingsPath()
+    if path == nil or XMLFile == nil or XMLFile.loadIfExists == nil then
+        -- Do not latch the loaded flag if the GIANTS settings services are not
+        -- ready yet; the next menu-open attempt can retry.
+        return false
+    end
+
+    self.showDisabled = true
+    local xmlFile = XMLFile.loadIfExists("CCO_UISettings", path, UI_SETTINGS_ROOT)
+    if xmlFile ~= nil then
+        self.showDisabled = xmlFile:getBool(UI_SETTINGS_ROOT .. "#showDisabled", true)
+        xmlFile:delete()
+    end
+
+    self.uiSettingsLoaded = true
+    return true
+end
+
+function CropControlOverrideMenu:saveUiSettings()
+    local path = getUiSettingsPath()
+    if path == nil or XMLFile == nil or XMLFile.create == nil then return false end
+
+    local xmlFile = XMLFile.create("CCO_UISettings", path, UI_SETTINGS_ROOT)
+    if xmlFile == nil then return false end
+
+    xmlFile:setBool(UI_SETTINGS_ROOT .. "#showDisabled", self.showDisabled == true)
+    xmlFile:setInt(UI_SETTINGS_ROOT .. "#version", 1)
+    xmlFile:save()
+    xmlFile:delete()
+    return true
+end
+
 function CropControlOverrideMenu:onOpen()
     CropControlOverrideMenu:superClass().onOpen(self)
+    self:loadUiSettings()
     self:registerBackAction()
     self:setupTabs()
     self:initialiseEditControls()
@@ -1490,6 +1551,7 @@ end
 
 function CropControlOverrideMenu:onClickToggleDisabled()
     self.showDisabled = not self.showDisabled
+    self:saveUiSettings()
     local title, body, normalizedTopic, normalizedPage = buildTopicContent(self.currentTopic or "rules", self.currentPage or 1)
     self.currentTopic = normalizedTopic or self.currentTopic or "rules"
     self.currentPage = tonumber(normalizedPage or self.currentPage or 1) or 1
