@@ -281,8 +281,16 @@ function Sort:sortFruitTypes(fruitTypes, modeId)
 end
 
 function Sort:getSettingsPath()
-    if g_modSettingsDirectory == nil or g_modSettingsDirectory == "" then return nil end
-    local directory = g_modSettingsDirectory .. SETTINGS_FOLDER
+    local base = g_modSettingsDirectory
+    if (base == nil or base == "") and getUserProfileAppPath ~= nil then
+        base = getUserProfileAppPath() .. "modSettings/"
+    end
+    if base == nil or base == "" then return nil end
+
+    local last = base:sub(-1)
+    if last ~= "/" and last ~= "\\" then base = base .. "/" end
+
+    local directory = base .. SETTINGS_FOLDER
     if createFolder ~= nil then pcall(createFolder, directory) end
     return directory .. SETTINGS_FILE
 end
