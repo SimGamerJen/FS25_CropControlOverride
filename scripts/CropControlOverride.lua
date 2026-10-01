@@ -2725,6 +2725,12 @@ function CCO:collectCalendarFruitTypes()
         end
     end
 
+    local sorter = CCO_NativeCalendarSort
+    if sorter ~= nil and sorter.sortFruitTypes ~= nil then
+        if sorter.ensureSettingsLoaded ~= nil then sorter:ensureSettingsLoaded() end
+        result = sorter:sortFruitTypes(result, sorter.currentMode)
+    end
+
     return result
 end
 
@@ -2781,36 +2787,65 @@ function CCO:addNativeCalendarMenuButton(frame)
     local buttons = {}
     local usedActions = {}
     for _, entry in ipairs(source) do
-        if entry.ccoCalendarEditorButton ~= true then
+        if entry.ccoCalendarEditorButton ~= true and entry.ccoCalendarSortButton ~= true then
             buttons[#buttons + 1] = entry
             if entry.inputAction ~= nil then usedActions[entry.inputAction] = true end
         end
     end
     if #buttons == 0 then return end
 
-    local action = nil
     local candidates = {}
+    if InputAction.MENU_EXTRA_3 ~= nil then candidates[#candidates + 1] = InputAction.MENU_EXTRA_3 end
     if InputAction.MENU_EXTRA_2 ~= nil then candidates[#candidates + 1] = InputAction.MENU_EXTRA_2 end
     if InputAction.MENU_EXTRA_1 ~= nil then candidates[#candidates + 1] = InputAction.MENU_EXTRA_1 end
-    for _, candidate in ipairs(candidates) do
-        if usedActions[candidate] ~= true then
-            action = candidate
-            break
+
+    local function takeUnusedAction()
+        for _, candidate in ipairs(candidates) do
+            if usedActions[candidate] ~= true then
+                usedActions[candidate] = true
+                return candidate
+            end
         end
-    end
-    if action == nil then
-        debug("native Calendar editor button skipped: no unused MENU_EXTRA action")
-        return
+        return nil
     end
 
-    buttons[#buttons + 1] = {
-        ccoCalendarEditorButton = true,
-        inputAction = action,
-        text = ccoNativeCalendarButtonText(),
-        callback = function()
-            if CCO ~= nil and CCO.openGui ~= nil then CCO:openGui("calendar", 1) end
-        end,
-    }
+    -- Preserve CCO's existing EDIT CALENDAR route as the first-priority custom action.
+    local editorAction = takeUnusedAction()
+    if editorAction ~= nil then
+        buttons[#buttons + 1] = {
+            ccoCalendarEditorButton = true,
+            inputAction = editorAction,
+            text = ccoNativeCalendarButtonText(),
+            callback = function()
+                if CCO ~= nil and CCO.openGui ~= nil then CCO:openGui("calendar", 1) end
+            end,
+        }
+    else
+        debug("native Calendar editor button skipped: no unused MENU_EXTRA action")
+    end
+
+    -- The sort selector is internal to CCO and operates on the already-filtered native list.
+    local sorter = CCO_NativeCalendarSort
+    if sorter ~= nil and sorter.showDialog ~= nil then
+        if sorter.ensureSettingsLoaded ~= nil then sorter:ensureSettingsLoaded() end
+
+        local sortAction = takeUnusedAction()
+        if sortAction ~= nil then
+            buttons[#buttons + 1] = {
+                ccoCalendarSortButton = true,
+                inputAction = sortAction,
+                text = sorter:getButtonText(),
+                callback = function()
+                    sorter:showDialog(frame, function(selectedFrame)
+                        CCO:updateNativeCalendarContents(selectedFrame)
+                        CCO:addNativeCalendarMenuButton(selectedFrame)
+                    end)
+                end,
+            }
+        else
+            debug("native Calendar sort button skipped: no unused MENU_EXTRA action")
+        end
+    end
 
     if frame.setMenuButtonInfo ~= nil then
         pcall(frame.setMenuButtonInfo, frame, buttons)
