@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.1.0.0-beta.2",
+    VERSION = "2.1.0.0-beta.3",
 
     _origFlags = {},
     _rules = {},
