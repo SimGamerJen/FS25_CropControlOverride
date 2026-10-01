@@ -218,6 +218,11 @@ function CropControlOverrideMenu.show(title, body, modDirectory, topic, page)
         return false
     end
 
+    -- Load player UI preferences before the first setContent() call. setContent()
+    -- builds the rule/calendar row arrays, so loading showDisabled later in
+    -- onOpen() would update only the button label while leaving stale rows.
+    controller:loadUiSettings()
+
     controller.currentTopic = topic or controller.currentTopic or "status"
     controller.currentPage = tonumber(page or controller.currentPage or 1) or 1
     controller:setContent(title, body, topic)
@@ -713,17 +718,22 @@ end
 
 function CropControlOverrideMenu:loadUiSettings()
     if self.uiSettingsLoaded == true then return true end
-    self.uiSettingsLoaded = true
-    self.showDisabled = true
 
     local path = getUiSettingsPath()
-    if path == nil or XMLFile == nil or XMLFile.loadIfExists == nil then return false end
+    if path == nil or XMLFile == nil or XMLFile.loadIfExists == nil then
+        -- Do not latch the loaded flag if the GIANTS settings services are not
+        -- ready yet; the next menu-open attempt can retry.
+        return false
+    end
 
+    self.showDisabled = true
     local xmlFile = XMLFile.loadIfExists("CCO_UISettings", path, UI_SETTINGS_ROOT)
-    if xmlFile == nil then return false end
+    if xmlFile ~= nil then
+        self.showDisabled = xmlFile:getBool(UI_SETTINGS_ROOT .. "#showDisabled", true)
+        xmlFile:delete()
+    end
 
-    self.showDisabled = xmlFile:getBool(UI_SETTINGS_ROOT .. "#showDisabled", true)
-    xmlFile:delete()
+    self.uiSettingsLoaded = true
     return true
 end
 
