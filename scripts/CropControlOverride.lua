@@ -175,6 +175,16 @@ local function upper(s)
     return s and string.upper(tostring(s)) or s
 end
 
+local function isExcludedTechnicalFruitName(name)
+    return upper(name) == "MEADOW"
+end
+
+local function isManagedFruitType(fruitType)
+    return fruitType ~= nil
+        and fruitType.name ~= nil
+        and not isExcludedTechnicalFruitName(fruitType.name)
+end
+
 
 local HA_TO_ACRES = 2.47105
 
@@ -295,10 +305,10 @@ local function ensureFolderForFile(path)
 end
 
 local function getFruitByName(name)
-    if g_fruitTypeManager == nil or name == nil then return nil end
+    if g_fruitTypeManager == nil or name == nil or isExcludedTechnicalFruitName(name) then return nil end
     local target = upper(name)
     for _, ft in ipairs(g_fruitTypeManager.fruitTypes) do
-        if upper(ft.name) == target then
+        if isManagedFruitType(ft) and upper(ft.name) == target then
             return ft
         end
     end
@@ -309,7 +319,7 @@ local function iterFruitTypesSorted()
     local list = {}
     if g_fruitTypeManager ~= nil and g_fruitTypeManager.fruitTypes ~= nil then
         for _, ft in ipairs(g_fruitTypeManager.fruitTypes) do
-            if ft ~= nil and ft.name ~= nil then
+            if isManagedFruitType(ft) then
                 table.insert(list, ft)
             end
         end
@@ -645,22 +655,27 @@ function CCO:applyRules(rules, seedSyncMode)
     rules = rules or self._rules or {}
 
     for _, fruit in ipairs(g_fruitTypeManager.fruitTypes) do
-        local nameU = upper(fruit.name)
-        self:_snapshotFruitIfNeeded(nameU, fruit)
-        self:_restoreFruitFlags(nameU, fruit)
+        if isManagedFruitType(fruit) then
+            local nameU = upper(fruit.name)
+            self:_snapshotFruitIfNeeded(nameU, fruit)
+            self:_restoreFruitFlags(nameU, fruit)
 
-        local rule = rules[nameU]
-        if rule == nil then
-            rule = defaultRuleForFruit(fruit)
-            rules[nameU] = rule
-        end
+            local rule = rules[nameU]
+            if rule == nil then
+                rule = defaultRuleForFruit(fruit)
+                rules[nameU] = rule
+            end
 
-        if rule.enabled == false then
-            self:_applyDisabledFlags(fruit)
-        elseif rule.npcAllowed == false then
-            self:_applyNpcBlockedFlags(fruit)
+            if rule.enabled == false then
+                self:_applyDisabledFlags(fruit)
+            elseif rule.npcAllowed == false then
+                self:_applyNpcBlockedFlags(fruit)
+            end
         end
     end
+
+    -- MEADOW is technical map foliage, not a player-manageable crop.
+    rules["MEADOW"] = nil
 
     self._rules = rules
 
@@ -822,6 +837,7 @@ local function readConfig(path)
         end
     end
 
+    rules["MEADOW"] = nil
     xml:delete()
     return rules, normalizeSettings(settings)
 end
@@ -979,7 +995,11 @@ local function writeConfig(path, rules, settings)
     end
 
     local names = {}
-    for nameU, _ in pairs(rules or {}) do table.insert(names, nameU) end
+    for nameU, _ in pairs(rules or {}) do
+        if not isExcludedTechnicalFruitName(nameU) then
+            table.insert(names, nameU)
+        end
+    end
     table.sort(names)
 
     local i = 0
@@ -1044,7 +1064,11 @@ local function serializeRulesForMultiplayer(rules, settings)
     end
 
     local names = {}
-    for nameU, _ in pairs(rules or {}) do table.insert(names, nameU) end
+    for nameU, _ in pairs(rules or {}) do
+        if not isExcludedTechnicalFruitName(nameU) then
+            table.insert(names, nameU)
+        end
+    end
     table.sort(names)
 
     for _, nameU in ipairs(names) do
@@ -2698,7 +2722,7 @@ function CCO:isCalendarFruitEnabled(fruitType)
         return false
     end
 
-    if upper(fruitType.name) == "MEADOW" then
+    if isExcludedTechnicalFruitName(fruitType.name) then
         return false
     end
 
