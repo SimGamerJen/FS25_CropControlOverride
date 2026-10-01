@@ -36,10 +36,8 @@ local SETTINGS_FILE = "calendarSort.xml"
 local SETTINGS_ROOT = "cropControlCalendarSort"
 
 local function debug(message)
-    if CCO_Debug ~= nil and CCO_Debug.log ~= nil then
-        CCO_Debug:log("[CalendarSort] " .. tostring(message))
-    elseif CropControlOverride ~= nil and CropControlOverride.DEBUG == true then
-        print("[FS25_CropControlOverride][CalendarSort] " .. tostring(message))
+    if CCO_Debug ~= nil and CCO_Debug.debug ~= nil then
+        CCO_Debug:debug("[CalendarSort] " .. tostring(message))
     end
 end
 
