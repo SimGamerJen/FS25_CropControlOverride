@@ -45,29 +45,12 @@ end
 
 local function sortedFruitTypes()
     local fruits = {}
-    local seenNames = {}
-    local seenIndexes = {}
-
     if g_fruitTypeManager ~= nil and type(g_fruitTypeManager.fruitTypes) == "table" then
-        -- fruitTypes is the manager's canonical numeric array. Use ipairs here,
-        -- matching CCO's rule discovery and the native Calendar integration.
-        -- pairs() can also enumerate manager aliases/non-array entries and can
-        -- therefore expose the same logical fruit type twice in the CCO Calendar.
-        --
-        -- CCO rules and calendar overrides are keyed by the internal fruit name,
-        -- so enforce the same one-row-per-name identity here as well.
-        for _, fruitType in ipairs(g_fruitTypeManager.fruitTypes) do
-            if type(fruitType) == "table" and fruitType.name ~= nil then
-                local nameU = upper(fruitType.name)
-                local index = fruitType.index
-                local duplicateName = seenNames[nameU] == true
-                local duplicateIndex = index ~= nil and seenIndexes[index] == true
-
-                if not duplicateName and not duplicateIndex then
-                    seenNames[nameU] = true
-                    if index ~= nil then seenIndexes[index] = true end
-                    fruits[#fruits + 1] = fruitType
-                end
+        for _, fruitType in pairs(g_fruitTypeManager.fruitTypes) do
+            if type(fruitType) == "table"
+                and fruitType.name ~= nil
+                and upper(fruitType.name) ~= "MEADOW" then
+                fruits[#fruits + 1] = fruitType
             end
         end
     end
