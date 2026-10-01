@@ -2719,7 +2719,7 @@ function CCO:collectCalendarFruitTypes()
         return result
     end
 
-    for _, fruitType in pairs(fruitTypes) do
+    for _, fruitType in ipairs(fruitTypes) do
         if self:isCalendarFruitEnabled(fruitType) then
             result[#result + 1] = fruitType
         end
