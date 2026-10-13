@@ -1744,7 +1744,11 @@ function CropControlOverrideMenu:onClickApplyDryRun()
             self.selectedDirtyText:setText(ccoGuiText("cco_waiting_server_apply", "Waiting for server confirmation..."))
         end
         if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
-            self.selectedInfoText:setText(ccoGuiText("cco_rule_sent_server_validation", "The rule was sent to the dedicated server for validation. The staged change will be kept until the server replies."))
+            self.selectedInfoText:setText(ccoGuiText(
+                "cco_rule_sent_server_validation",
+                "The rule was sent to the dedicated server for validation. " ..
+                    "The staged change will be kept until the server replies."
+            ))
         end
     elseif ok then
         self.stagedDirty = false
@@ -2507,7 +2511,11 @@ function CropControlOverrideMenu:onServerResetDryRunResult(success, result, woul
 
     local confirmHint = ""
     if self.resetConfirmArmed then
-        confirmHint = "\n\nCONFIRM RESET is now available for scope=" .. tostring(self.pendingResetScopeText or "ALL") .. " resetMode=" .. self:getResetModeLabel() .. ". It will apply the selected reset mode."
+        confirmHint =
+            "\n\nCONFIRM RESET is now available for scope=" ..
+            tostring(self.pendingResetScopeText or "ALL") ..
+            " resetMode=" .. self:getResetModeLabel() ..
+            ". It will apply the selected reset mode."
     elseif not ccoGuiCanEditRules() then
         confirmHint = "\n\nRemote multiplayer clients are read-only. Reset actions can only be run by the server/host."
     end
