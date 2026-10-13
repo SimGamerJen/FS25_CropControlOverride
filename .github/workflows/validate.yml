@@ -1,0 +1,136 @@
+name: Validate Crop Control Override
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - release/v2.1.0.0
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Validate metadata and XML
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import re
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          expected_version = "2.1.0.0"
+
+          required_xml = [
+              "modDesc.xml",
+              "gui/CropControlOverrideMenu.xml",
+              "gui/guiProfiles.xml",
+              "l10n/l10n_en.xml",
+              "l10n/l10n_de.xml",
+              "l10n/l10n_fr.xml",
+              "templates/customRegionalProfile.xml",
+          ]
+          for path in required_xml:
+              ET.parse(path)
+
+          root = ET.parse("modDesc.xml").getroot()
+          mod_version = root.findtext("version")
+          if mod_version != expected_version:
+              raise SystemExit(f"Unexpected modDesc version: {mod_version!r}")
+
+          runtime = Path("scripts/CropControlOverride.lua").read_text(encoding="utf-8")
+          match = re.search(r'VERSION\s*=\s*"([^"]+)"', runtime)
+          runtime_version = match.group(1) if match else None
+          if runtime_version != expected_version:
+              raise SystemExit(f"Unexpected runtime version: {runtime_version!r}")
+
+          required_source = [
+              "scripts/Debug.lua",
+              "scripts/CropControlOverrideChangeSettingsEvent.lua",
+              "scripts/RegionalProfileManager.lua",
+              "scripts/CropCalendarManager.lua",
+              "scripts/NativeCalendarSort.lua",
+              "scripts/gui/CropControlOverrideMenu.lua",
+              "scripts/CropControlOverride.lua",
+              "scripts/CCOIntegrationApi.lua",
+          ]
+          missing = [path for path in required_source if not Path(path).is_file()]
+          if missing:
+              raise SystemExit("Missing required source files: " + ", ".join(missing))
+
+          description = root.find("description")
+          if description is None or description.find("en") is None:
+              raise SystemExit("Missing ModHub description")
+          english = "".join(description.find("en").itertext())
+          if "CHANGELOG 2.1.0.0" not in english:
+              raise SystemExit("2.1.0.0 changelog missing from English modDesc description")
+          PY
+
+      - name: Run FSM compatibility check
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f tools/check_fsm_compat.py; then
+            python tools/check_fsm_compat.py
+          fi
+
+      - name: Build candidate ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f FS25_CropControlOverride.zip
+          zip -r FS25_CropControlOverride.zip \
+            modDesc.xml icon_CropControlOverride.dds gui l10n scripts templates modSettings docs \
+            -x '*.DS_Store' '*__MACOSX*' 'docs/examples/*'
+
+          python - <<'PY'
+          import zipfile
+          import xml.etree.ElementTree as ET
+
+          required = {
+              "modDesc.xml",
+              "icon_CropControlOverride.dds",
+              "gui/CropControlOverrideMenu.xml",
+              "scripts/CropControlOverride.lua",
+              "scripts/CropCalendarManager.lua",
+              "scripts/NativeCalendarSort.lua",
+              "scripts/RegionalProfileManager.lua",
+              "scripts/CCOIntegrationApi.lua",
+              "templates/customRegionalProfile.xml",
+          }
+
+          with zipfile.ZipFile("FS25_CropControlOverride.zip", "r") as archive:
+              bad = archive.testzip()
+              if bad is not None:
+                  raise SystemExit("Corrupt ZIP member: " + bad)
+
+              names = set(archive.namelist())
+              missing = sorted(required - names)
+              if missing:
+                  raise SystemExit("Missing packaged files: " + ", ".join(missing))
+
+              root = ET.fromstring(archive.read("modDesc.xml"))
+              if root.findtext("version") != "2.1.0.0":
+                  raise SystemExit("Unexpected packaged modDesc version")
+          PY
+
+          sha256sum FS25_CropControlOverride.zip
+
+      - name: Upload production candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: FS25_CropControlOverride-2.1.0.0-candidate
+          path: FS25_CropControlOverride.zip
+          if-no-files-found: error
+          retention-days: 14
