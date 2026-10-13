@@ -49,6 +49,22 @@ jobs:
           if mod_version != expected_version:
               raise SystemExit(f"Unexpected modDesc version: {mod_version!r}")
 
+          if root.get("descVersion") != "113":
+              raise SystemExit(f"Unexpected descVersion: {root.get('descVersion')!r}")
+
+          title = root.find("title")
+          if title is None or (title.findtext("en") or "").strip() != "Crop Control Override":
+              raise SystemExit("Missing canonical English mod title")
+          duplicate_titles = []
+          for language in ("de", "fr"):
+              localized = title.findtext(language)
+              if localized is not None and localized.strip() == "Crop Control Override":
+                  duplicate_titles.append(language)
+          if duplicate_titles:
+              raise SystemExit(
+                  "Redundant identical title localizations: " + ", ".join(duplicate_titles)
+              )
+
           runtime = Path("scripts/CropControlOverride.lua").read_text(encoding="utf-8")
           match = re.search(r'VERSION\s*=\s*"([^"]+)"', runtime)
           runtime_version = match.group(1) if match else None
@@ -68,6 +84,28 @@ jobs:
           missing = [path for path in required_source if not Path(path).is_file()]
           if missing:
               raise SystemExit("Missing required source files: " + ", ".join(missing))
+
+          protected_call_pattern = re.compile(r"\b(?:pcall|xpcall)\s*\(")
+          protected_calls = []
+          long_lines = []
+          for lua_path in sorted(Path("scripts").rglob("*.lua")):
+              source = lua_path.read_text(encoding="utf-8")
+              for line_number, line in enumerate(source.splitlines(), 1):
+                  if protected_call_pattern.search(line):
+                      protected_calls.append(f"{lua_path}:{line_number}")
+                  if len(line) > 200:
+                      long_lines.append(f"{lua_path}:{line_number} ({len(line)} chars)")
+
+          if protected_calls:
+              raise SystemExit(
+                  "PublicLuaCheck-style protected calls remain:\n"
+                  + "\n".join(protected_calls)
+              )
+          if long_lines:
+              raise SystemExit(
+                  "TestRunner-style Lua lines over 200 characters remain:\n"
+                  + "\n".join(long_lines)
+              )
 
           description = root.find("description")
           if description is None or description.find("en") is None:
@@ -123,6 +161,8 @@ jobs:
               root = ET.fromstring(archive.read("modDesc.xml"))
               if root.findtext("version") != "2.1.0.0":
                   raise SystemExit("Unexpected packaged modDesc version")
+              if root.get("descVersion") != "113":
+                  raise SystemExit("Unexpected packaged descVersion")
           PY
 
           sha256sum FS25_CropControlOverride.zip
