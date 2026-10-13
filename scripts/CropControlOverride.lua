@@ -2881,23 +2881,20 @@ local originalFruitTypeLoadMapData = FruitTypeManager.loadMapData
 function FruitTypeManager:loadMapData(xmlFile, missionInfo, baseDir, customEnv, isMission)
     local result = originalFruitTypeLoadMapData(self, xmlFile, missionInfo, baseDir, customEnv, isMission)
 
-    local ok, e = pcall(function()
-        if CCO_RegionalProfiles ~= nil and CCO_RegionalProfiles.loadCustomProfiles ~= nil then
-            CCO_RegionalProfiles:loadCustomProfiles()
-        end
-        local rules, path = CCO:loadRulesForMission(missionInfo)
-        if CCO._mpClientOnly == true and CCO._serverSettingsSynced ~= true then
-            -- Remote client before the server snapshot: the in-memory rules
-            -- are all-enabled placeholders. Applying them would actively
-            -- (re)enable every crop; leave the map defaults untouched and let
-            -- applyServerSettingsPayload do the first real apply.
-            debug("remote client: deferring crop policy apply until server rules arrive")
-        else
-            CCO:applyRules(rules)
-            debug(("applied crop policy from %s"):format(tostring(path)))
-        end
-    end)
-    if not ok then warn("failed applying crop policy in loadMapData: " .. tostring(e)) end
+    if CCO_RegionalProfiles ~= nil and CCO_RegionalProfiles.loadCustomProfiles ~= nil then
+        CCO_RegionalProfiles:loadCustomProfiles()
+    end
+    local rules, path = CCO:loadRulesForMission(missionInfo)
+    if CCO._mpClientOnly == true and CCO._serverSettingsSynced ~= true then
+        -- Remote client before the server snapshot: the in-memory rules
+        -- are all-enabled placeholders. Applying them would actively
+        -- (re)enable every crop; leave the map defaults untouched and let
+        -- applyServerSettingsPayload do the first real apply.
+        debug("remote client: deferring crop policy apply until server rules arrive")
+    else
+        CCO:applyRules(rules)
+        debug(("applied crop policy from %s"):format(tostring(path)))
+    end
 
     CCO:applyRuntimeHooks()
 
@@ -2912,36 +2909,33 @@ function FSBaseMission:loadMapFinished(...)
         results = { originalFSBaseMissionLoadMapFinished(self, ...) }
     end
 
-    local ok, e = pcall(function()
-        CCO._rules = mergeMissingDiscoveredFruits(CCO._rules or {})
-        if not isClientOnlyMultiplayer() and CCO._configPath ~= nil then
-            writeConfig(CCO._configPath, CCO._rules, CCO._settings)
-        end
-        if CCO._mpClientOnly == true and CCO._serverSettingsSynced ~= true then
-            debug("remote client: skipping loadMapFinished reapply until server rules arrive")
-        else
-            CCO:applyRules(CCO._rules)
-        end
-        CCO:applyLateHooks()
-        CCO:installNativeCalendarButtonHook()
-        if CCO_CropCalendar ~= nil and CCO_CropCalendar.captureMapDefaults ~= nil then
-            local _, calendarMessage = CCO_CropCalendar:captureMapDefaults(false)
-            debug("calendar discovery: " .. tostring(calendarMessage))
-            if CCO_CropCalendar.setConfiguredShifts ~= nil then
-                CCO_CropCalendar:setConfiguredShifts(CCO._settings ~= nil and CCO._settings.calendarShifts or nil)
-                if CCO_CropCalendar.setConfiguredCustomOverrides ~= nil then
-                    CCO_CropCalendar:setConfiguredCustomOverrides(CCO._settings ~= nil and CCO._settings.calendarCustomOverrides or nil)
-                end
-            end
-            if CCO_CropCalendar.applyConfiguredShifts ~= nil then
-                local _, applyMessage = CCO_CropCalendar:applyConfiguredShifts()
-                debug("calendar overrides: " .. tostring(applyMessage))
+    CCO._rules = mergeMissingDiscoveredFruits(CCO._rules or {})
+    if not isClientOnlyMultiplayer() and CCO._configPath ~= nil then
+        writeConfig(CCO._configPath, CCO._rules, CCO._settings)
+    end
+    if CCO._mpClientOnly == true and CCO._serverSettingsSynced ~= true then
+        debug("remote client: skipping loadMapFinished reapply until server rules arrive")
+    else
+        CCO:applyRules(CCO._rules)
+    end
+    CCO:applyLateHooks()
+    CCO:installNativeCalendarButtonHook()
+    if CCO_CropCalendar ~= nil and CCO_CropCalendar.captureMapDefaults ~= nil then
+        local _, calendarMessage = CCO_CropCalendar:captureMapDefaults(false)
+        debug("calendar discovery: " .. tostring(calendarMessage))
+        if CCO_CropCalendar.setConfiguredShifts ~= nil then
+            CCO_CropCalendar:setConfiguredShifts(CCO._settings ~= nil and CCO._settings.calendarShifts or nil)
+            if CCO_CropCalendar.setConfiguredCustomOverrides ~= nil then
+                CCO_CropCalendar:setConfiguredCustomOverrides(CCO._settings ~= nil and CCO._settings.calendarCustomOverrides or nil)
             end
         end
-        debug("reapplied crop policy after loadMapFinished")
-        CCO:printStartupValidation()
-    end)
-    if not ok then warn("failed during loadMapFinished reapply: " .. tostring(e)) end
+        if CCO_CropCalendar.applyConfiguredShifts ~= nil then
+            local _, applyMessage = CCO_CropCalendar:applyConfiguredShifts()
+            debug("calendar overrides: " .. tostring(applyMessage))
+        end
+    end
+    debug("reapplied crop policy after loadMapFinished")
+    CCO:printStartupValidation()
 
     if results ~= nil then return unpack(results) end
 end
@@ -2993,10 +2987,7 @@ end)
 if FSBaseMission ~= nil and FSBaseMission.onConnectionFinishedLoading ~= nil then
     FSBaseMission.onConnectionFinishedLoading = Utils.appendedFunction(FSBaseMission.onConnectionFinishedLoading, function(mission, connection, ...)
         if g_server ~= nil and connection ~= nil then
-            local ok, e = pcall(function()
-                CCO:sendSettingsSnapshotToClient(connection, "clientFinishedLoading")
-            end)
-            if not ok then warn("failed to push CCO rules to joining client: " .. tostring(e)) end
+            CCO:sendSettingsSnapshotToClient(connection, "clientFinishedLoading")
         end
     end)
 end
@@ -3028,12 +3019,7 @@ function CCO:updatePendingValidationSync(dt)
     if self._pendingValidationSyncTimer > 0 then return end
 
     self._pendingValidationSyncTimer = nil
-    local ok, e = pcall(function()
-        self:sendSettingsSnapshotToClient(nil, "validationRefresh")
-    end)
-    if not ok then
-        warn("failed to refresh dedicated-server validation snapshot after field cleanup: " .. tostring(e))
-    end
+    self:sendSettingsSnapshotToClient(nil, "validationRefresh")
 end
 
 if FSBaseMission ~= nil and FSBaseMission.update ~= nil then
@@ -3069,14 +3055,9 @@ local function showCcoCustomGui(title, text, topic, page)
     text = text or ""
 
     if CropControlOverrideMenu ~= nil and CropControlOverrideMenu.show ~= nil then
-        local ok, shown = pcall(function()
-            return CropControlOverrideMenu.show(title, text, CCO.MOD_DIRECTORY or g_currentModDirectory, topic, page)
-        end)
-        if ok and shown then
+        local shown = CropControlOverrideMenu.show(title, text, CCO.MOD_DIRECTORY or g_currentModDirectory, topic, page)
+        if shown then
             return true
-        end
-        if not ok then
-            print("CCO GUI: custom screen failed: " .. tostring(shown))
         end
     else
         print("CCO GUI: CropControlOverrideMenu class is not available")
@@ -3878,10 +3859,8 @@ function CCO:_setServerConnectionMasterUser(connection, isMasterUser)
     if isMasterUser == true then
         local user = true
         if g_currentMission ~= nil and g_currentMission.userManager ~= nil and g_currentMission.userManager.getUserByConnection ~= nil then
-            local okUser, resolvedUser = pcall(function()
-                return g_currentMission.userManager:getUserByConnection(connection)
-            end)
-            if okUser and resolvedUser ~= nil then
+            local resolvedUser = g_currentMission.userManager:getUserByConnection(connection)
+            if resolvedUser ~= nil then
                 user = resolvedUser
             end
         end
@@ -3956,15 +3935,15 @@ end
 
 function CCO:onMasterUserAdded(user)
     if user ~= nil and user.getConnection ~= nil then
-        local ok, connection = pcall(function() return user:getConnection() end)
-        if ok and connection ~= nil then
+        local connection = user:getConnection()
+        if connection ~= nil then
             self:_setServerConnectionMasterUser(connection, true)
         end
     end
 
     if g_currentMission ~= nil and user ~= nil and user.getId ~= nil then
-        local ok, userId = pcall(function() return user:getId() end)
-        if ok and userId == g_currentMission.playerUserId then
+        local userId = user:getId()
+        if userId == g_currentMission.playerUserId then
             self:_onLocalAdminStateChanged("masterUserAdded")
         end
     end
@@ -3978,10 +3957,10 @@ function CCO:onUserAdded(user)
     -- Local server/host authority is always trusted. Track that connection too,
     -- matching the EasyDevControls master-user model.
     if g_currentMission ~= nil and user.getId ~= nil then
-        local okId, userId = pcall(function() return user:getId() end)
-        if okId and userId == g_currentMission.playerUserId then
-            local okCon, connection = pcall(function() return user:getConnection() end)
-            if okCon and connection ~= nil then
+        local userId = user:getId()
+        if userId == g_currentMission.playerUserId then
+            local connection = user:getConnection()
+            if connection ~= nil then
                 self:_setServerConnectionMasterUser(connection, true)
             end
         end
@@ -3990,8 +3969,8 @@ end
 
 function CCO:onUserRemoved(user)
     if user ~= nil and user.getConnection ~= nil then
-        local ok, connection = pcall(function() return user:getConnection() end)
-        if ok and connection ~= nil then
+        local connection = user:getConnection()
+        if connection ~= nil then
             self:_setServerConnectionMasterUser(connection, false)
         end
     end
@@ -4039,8 +4018,8 @@ function CCO:getIsAdminConnection(connection)
         local connectionChecks = { "getIsMasterUser", "getIsAdmin", "getIsServerAdmin" }
         for _, fn in ipairs(connectionChecks) do
             if connection[fn] ~= nil then
-                local okCheck, value = pcall(function() return connection[fn](connection) end)
-                if okCheck and value == true then
+                local value = connection[fn](connection)
+                if value == true then
                     self:_setServerConnectionMasterUser(connection, true)
                     return true
                 end
@@ -4055,15 +4034,13 @@ function CCO:getIsAdminConnection(connection)
     -- Defensive fallback: if FS25 exposes the remote user and marks it directly
     -- as master/admin, honour that without requiring CCO to own an admin login.
     if g_currentMission ~= nil and g_currentMission.userManager ~= nil and g_currentMission.userManager.getUserByConnection ~= nil then
-        local ok, user = pcall(function()
-            return g_currentMission.userManager:getUserByConnection(connection)
-        end)
-        if ok and user ~= nil then
+        local user = g_currentMission.userManager:getUserByConnection(connection)
+        if user ~= nil then
             local checks = { "getIsMasterUser", "getIsAdmin", "getIsServerAdmin" }
             for _, fn in ipairs(checks) do
                 if user[fn] ~= nil then
-                    local okCheck, value = pcall(function() return user[fn](user) end)
-                    if okCheck and value == true then
+                    local value = user[fn](user)
+                    if value == true then
                         self:_setServerConnectionMasterUser(connection, true)
                         return true
                     end
@@ -4074,13 +4051,13 @@ function CCO:getIsAdminConnection(connection)
                 return true
             end
             if user.getId ~= nil then
-                local okId, userId = pcall(function() return user:getId() end)
-                if okId and userId ~= nil then
+                local userId = user:getId()
+                if userId ~= nil then
                     local missionChecks = { "getIsUserMasterUser", "getIsUserAdmin", "getIsMasterUser" }
                     for _, fn in ipairs(missionChecks) do
                         if g_currentMission[fn] ~= nil then
-                            local okMission, value = pcall(function() return g_currentMission[fn](g_currentMission, userId) end)
-                            if okMission and value == true then
+                            local value = g_currentMission[fn](g_currentMission, userId)
+                            if value == true then
                                 self:_setServerConnectionMasterUser(connection, true)
                                 return true
                             end
@@ -4089,8 +4066,8 @@ function CCO:getIsAdminConnection(connection)
                     local managerChecks = { "getIsUserMasterUser", "getIsUserAdmin", "getIsMasterUser" }
                     for _, fn in ipairs(managerChecks) do
                         if g_currentMission.userManager[fn] ~= nil then
-                            local okManager, value = pcall(function() return g_currentMission.userManager[fn](g_currentMission.userManager, userId) end)
-                            if okManager and value == true then
+                            local value = g_currentMission.userManager[fn](g_currentMission.userManager, userId)
+                            if value == true then
                                 self:_setServerConnectionMasterUser(connection, true)
                                 return true
                             end
@@ -4478,7 +4455,7 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
     args = args or {}
     self._handlingMpEvent = true
 
-    local ok, r1, r2, r3, r4 = pcall(function()
+    local function dispatchOperation()
         if operation == "syncSettings" then
             return self:applyServerSettingsPayload(args[1], args[2], args[3], args[5], args[6])
         elseif operation == "operationResult" then
@@ -4553,16 +4530,10 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
             return self:_consoleSetCropLocal(args[1], args[2], args[3], args[4])
         end
         return false, "Unknown CCO multiplayer operation: " .. tostring(operation)
-    end)
-
-    self._handlingMpEvent = false
-
-    if not ok then
-        local msg = "CCO multiplayer event failed: " .. tostring(r1)
-        warn(msg)
-        self._guiNotice = msg
-        return false, msg
     end
+
+    local r1, r2, r3, r4 = dispatchOperation()
+    self._handlingMpEvent = false
 
     if r1 == true and operation ~= "syncSettings" and operation ~= "operationResult" and g_client ~= nil and self.refreshOpenGuiAfterMultiplayerSync ~= nil then
         self:refreshOpenGuiAfterMultiplayerSync(operation, r2)
@@ -6311,8 +6282,7 @@ function CCO:getActiveContractCount()
     for _, mission in ipairs(g_missionManager:getMissions() or {}) do
         local wasStarted = false
         if mission.getWasStarted ~= nil then
-            local ok, value = pcall(mission.getWasStarted, mission)
-            wasStarted = ok and value == true
+            wasStarted = mission:getWasStarted() == true
         end
         if wasStarted or mission.farmId ~= nil or mission.activeMissionId ~= nil then
             count = count + 1
@@ -6329,8 +6299,7 @@ function CCO:getContractBoardSummary()
         summary.total = summary.total + 1
         local wasStarted = false
         if mission ~= nil and mission.getWasStarted ~= nil then
-            local ok, value = pcall(mission.getWasStarted, mission)
-            wasStarted = ok and value == true
+            wasStarted = mission:getWasStarted() == true
         end
         local active = mission ~= nil and (wasStarted or mission.farmId ~= nil or mission.activeMissionId ~= nil)
         if active then summary.active = summary.active + 1
@@ -6358,12 +6327,8 @@ function CCO:purgeAvailableContractsForRegeneration()
 
     local removed = 0
     for _, mission in ipairs(missions) do
-        local ok, err = pcall(function() mission:delete() end)
-        if ok then
-            removed = removed + 1
-        else
-            warn("failed deleting stale available contract: " .. tostring(err))
-        end
+        mission:delete()
+        removed = removed + 1
     end
     return removed, "ok"
 end
@@ -6495,21 +6460,17 @@ end
 function CCO:refreshRegeneratedFieldStates(state)
     local refreshed, failed = 0, 0
     for _, field in ipairs(state.fields or {}) do
-        local ok, err = pcall(function()
-            if field ~= nil and field.getFieldState ~= nil and field.getIndicatorPosition ~= nil then
-                local fieldState = field:getFieldState()
-                local posX, posZ = field:getIndicatorPosition()
-                if fieldState ~= nil and fieldState.update ~= nil and posX ~= nil and posZ ~= nil then
-                    fieldState:update(posX, posZ)
-                    refreshed = refreshed + 1
-                    return
-                end
+        if field ~= nil and field.getFieldState ~= nil and field.getIndicatorPosition ~= nil then
+            local fieldState = field:getFieldState()
+            local posX, posZ = field:getIndicatorPosition()
+            if fieldState ~= nil and fieldState.update ~= nil and posX ~= nil and posZ ~= nil then
+                fieldState:update(posX, posZ)
+                refreshed = refreshed + 1
+            else
+                failed = failed + 1
             end
+        else
             failed = failed + 1
-        end)
-        if not ok then
-            failed = failed + 1
-            warn("failed refreshing regenerated field state: " .. tostring(err))
         end
     end
     info(("refreshed regenerated field-state caches refreshed=%d failed=%d"):format(refreshed, failed))
@@ -6551,11 +6512,9 @@ local function getRegenerationFieldIdFromValue(value)
     for _, getter in ipairs(getters) do
         local fn = value[getter]
         if type(fn) == "function" then
-            local ok, result = pcall(fn, value)
-            if ok then
-                local resolved = normalizeRegenerationFieldId(result)
-                if resolved ~= nil then return resolved end
-            end
+            local result = fn(value)
+            local resolved = normalizeRegenerationFieldId(result)
+            if resolved ~= nil then return resolved end
         end
     end
 
@@ -6678,11 +6637,9 @@ local function getRegenerationMissionFieldId(mission)
     for _, getter in ipairs(getters) do
         local fn = mission[getter]
         if type(fn) == "function" then
-            local ok, result = pcall(fn, mission)
-            if ok then
-                local resolved = getRegenerationFieldIdFromValue(result)
-                if resolved ~= nil then return resolved, "mission:" .. getter .. "()" end
-            end
+            local result = fn(mission)
+            local resolved = getRegenerationFieldIdFromValue(result)
+            if resolved ~= nil then return resolved, "mission:" .. getter .. "()" end
         end
     end
 
