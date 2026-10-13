@@ -5,9 +5,9 @@ local CCO_GUI_MOD_DIRECTORY = g_currentModDirectory or ""
 
 local function ccoGuiText(key, fallback)
     if g_i18n ~= nil and g_i18n.getText ~= nil then
-        local ok, value = pcall(function() return g_i18n:getText(key) end)
+        local value = g_i18n:getText(key)
         local valueText = tostring(value or "")
-        if ok and valueText ~= "" and valueText ~= key and valueText:find("^Missing '") == nil then
+        if valueText ~= "" and valueText ~= key and valueText:find("^Missing '") == nil then
             return value
         end
     end
@@ -80,7 +80,7 @@ local function getUiSettingsPath()
     if last ~= "/" and last ~= "\\" then base = base .. "/" end
 
     local directory = base .. UI_SETTINGS_FOLDER
-    if createFolder ~= nil then pcall(createFolder, directory) end
+    if createFolder ~= nil then createFolder(directory) end
     return directory .. UI_SETTINGS_FILE
 end
 
@@ -182,7 +182,7 @@ function CropControlOverrideMenu.register(modDirectory)
 
     local profiles = baseDir .. "gui/guiProfiles.xml"
     if fileExists == nil or fileExists(profiles) then
-        pcall(function() g_gui:loadProfiles(profiles) end)
+        g_gui:loadProfiles(profiles)
     end
 
     local filename = baseDir .. "gui/CropControlOverrideMenu.xml"
@@ -193,14 +193,7 @@ function CropControlOverrideMenu.register(modDirectory)
         return nil
     end
 
-    local ok, result = pcall(function()
-        return g_gui:loadGui(filename, "CropControlOverrideMenu", controller)
-    end)
-
-    if not ok then
-        print("CCO GUI: failed to load custom screen: " .. tostring(result))
-        return nil
-    end
+    g_gui:loadGui(filename, "CropControlOverrideMenu", controller)
 
     if g_gui.guis == nil or g_gui.guis.CropControlOverrideMenu == nil then
         print("CCO GUI: loadGui returned but screen was not registered")
@@ -227,14 +220,7 @@ function CropControlOverrideMenu.show(title, body, modDirectory, topic, page)
     controller.currentPage = tonumber(page or controller.currentPage or 1) or 1
     controller:setContent(title, body, topic)
 
-    local ok, result = pcall(function()
-        return g_gui:showGui("CropControlOverrideMenu")
-    end)
-
-    if not ok then
-        print("CCO GUI: failed to show custom screen: " .. tostring(result))
-        return false
-    end
+    g_gui:showGui("CropControlOverrideMenu")
 
     return true
 end
@@ -416,10 +402,8 @@ local function filterCalendarRows(rows, showDisabled)
     local rulesResolved = false
 
     if CropControlOverride ~= nil and CropControlOverride.getGuiRuleRows ~= nil then
-        local ok, ruleRows = pcall(function()
-            return CropControlOverride:getGuiRuleRows("rules")
-        end)
-        if ok and type(ruleRows) == "table" then
+        local ruleRows = CropControlOverride:getGuiRuleRows("rules")
+        if type(ruleRows) == "table" then
             rulesResolved = true
             for _, ruleRow in ipairs(ruleRows) do
                 if ruleRow.enabledBool == false then
@@ -449,10 +433,8 @@ local function getCalendarRowsForDisplay(showDisabled)
         return {}
     end
 
-    local ok, rows = pcall(function()
-        return CropControlOverride:getGuiCalendarRows()
-    end)
-    if not ok or type(rows) ~= "table" then
+    local rows = CropControlOverride:getGuiCalendarRows()
+    if type(rows) ~= "table" then
         return {}
     end
 
@@ -473,7 +455,7 @@ function CropControlOverrideMenu:setupTabs()
     -- stack overflow on some FS25 builds when this screen opened from a mod.
     -- The explicit tab buttons above remain the supported navigation path.
     if self.subCategoryPaging ~= nil then
-        pcall(function() self.subCategoryPaging:setVisible(false) end)
+        self.subCategoryPaging:setVisible(false)
     end
     self.suppressTabCallback = false
 
@@ -503,7 +485,7 @@ function CropControlOverrideMenu:updateTabs()
     local idx = self:getActiveTabIndex()
 
     if self.subCategoryPaging ~= nil then
-        pcall(function() self.subCategoryPaging:setVisible(false) end)
+        self.subCategoryPaging:setVisible(false)
     end
 
     if self.subCategoryTabs ~= nil then
@@ -631,12 +613,7 @@ function CropControlOverrideMenu:setEnabledSelectorState(enabled, disabled)
     local state = enabled == true and 2 or 1
     local currentState = nil
     if option.getState ~= nil then
-        local ok, result = pcall(function()
-            return option:getState()
-        end)
-        if ok then
-            currentState = tonumber(result)
-        end
+        currentState = tonumber(option:getState())
     end
 
     if option.setState ~= nil and currentState ~= state then
@@ -661,12 +638,7 @@ function CropControlOverrideMenu:setResetSelectorState(enabled, disabled)
     local state = enabled == true and 2 or 1
     local currentState = nil
     if option.getState ~= nil then
-        local ok, result = pcall(function()
-            return option:getState()
-        end)
-        if ok then
-            currentState = tonumber(result)
-        end
+        currentState = tonumber(option:getState())
     end
 
     if option.setState ~= nil and currentState ~= state then
@@ -697,12 +669,7 @@ function CropControlOverrideMenu:setNpcSelectorState(npcValue, disabled)
 
     local currentState = nil
     if option.getState ~= nil then
-        local ok, result = pcall(function()
-            return option:getState()
-        end)
-        if ok then
-            currentState = tonumber(result)
-        end
+        currentState = tonumber(option:getState())
     end
 
     if option.setState ~= nil and currentState ~= state then
@@ -777,18 +744,22 @@ function CropControlOverrideMenu:registerBackAction()
     end
 
     if g_inputBinding ~= nil and InputAction ~= nil and InputAction.MENU_BACK ~= nil then
-        local ok, result1, result2 = pcall(function()
-            return g_inputBinding:registerActionEvent(InputAction.MENU_BACK, self, self.onMenuBackAction, false, true, false, true)
-        end)
+        local result1, result2 = g_inputBinding:registerActionEvent(
+            InputAction.MENU_BACK,
+            self,
+            self.onMenuBackAction,
+            false,
+            true,
+            false,
+            true
+        )
 
         -- GIANTS builds/mod examples differ here: some return (success, eventId), others effectively return eventId.
         local eventId = nil
-        if ok then
-            if type(result2) == "number" then
-                eventId = result2
-            elseif type(result1) == "number" then
-                eventId = result1
-            end
+        if type(result2) == "number" then
+            eventId = result2
+        elseif type(result1) == "number" then
+            eventId = result1
         end
 
         if eventId ~= nil then
@@ -805,9 +776,7 @@ end
 
 function CropControlOverrideMenu:removeBackAction()
     if self.menuBackEventId ~= nil and g_inputBinding ~= nil and g_inputBinding.removeActionEvent ~= nil then
-        pcall(function()
-            g_inputBinding:removeActionEvent(self.menuBackEventId)
-        end)
+        g_inputBinding:removeActionEvent(self.menuBackEventId)
     end
     self.menuBackEventId = nil
 end
@@ -1046,20 +1015,13 @@ function CropControlOverrideMenu:refreshValidationRows()
 
     local rows = {}
     if CropControlOverride ~= nil and CropControlOverride.getBlockedFieldRows ~= nil then
-        local ok, sourceRows = pcall(function()
-            return CropControlOverride:getBlockedFieldRows()
-        end)
-        if ok and type(sourceRows) == "table" then
+        local sourceRows = CropControlOverride:getBlockedFieldRows()
+        if type(sourceRows) == "table" then
             for _, source in ipairs(sourceRows) do
                 local candidateCrop = source.candidateCrop
                 if (candidateCrop == nil or tostring(candidateCrop) == "") and source.field ~= nil
                     and CropControlOverride.getReseedCandidateTextForField ~= nil then
-                    local candidateOk, candidate = pcall(function()
-                        return CropControlOverride:getReseedCandidateTextForField(source.field, source.cropName)
-                    end)
-                    if candidateOk then
-                        candidateCrop = candidate
-                    end
+                    candidateCrop = CropControlOverride:getReseedCandidateTextForField(source.field, source.cropName)
                 end
 
                 table.insert(rows, {
@@ -1081,15 +1043,9 @@ function CropControlOverrideMenu:updateValidationSummary()
 
     local summary = nil
     if CropControlOverride ~= nil and CropControlOverride.getGuiValidationSummary ~= nil then
-        local ok, result = pcall(function()
-            return CropControlOverride:getGuiValidationSummary()
-        end)
-        if ok then summary = result end
+        summary = CropControlOverride:getGuiValidationSummary()
     elseif CropControlOverride ~= nil and CropControlOverride.buildFieldSummary ~= nil then
-        local ok, result = pcall(function()
-            return CropControlOverride:buildFieldSummary(nil)
-        end)
-        if ok then summary = result end
+        summary = CropControlOverride:buildFieldSummary(nil)
     end
     summary = summary or {}
 
@@ -1272,7 +1228,7 @@ function CropControlOverrideMenu:updateContent()
         if self.ruleList ~= nil then
             self.ruleList:reloadData()
             if hasRows and self.ruleList.setSelectedIndex ~= nil then
-                pcall(function() self.ruleList:setSelectedIndex(self.selectedRowIndex or 1, true) end)
+                self.ruleList:setSelectedIndex(self.selectedRowIndex or 1, true)
             end
         end
         if self.emptyStateText ~= nil then
@@ -1300,7 +1256,7 @@ function CropControlOverrideMenu:updateContent()
             self.calendarList:reloadData()
             self.calendarList:setVisible(hasCalendarRows)
             if hasCalendarRows and self.calendarList.setSelectedIndex ~= nil then
-                pcall(function() self.calendarList:setSelectedIndex(self.selectedCalendarRowIndex or 1, true) end)
+                self.calendarList:setSelectedIndex(self.selectedCalendarRowIndex or 1, true)
             end
         end
         if self.calendarListSliderBox ~= nil then self.calendarListSliderBox:setVisible(#self.calendarRows > 14) end
@@ -1788,7 +1744,11 @@ function CropControlOverrideMenu:onClickApplyDryRun()
             self.selectedDirtyText:setText(ccoGuiText("cco_waiting_server_apply", "Waiting for server confirmation..."))
         end
         if self.selectedInfoText ~= nil and self.selectedInfoText.setText ~= nil then
-            self.selectedInfoText:setText(ccoGuiText("cco_rule_sent_server_validation", "The rule was sent to the dedicated server for validation. The staged change will be kept until the server replies."))
+            self.selectedInfoText:setText(ccoGuiText(
+                "cco_rule_sent_server_validation",
+                "The rule was sent to the dedicated server for validation. " ..
+                    "The staged change will be kept until the server replies."
+            ))
         end
     elseif ok then
         self.stagedDirty = false
@@ -1821,7 +1781,7 @@ function CropControlOverrideMenu:onClickApplyDryRun()
                 self:createStagedRuleFromRow(row)
                 self:updateSelectedDetails()
                 if self.ruleList ~= nil and self.ruleList.setSelectedIndex ~= nil then
-                    pcall(function() self.ruleList:setSelectedIndex(i, true) end)
+                    self.ruleList:setSelectedIndex(i, true)
                 end
                 break
             end
@@ -1902,7 +1862,7 @@ function CropControlOverrideMenu:reloadCalendarListPreservingSelection()
     self.suppressCalendarSelectionCallback = true
     self.calendarList:reloadData()
     if self.selectedCalendarRowIndex ~= nil and self.calendarList.setSelectedIndex ~= nil then
-        pcall(function() self.calendarList:setSelectedIndex(self.selectedCalendarRowIndex, true) end)
+        self.calendarList:setSelectedIndex(self.selectedCalendarRowIndex, true)
     end
     self.suppressCalendarSelectionCallback = false
 end
@@ -2341,14 +2301,8 @@ function CropControlOverrideMenu:onClickReload()
         return
     end
     if CropControlOverride ~= nil and CropControlOverride.loadTemplateDefaultsIntoCurrentSave ~= nil then
-        local ok, resultOk, msg = pcall(function()
-            return CropControlOverride:loadTemplateDefaultsIntoCurrentSave()
-        end)
-
-        if not ok then
-            CropControlOverride._guiNotice = "Load Defaults failed: " .. tostring(resultOk)
-            print("CCO GUI: load defaults action failed: " .. tostring(resultOk))
-        elseif resultOk ~= true then
+        local resultOk, msg = CropControlOverride:loadTemplateDefaultsIntoCurrentSave()
+        if resultOk ~= true then
             CropControlOverride._guiNotice = tostring(msg or "Load Defaults failed.")
         end
     end
@@ -2371,15 +2325,7 @@ function CropControlOverrideMenu:onClickSaveDefaults()
         return
     end
     if CropControlOverride ~= nil and CropControlOverride.saveCurrentRulesToTemplateConfig ~= nil then
-        local ok, resultOk, msg = pcall(function()
-            return CropControlOverride:saveCurrentRulesToTemplateConfig()
-        end)
-
-        if not ok then
-            msg = tostring(resultOk)
-            resultOk = false
-            print("CCO GUI: save defaults action failed: " .. tostring(msg))
-        end
+        local resultOk, msg = CropControlOverride:saveCurrentRulesToTemplateConfig()
 
         if self.selectedDirtyText ~= nil and self.selectedDirtyText.setText ~= nil then
             self.selectedDirtyText:setText(resultOk and "Saved defaults." or "Save defaults failed.")
@@ -2400,17 +2346,13 @@ function CropControlOverrideMenu:refreshResetScopes()
     }
 
     if CropControlOverride ~= nil and CropControlOverride.getBlockedResetScopeList ~= nil then
-        local ok, result = pcall(function()
-            return CropControlOverride:getBlockedResetScopeList()
-        end)
-        if ok and type(result) == "table" and #result > 0 then
+        local result = CropControlOverride:getBlockedResetScopeList()
+        if type(result) == "table" and #result > 0 then
             scopes = result
         end
     elseif CropControlOverride ~= nil and CropControlOverride.getBlockedCropList ~= nil then
-        local ok, crops = pcall(function()
-            return CropControlOverride:getBlockedCropList()
-        end)
-        if ok and type(crops) == "table" then
+        local crops = CropControlOverride:getBlockedCropList()
+        if type(crops) == "table" then
             for _, crop in ipairs(crops) do
                 table.insert(scopes, { mode = "crop", crop = tostring(crop), label = "CROP: " .. tostring(crop) })
             end
@@ -2538,14 +2480,8 @@ function CropControlOverrideMenu:onClickResetBlockedDryRun()
     local scopeCrop, scopeText = self:getCurrentResetScope()
     self.pendingResetScopeText = tostring(scopeText or "ALL")
 
-    local callOk, success, result, wouldQueue, skipped, serverPending = pcall(function()
-        return CropControlOverride:resetBlockedFieldsDryRunFromGui(scopeCrop, self.resetMode)
-    end)
-
-    if not callOk then
-        self:onServerResetDryRunResult(false, "Dry-run failed: " .. tostring(success), 0, 0)
-        return
-    end
+    local success, result, wouldQueue, skipped, serverPending =
+        CropControlOverride:resetBlockedFieldsDryRunFromGui(scopeCrop, self.resetMode)
 
     if success == true and serverPending == true then
         self.serverResetDryRunPending = true
@@ -2575,7 +2511,11 @@ function CropControlOverrideMenu:onServerResetDryRunResult(success, result, woul
 
     local confirmHint = ""
     if self.resetConfirmArmed then
-        confirmHint = "\n\nCONFIRM RESET is now available for scope=" .. tostring(self.pendingResetScopeText or "ALL") .. " resetMode=" .. self:getResetModeLabel() .. ". It will apply the selected reset mode."
+        confirmHint =
+            "\n\nCONFIRM RESET is now available for scope=" ..
+            tostring(self.pendingResetScopeText or "ALL") ..
+            " resetMode=" .. self:getResetModeLabel() ..
+            ". It will apply the selected reset mode."
     elseif not ccoGuiCanEditRules() then
         confirmHint = "\n\nRemote multiplayer clients are read-only. Reset actions can only be run by the server/host."
     end
@@ -2609,14 +2549,8 @@ function CropControlOverrideMenu:onClickConfirmBlockedReset()
 
     local scopeCrop = self:getCurrentResetScope()
 
-    local callOk, success, result, queued, skipped, serverPending = pcall(function()
-        return CropControlOverride:resetBlockedFieldsFromGui(scopeCrop, self.resetMode)
-    end)
-
-    if not callOk then
-        self:onServerResetResult(false, "Reset failed: " .. tostring(success), 0, 0)
-        return
-    end
+    local success, result, queued, skipped, serverPending =
+        CropControlOverride:resetBlockedFieldsFromGui(scopeCrop, self.resetMode)
 
     if success == true and serverPending == true then
         self.serverResetPending = true
@@ -2666,11 +2600,9 @@ function CropControlOverrideMenu:onClickRegenerateNpcPreview()
         return
     end
 
-    local ok, result, planned, confirmAllowed = pcall(function()
-        return CropControlOverride:regenerateNpcFieldsDryRunFromGui()
-    end)
-    local msg = ok and tostring(result or "Preview complete.") or ("Preview failed: " .. tostring(result))
-    self.regenerationConfirmArmed = ok and confirmAllowed == true and (tonumber(planned or 0) or 0) > 0
+    local result, planned, confirmAllowed = CropControlOverride:regenerateNpcFieldsDryRunFromGui()
+    local msg = tostring(result or "Preview complete.")
+    self.regenerationConfirmArmed = confirmAllowed == true and (tonumber(planned or 0) or 0) > 0
 
     local body = ""
     if CropControlOverride.buildGuiBlockedText ~= nil then
@@ -2698,10 +2630,8 @@ function CropControlOverrideMenu:onClickConfirmNpcRegeneration()
         return
     end
 
-    local ok, result = pcall(function()
-        return CropControlOverride:regenerateNpcFieldsFromGui()
-    end)
-    local msg = ok and tostring(result or "Regeneration queued.") or ("Regeneration failed: " .. tostring(result))
+    local result = CropControlOverride:regenerateNpcFieldsFromGui()
+    local msg = tostring(result or "Regeneration queued.")
     self.regenerationConfirmArmed = false
 
     local body = ""

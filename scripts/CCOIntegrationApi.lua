@@ -29,13 +29,13 @@ end
 
 local function getMissionCount(cco)
     if cco ~= nil and type(cco.getMissionCountForRegeneration) == "function" then
-        local ok, value = pcall(cco.getMissionCountForRegeneration, cco)
-        if ok then return tonumber(value) end
+        local value = cco:getMissionCountForRegeneration()
+        return tonumber(value)
     end
 
     if g_missionManager ~= nil and type(g_missionManager.getMissions) == "function" then
-        local ok, missions = pcall(g_missionManager.getMissions, g_missionManager)
-        if ok and type(missions) == "table" then return #missions end
+        local missions = g_missionManager:getMissions()
+        if type(missions) == "table" then return #missions end
     end
     return nil
 end
@@ -262,14 +262,7 @@ if FSBaseMission ~= nil then
             results = { previousLoadMapFinished(self, ...) }
         end
 
-        local ok, publishError = pcall(publishApi, self)
-        if not ok then
-            if CCO_Debug ~= nil and CCO_Debug.warn ~= nil then
-                CCO_Debug:warn("failed publishing integration API: " .. tostring(publishError))
-            else
-                print("CCO [WARN] failed publishing integration API: " .. tostring(publishError))
-            end
-        end
+        publishApi(self)
 
         if results ~= nil then return unpack(results) end
     end

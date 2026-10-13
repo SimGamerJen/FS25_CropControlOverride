@@ -13,7 +13,7 @@
 
 CropControlOverride = {
     MOD_ID = g_currentModName or "FS25_CropControlOverride",
-    VERSION = "2.1.0.0-beta.3",
+    VERSION = "2.1.0.0",
 
     _origFlags = {},
     _rules = {},
@@ -337,12 +337,10 @@ local function getCurrentPeriodIndex()
     if env ~= nil then
         period = env.currentPeriod or env.period or env.currentSeasonPeriod
         if period == nil and env.getCurrentPeriod ~= nil then
-            local ok, result = pcall(function() return env:getCurrentPeriod() end)
-            if ok then period = result end
+            period = env:getCurrentPeriod()
         end
         if period == nil and env.getPeriod ~= nil then
-            local ok, result = pcall(function() return env:getPeriod() end)
-            if ok then period = result end
+            period = env:getPeriod()
         end
     end
 
@@ -491,7 +489,10 @@ local function getSeasonalSowingStatus(ft)
         for _, key in ipairs(SEEDING_PERIOD_FIELDS) do
             local result = tableHasPeriod(ft.data[key], period)
             if result ~= nil then
-                return result == true, result == true and ("seasonal period " .. tostring(period) .. " allowed by data." .. key) or ("outside seasonal period " .. tostring(period) .. " via data." .. key), period
+                local seasonalMessage = result == true
+                    and ("seasonal period " .. tostring(period) .. " allowed by data." .. key)
+                    or ("outside seasonal period " .. tostring(period) .. " via data." .. key)
+                return result == true, seasonalMessage, period
             end
         end
 
@@ -684,15 +685,8 @@ function CCO:applyRules(rules, seedSyncMode)
     -- time, so a mid-session rule change (GUI APPLY, server sync on a remote
     -- client) never reached them. Rebuild those cached lists now.
     local preserveNetworkIndex = seedSyncMode == "serverSnapshot" and isClientOnlyMultiplayer()
-    local ok, e = pcall(function() self:refreshAllSowingMachines(preserveNetworkIndex) end)
-    if not ok then debug("refreshAllSowingMachines skipped: " .. tostring(e)) end
-
-    local calendarOk, calendarErr = pcall(function()
-        self:refreshNativeCalendarIfOpen()
-    end)
-    if not calendarOk then
-        debug("refreshNativeCalendarIfOpen skipped: " .. tostring(calendarErr))
-    end
+    self:refreshAllSowingMachines(preserveNetworkIndex)
+    self:refreshNativeCalendarIfOpen()
 end
 
 local function buildDefaultRules()
@@ -1397,9 +1391,9 @@ function CCO:filterSowingMachineSeeds(vehicle, preserveNetworkIndex)
         if isClientOnlyMultiplayer() then
             -- Never let a remote client's CCO cache refresh send a native
             -- SetSeedIndexEvent back to the authoritative server.
-            pcall(function() vehicle:setSeedIndex(newIndex, true) end)
+            vehicle:setSeedIndex(newIndex, true)
         else
-            pcall(function() vehicle:setSeedIndex(newIndex) end)
+            vehicle:setSeedIndex(newIndex)
         end
     elseif spec.currentSeed ~= nil then
         spec.currentSeed = math.min(math.max(1, newIndex), #spec.seeds)
@@ -1426,8 +1420,8 @@ function CCO:refreshAllSowingMachines(preserveNetworkIndex)
     local refreshed = 0
     for _, vehicle in pairs(iterMissionVehicles()) do
         if getSowingMachineSpec(vehicle) ~= nil then
-            local ok, changed = pcall(function() return self:filterSowingMachineSeeds(vehicle, preserveNetworkIndex) end)
-            if ok and changed == true then refreshed = refreshed + 1 end
+            local changed = self:filterSowingMachineSeeds(vehicle, preserveNetworkIndex)
+            if changed == true then refreshed = refreshed + 1 end
         end
     end
     if refreshed > 0 then
@@ -1686,8 +1680,7 @@ function CCO:setFieldReseeded(field, fruit, growthState)
 
     local groundType = nil
     if fruit.getGrowthStateGroundType ~= nil then
-        local okGround, resolvedGround = pcall(function() return fruit:getGrowthStateGroundType(state) end)
-        if okGround then groundType = resolvedGround end
+        groundType = fruit:getGrowthStateGroundType(state)
     end
     if groundType == nil and FieldGroundType ~= nil then
         groundType = FieldGroundType.SOWN or FieldGroundType.SEEDBED or FieldGroundType.CULTIVATED
@@ -1892,15 +1885,7 @@ function CCO:printStartupValidation()
     if self._startupValidationPrinted then return end
     self._startupValidationPrinted = true
 
-    local ok, summaryOrError = pcall(function()
-        return self:buildFieldSummary(nil)
-    end)
-    if not ok then
-        warn("startup validation skipped: " .. tostring(summaryOrError))
-        return
-    end
-
-    local summary = summaryOrError
+    local summary = self:buildFieldSummary(nil)
     if summary == nil then return end
     if summary.offending ~= nil and summary.offending > 0 then
         warn(("startup validation found %d blocked NPC field(s). Run ccoScanBlocked, then ccoResetBlocked dryrun if cleanup is intended."):format(summary.offending))
@@ -1939,7 +1924,15 @@ function CCO:resetNpcFields(filterCrop, dryRun, resetMode)
                         wouldQueue = wouldQueue + 1
                         local action, candidateCrop, candidateReason = self:getDryRunResetActionForField(field, cropName, resetMode)
                         print(("CCO: dry-run would reset field=%s crop=%s size=%.2fha reason=%s resetMode=%s action=%s reseedCandidate=%s candidateReason=%s"):format(
-                            tostring(getFieldId(field, idx)), cropName, getFieldSizeHa(field), tostring(reason), select(2, self:normaliseResetMode(resetMode)), tostring(action), tostring(candidateCrop), tostring(candidateReason)))
+                            tostring(getFieldId(field, idx)),
+                            cropName,
+                            getFieldSizeHa(field),
+                            tostring(reason),
+                            select(2, self:normaliseResetMode(resetMode)),
+                            tostring(action),
+                            tostring(candidateCrop),
+                            tostring(candidateReason)
+                        ))
                     else
                         if removedMissions == nil then
                             local purgeReason
@@ -1988,63 +1981,45 @@ end
 
 
 function CCO:generatePlannedFruitForField(superFunc, fieldManager, field)
-    local ok, proposedFruit = pcall(function()
-        return superFunc(fieldManager, field)
-    end)
+    local proposedFruit = superFunc(fieldManager, field)
 
-    if not ok then
-        warn("generatePlannedFruitForField original call failed: " .. tostring(proposedFruit))
-        -- Do not convert an engine planning failure into a nil fruit value that
-        -- can be stored on a mission and crash repeatedly during update.
-        error(proposedFruit, 0)
-    end
-
-    local ok2, selectedFruit = pcall(function()
-        if proposedFruit == nil or proposedFruit == FruitType.UNKNOWN then
-            return proposedFruit
-        end
-
-        if field ~= nil and not isNpcField(field) then
-            return proposedFruit
-        end
-
-        local ft = g_fruitTypeManager ~= nil and g_fruitTypeManager:getFruitTypeByIndex(proposedFruit) or nil
-        if ft == nil then
-            return proposedFruit
-        end
-
-        local cropName = upper(ft.name)
-        local fieldHa = getFieldSizeHa(field)
-        local allowed, reason = self:isNpcCropAllowedForField(fieldHa, cropName)
-        if allowed then
-            return proposedFruit
-        end
-
-        -- Mission planning must always return a registered fruit index. The
-        -- weighted "leave cultivated" outcome is valid for cleanup/regeneration,
-        -- but returning nil here creates a SowMission whose update later
-        -- dereferences a missing fruit descriptor.
-        local replacement, replacementReason = self:findReplacementNpcCropForField(field, cropName, false)
-        if replacement ~= nil and replacement.index ~= nil then
-            debug(("planned fruit replacement for field %s: %s -> %s (%.2f ha): %s"):format(
-                tostring(getFieldId(field)), cropName, upper(replacement.name), fieldHa, tostring(reason)))
-            return replacement.index
-        end
-
-        warn(("planned fruit replacement unavailable for field %s: %s (%.2f ha): %s; retaining engine fruit index %s so SowMission remains valid (%s)"):format(
-            tostring(getFieldId(field)), cropName, fieldHa, tostring(reason), tostring(proposedFruit), tostring(replacementReason)))
-        -- SowMission.isAvailableForField applies the policy rejection later.
-        -- Keeping the engine's valid proposal is safer than injecting nil into
-        -- the base-game mission lifecycle.
-        return proposedFruit
-    end)
-
-    if not ok2 then
-        warn("generatePlannedFruitForField CCO selection failed: " .. tostring(selectedFruit))
+    if proposedFruit == nil or proposedFruit == FruitType.UNKNOWN then
         return proposedFruit
     end
 
-    return selectedFruit
+    if field ~= nil and not isNpcField(field) then
+        return proposedFruit
+    end
+
+    local ft = g_fruitTypeManager ~= nil and g_fruitTypeManager:getFruitTypeByIndex(proposedFruit) or nil
+    if ft == nil then
+        return proposedFruit
+    end
+
+    local cropName = upper(ft.name)
+    local fieldHa = getFieldSizeHa(field)
+    local allowed, reason = self:isNpcCropAllowedForField(fieldHa, cropName)
+    if allowed then
+        return proposedFruit
+    end
+
+    -- Mission planning must always return a registered fruit index. The
+    -- weighted "leave cultivated" outcome is valid for cleanup/regeneration,
+    -- but returning nil here creates a SowMission whose update later
+    -- dereferences a missing fruit descriptor.
+    local replacement, replacementReason = self:findReplacementNpcCropForField(field, cropName, false)
+    if replacement ~= nil and replacement.index ~= nil then
+        debug(("planned fruit replacement for field %s: %s -> %s (%.2f ha): %s"):format(
+            tostring(getFieldId(field)), cropName, upper(replacement.name), fieldHa, tostring(reason)))
+        return replacement.index
+    end
+
+    warn(("planned fruit replacement unavailable for field %s: %s (%.2f ha): %s; retaining engine fruit index %s so SowMission remains valid (%s)"):format(
+        tostring(getFieldId(field)), cropName, fieldHa, tostring(reason), tostring(proposedFruit), tostring(replacementReason)))
+    -- SowMission.isAvailableForField applies the policy rejection later.
+    -- Keeping the engine's valid proposal is safer than injecting nil into
+    -- the base-game mission lifecycle.
+    return proposedFruit
 end
 
 -- Enhanced runtime sowing enforcement (v2.0.3.x) ----------------------------
@@ -2114,19 +2089,19 @@ function CCO:showSowingNotPermitted(fruitTypeIndex)
         -- job has already been stopped, and may succeed without displaying text.
         local hud = g_currentMission.hud
         if hud ~= nil and hud.showBlinkingWarning ~= nil then
-            local ok, result = pcall(hud.showBlinkingWarning, hud, message, 5000)
-            info(("SOW-BLOCK warning display path=hud.showBlinkingWarning ok=%s result=%s message=%s"):format(
-                tostring(ok), tostring(result), tostring(message)))
-            if ok then return end
+            local result = hud:showBlinkingWarning(message, 5000)
+            info(("SOW-BLOCK warning display path=hud.showBlinkingWarning result=%s message=%s"):format(
+                tostring(result), tostring(message)))
+            return
         end
 
         -- Compatibility fallback for game builds/mod stacks exposing the method
         -- directly on the mission.
         if g_currentMission.showBlinkingWarning ~= nil then
-            local ok, result = pcall(g_currentMission.showBlinkingWarning, g_currentMission, message, 5000)
-            info(("SOW-BLOCK warning display path=mission.showBlinkingWarning ok=%s result=%s message=%s"):format(
-                tostring(ok), tostring(result), tostring(message)))
-            if ok then return end
+            local result = g_currentMission:showBlinkingWarning(message, 5000)
+            info(("SOW-BLOCK warning display path=mission.showBlinkingWarning result=%s message=%s"):format(
+                tostring(result), tostring(message)))
+            return
         end
 
         -- INGAME_NOTIFICATION_OK is already used elsewhere by CCO and is known to
@@ -2134,10 +2109,10 @@ function CCO:showSowingNotPermitted(fruitTypeIndex)
         -- critical constants, as a nil type creates a blank overlay in FS25.
         local notificationType = FSBaseMission ~= nil and FSBaseMission.INGAME_NOTIFICATION_OK or nil
         if type(notificationType) == "number" and g_currentMission.addIngameNotification ~= nil then
-            local ok, result = pcall(g_currentMission.addIngameNotification, g_currentMission, notificationType, message)
-            info(("SOW-BLOCK warning display path=addIngameNotification ok=%s result=%s type=%s message=%s"):format(
-                tostring(ok), tostring(result), tostring(notificationType), tostring(message)))
-            if ok then return end
+            local result = g_currentMission:addIngameNotification(notificationType, message)
+            info(("SOW-BLOCK warning display path=addIngameNotification result=%s type=%s message=%s"):format(
+                tostring(result), tostring(notificationType), tostring(message)))
+            return
         end
 
         info("SOW-BLOCK warning display failed message=" .. tostring(message))
@@ -2147,8 +2122,8 @@ end
 local function ccoObjectName(object)
     if object == nil then return "nil" end
     if object.getName ~= nil then
-        local ok, name = pcall(object.getName, object)
-        if ok and name ~= nil then return tostring(name) end
+        local name = object:getName()
+        if name ~= nil then return tostring(name) end
     end
     return tostring(object)
 end
@@ -2156,8 +2131,8 @@ end
 function CCO:stopBlockedSowingWorker(vehicle, fruitTypeIndex)
     local rootVehicle = vehicle
     if vehicle ~= nil and vehicle.getRootVehicle ~= nil then
-        local ok, result = pcall(vehicle.getRootVehicle, vehicle)
-        if ok and result ~= nil then rootVehicle = result end
+        local result = vehicle:getRootVehicle()
+        if result ~= nil then rootVehicle = result end
     end
 
     self:showSowingNotPermitted(fruitTypeIndex)
@@ -2167,22 +2142,35 @@ function CCO:stopBlockedSowingWorker(vehicle, fruitTypeIndex)
         return
     end
 
-    local getIsAIActiveOk, getIsAIActiveResult = false, nil
+    local getIsAIActiveAvailable = rootVehicle.getIsAIActive ~= nil
+    local getIsAIActiveResult = nil
     local isAIActive = false
-    if rootVehicle.getIsAIActive ~= nil then
-        getIsAIActiveOk, getIsAIActiveResult = pcall(rootVehicle.getIsAIActive, rootVehicle)
-        isAIActive = getIsAIActiveOk and getIsAIActiveResult == true
+    if getIsAIActiveAvailable then
+        getIsAIActiveResult = rootVehicle:getIsAIActive()
+        isAIActive = getIsAIActiveResult == true
     elseif rootVehicle.spec_aiFieldWorker ~= nil then
         isAIActive = rootVehicle.spec_aiFieldWorker.isActive == true
     end
 
     local aiSpec = rootVehicle.spec_aiFieldWorker
     local job = rootVehicle.getCurrentAIJob ~= nil and rootVehicle:getCurrentAIJob() or nil
-    info(("SOW-BLOCK worker state crop=%s implement=%s root=%s aiActive=%s getIsAIActiveOk=%s specActive=%s currentJob=%s methods[stopCurrentAIJob=%s stopAIVehicle=%s setAIFieldWorkerActive=%s setIsAIActive=%s]"):format(
-        getSowingCropName(fruitTypeIndex), ccoObjectName(vehicle), ccoObjectName(rootVehicle), tostring(isAIActive),
-        tostring(getIsAIActiveOk), tostring(aiSpec ~= nil and aiSpec.isActive or nil), tostring(job),
-        tostring(rootVehicle.stopCurrentAIJob ~= nil), tostring(rootVehicle.stopAIVehicle ~= nil),
-        tostring(rootVehicle.setAIFieldWorkerActive ~= nil), tostring(rootVehicle.setIsAIActive ~= nil)))
+    local workerStateFormat =
+        "SOW-BLOCK worker state crop=%s implement=%s root=%s aiActive=%s " ..
+        "getIsAIActiveAvailable=%s specActive=%s currentJob=%s " ..
+        "methods[stopCurrentAIJob=%s stopAIVehicle=%s setAIFieldWorkerActive=%s setIsAIActive=%s]"
+    info((workerStateFormat):format(
+        getSowingCropName(fruitTypeIndex),
+        ccoObjectName(vehicle),
+        ccoObjectName(rootVehicle),
+        tostring(isAIActive),
+        tostring(getIsAIActiveAvailable),
+        tostring(aiSpec ~= nil and aiSpec.isActive or nil),
+        tostring(job),
+        tostring(rootVehicle.stopCurrentAIJob ~= nil),
+        tostring(rootVehicle.stopAIVehicle ~= nil),
+        tostring(rootVehicle.setAIFieldWorkerActive ~= nil),
+        tostring(rootVehicle.setIsAIActive ~= nil)
+    ))
 
     local stopSucceeded = false
     local attempts = {}
@@ -2191,10 +2179,10 @@ function CCO:stopBlockedSowingWorker(vehicle, fruitTypeIndex)
             attempts[#attempts + 1] = name .. "=missing"
             return false
         end
-        local ok, result = pcall(fn, object, ...)
-        attempts[#attempts + 1] = name .. "[ok=" .. tostring(ok) .. ",result=" .. tostring(result) .. "]"
-        if ok then stopSucceeded = true end
-        return ok
+        local result = fn(object, ...)
+        attempts[#attempts + 1] = name .. "[called=true,result=" .. tostring(result) .. "]"
+        stopSucceeded = true
+        return true
     end
 
     if isAIActive or job ~= nil then
@@ -2208,7 +2196,8 @@ function CCO:stopBlockedSowingWorker(vehicle, fruitTypeIndex)
 
     local turnOffOk = false
     if vehicle ~= nil and vehicle.setIsTurnedOn ~= nil then
-        turnOffOk = pcall(vehicle.setIsTurnedOn, vehicle, false, true)
+        vehicle:setIsTurnedOn(false, true)
+        turnOffOk = true
     end
 
     info(("SOW-BLOCK stop result crop=%s root=%s success=%s turnOffOk=%s attempts=%s"):format(
@@ -2357,27 +2346,6 @@ end
 
 
 
-local function ccoCreateAIStopMessage()
-    local constructors = {
-        AIMessageErrorUnknown,
-        AIMessageErrorBlockedByObject,
-        AIMessageErrorCouldNotStart,
-    }
-    for _, class in ipairs(constructors) do
-        if class ~= nil and class.new ~= nil then
-            local ok, message = pcall(class.new, class)
-            if ok and message ~= nil then
-                return message
-            end
-            ok, message = pcall(class.new)
-            if ok and message ~= nil then
-                return message
-            end
-        end
-    end
-    return nil
-end
-
 local function ccoCollectSowingImplements(rootVehicle)
     local result = {}
     local seen = {}
@@ -2388,8 +2356,8 @@ local function ccoCollectSowingImplements(rootVehicle)
             result[#result + 1] = object
         end
         if object.getAttachedImplements ~= nil then
-            local ok, attached = pcall(object.getAttachedImplements, object)
-            if ok and attached ~= nil then
+            local attached = object:getAttachedImplements()
+            if attached ~= nil then
                 for _, entry in pairs(attached) do
                     add(entry.object or entry)
                 end
@@ -2422,8 +2390,8 @@ function CCO:scanAndStopBlockedSowingWorkers(dt)
         end
         if parameter ~= nil then
             if parameter.getVehicle ~= nil then
-                local ok, vehicle = pcall(parameter.getVehicle, parameter)
-                if ok and vehicle ~= nil then return vehicle end
+                local vehicle = parameter:getVehicle()
+                if vehicle ~= nil then return vehicle end
             end
             if parameter.vehicle ~= nil then return parameter.vehicle end
             if parameter.value ~= nil and type(parameter.value) == "table" then return parameter.value end
@@ -2451,8 +2419,7 @@ function CCO:scanAndStopBlockedSowingWorkers(dt)
         addJobsFrom(aiSystem.jobs)
         addJobsFrom(aiSystem.currentJobs)
         if aiSystem.getActiveJobs ~= nil then
-            local ok, activeJobs = pcall(aiSystem.getActiveJobs, aiSystem)
-            if ok then addJobsFrom(activeJobs) end
+            addJobsFrom(aiSystem:getActiveJobs())
         end
     end
 
@@ -2503,9 +2470,9 @@ function CCO:scanAndStopBlockedSowingWorkers(dt)
                             attempts[#attempts + 1] = name .. "=missing"
                             return
                         end
-                        local ok, result = pcall(fn, object, ...)
-                        attempts[#attempts + 1] = name .. "[ok=" .. tostring(ok) .. ",result=" .. tostring(result) .. "]"
-                        if ok then stopped = true end
+                        local result = fn(object, ...)
+                        attempts[#attempts + 1] = name .. "[called=true,result=" .. tostring(result) .. "]"
+                        stopped = true
                     end
 
                     -- Do not pass a fabricated AIMessage object. Courseplay and
@@ -2562,12 +2529,12 @@ function CCO:installSeedingGuards()
         warn("SowingMachine class not available; seed selector filter not installed")
     elseif SowingMachine.onPostLoad ~= nil then
         SowingMachine.onPostLoad = Utils.appendedFunction(SowingMachine.onPostLoad, function(vehicle, ...)
-            pcall(function() CCO:filterSowingMachineSeeds(vehicle) end)
+            CCO:filterSowingMachineSeeds(vehicle)
         end)
         debug("hooked SowingMachine.onPostLoad (seed list filter)")
     elseif SowingMachine.onLoad ~= nil then
         SowingMachine.onLoad = Utils.appendedFunction(SowingMachine.onLoad, function(vehicle, ...)
-            pcall(function() CCO:filterSowingMachineSeeds(vehicle) end)
+            CCO:filterSowingMachineSeeds(vehicle)
         end)
         debug("hooked SowingMachine.onLoad (seed list filter)")
     end
@@ -2651,8 +2618,7 @@ function CCO:discardInvalidSowMission(mission, failure)
     if g_missionManager ~= nil and g_missionManager.markMissionForDeletion ~= nil then
         g_missionManager:markMissionForDeletion(mission)
     elseif mission.delete ~= nil then
-        local ok, deleteError = pcall(mission.delete, mission)
-        if not ok then warn("failed deleting invalid SowMission: " .. tostring(deleteError)) end
+        mission:delete()
     end
 
     if g_missionManager ~= nil and g_missionManager.generationTimer ~= nil then
@@ -2684,23 +2650,9 @@ function CCO:applyLateHooks()
         debug("hooked SowMission.isAvailableForField")
     end
 
-    if SowMission ~= nil and SowMission.update ~= nil and not self._sowUpdateGuardApplied then
-        self._sowUpdateGuardApplied = true
-        SowMission.update = Utils.overwrittenFunction(SowMission.update, function(mission, superFunc, dt)
-            local ok, result = pcall(superFunc, mission, dt)
-            if ok then return result end
-
-            local failure = tostring(result)
-            if failure:find("attempt to index nil", 1, true) ~= nil
-                and failure:find("getIsPlantableInPeriod", 1, true) ~= nil then
-                CCO:discardInvalidSowMission(mission, failure)
-                return
-            end
-
-            error(result, 0)
-        end)
-        debug("hooked SowMission.update (invalid fruit recovery guard)")
-    end
+    -- Do not wrap SowMission.update in a protected call in the public build.
+    -- Invalid fruit missions are prevented by the planning and availability
+    -- guards above; any unexpected engine error must remain visible in the log.
 end
 
 -- Native Calendar-page integration ------------------------------------------
@@ -2708,9 +2660,9 @@ end
 -- by CCO. This adds a direct route from that page into the guarded CCO editor.
 local function ccoNativeCalendarButtonText()
     if g_i18n ~= nil and g_i18n.getText ~= nil then
-        local ok, value = pcall(function() return g_i18n:getText("cco_calendar_open_editor") end)
+        local value = g_i18n:getText("cco_calendar_open_editor")
         local text = tostring(value or "")
-        if ok and text ~= "" and text ~= "cco_calendar_open_editor" and text:find("^Missing '") == nil then
+        if text ~= "" and text ~= "cco_calendar_open_editor" and text:find("^Missing '") == nil then
             return value
         end
     end
@@ -2793,13 +2745,7 @@ function CCO:refreshNativeCalendarIfOpen()
         return false
     end
 
-    local ok, result = pcall(self.updateNativeCalendarContents, self, frame)
-    if not ok then
-        debug("native Calendar refresh failed: " .. tostring(result))
-        return false
-    end
-
-    return result == true
+    return self:updateNativeCalendarContents(frame) == true
 end
 
 function CCO:addNativeCalendarMenuButton(frame)
@@ -2876,12 +2822,12 @@ function CCO:addNativeCalendarMenuButton(frame)
     end
 
     if frame.setMenuButtonInfo ~= nil then
-        pcall(frame.setMenuButtonInfo, frame, buttons)
+        frame:setMenuButtonInfo(buttons)
     else
         frame.menuButtonInfo = buttons
     end
     frame.hasCustomMenuButtons = true
-    if frame.setMenuButtonInfoDirty ~= nil then pcall(frame.setMenuButtonInfoDirty, frame) end
+    if frame.setMenuButtonInfoDirty ~= nil then frame:setMenuButtonInfoDirty() end
 end
 
 function CCO:installNativeCalendarButtonHook()
@@ -2958,23 +2904,20 @@ local originalFruitTypeLoadMapData = FruitTypeManager.loadMapData
 function FruitTypeManager:loadMapData(xmlFile, missionInfo, baseDir, customEnv, isMission)
     local result = originalFruitTypeLoadMapData(self, xmlFile, missionInfo, baseDir, customEnv, isMission)
 
-    local ok, e = pcall(function()
-        if CCO_RegionalProfiles ~= nil and CCO_RegionalProfiles.loadCustomProfiles ~= nil then
-            CCO_RegionalProfiles:loadCustomProfiles()
-        end
-        local rules, path = CCO:loadRulesForMission(missionInfo)
-        if CCO._mpClientOnly == true and CCO._serverSettingsSynced ~= true then
-            -- Remote client before the server snapshot: the in-memory rules
-            -- are all-enabled placeholders. Applying them would actively
-            -- (re)enable every crop; leave the map defaults untouched and let
-            -- applyServerSettingsPayload do the first real apply.
-            debug("remote client: deferring crop policy apply until server rules arrive")
-        else
-            CCO:applyRules(rules)
-            debug(("applied crop policy from %s"):format(tostring(path)))
-        end
-    end)
-    if not ok then warn("failed applying crop policy in loadMapData: " .. tostring(e)) end
+    if CCO_RegionalProfiles ~= nil and CCO_RegionalProfiles.loadCustomProfiles ~= nil then
+        CCO_RegionalProfiles:loadCustomProfiles()
+    end
+    local rules, path = CCO:loadRulesForMission(missionInfo)
+    if CCO._mpClientOnly == true and CCO._serverSettingsSynced ~= true then
+        -- Remote client before the server snapshot: the in-memory rules
+        -- are all-enabled placeholders. Applying them would actively
+        -- (re)enable every crop; leave the map defaults untouched and let
+        -- applyServerSettingsPayload do the first real apply.
+        debug("remote client: deferring crop policy apply until server rules arrive")
+    else
+        CCO:applyRules(rules)
+        debug(("applied crop policy from %s"):format(tostring(path)))
+    end
 
     CCO:applyRuntimeHooks()
 
@@ -2989,36 +2932,33 @@ function FSBaseMission:loadMapFinished(...)
         results = { originalFSBaseMissionLoadMapFinished(self, ...) }
     end
 
-    local ok, e = pcall(function()
-        CCO._rules = mergeMissingDiscoveredFruits(CCO._rules or {})
-        if not isClientOnlyMultiplayer() and CCO._configPath ~= nil then
-            writeConfig(CCO._configPath, CCO._rules, CCO._settings)
-        end
-        if CCO._mpClientOnly == true and CCO._serverSettingsSynced ~= true then
-            debug("remote client: skipping loadMapFinished reapply until server rules arrive")
-        else
-            CCO:applyRules(CCO._rules)
-        end
-        CCO:applyLateHooks()
-        CCO:installNativeCalendarButtonHook()
-        if CCO_CropCalendar ~= nil and CCO_CropCalendar.captureMapDefaults ~= nil then
-            local _, calendarMessage = CCO_CropCalendar:captureMapDefaults(false)
-            debug("calendar discovery: " .. tostring(calendarMessage))
-            if CCO_CropCalendar.setConfiguredShifts ~= nil then
-                CCO_CropCalendar:setConfiguredShifts(CCO._settings ~= nil and CCO._settings.calendarShifts or nil)
-                if CCO_CropCalendar.setConfiguredCustomOverrides ~= nil then
-                    CCO_CropCalendar:setConfiguredCustomOverrides(CCO._settings ~= nil and CCO._settings.calendarCustomOverrides or nil)
-                end
-            end
-            if CCO_CropCalendar.applyConfiguredShifts ~= nil then
-                local _, applyMessage = CCO_CropCalendar:applyConfiguredShifts()
-                debug("calendar overrides: " .. tostring(applyMessage))
+    CCO._rules = mergeMissingDiscoveredFruits(CCO._rules or {})
+    if not isClientOnlyMultiplayer() and CCO._configPath ~= nil then
+        writeConfig(CCO._configPath, CCO._rules, CCO._settings)
+    end
+    if CCO._mpClientOnly == true and CCO._serverSettingsSynced ~= true then
+        debug("remote client: skipping loadMapFinished reapply until server rules arrive")
+    else
+        CCO:applyRules(CCO._rules)
+    end
+    CCO:applyLateHooks()
+    CCO:installNativeCalendarButtonHook()
+    if CCO_CropCalendar ~= nil and CCO_CropCalendar.captureMapDefaults ~= nil then
+        local _, calendarMessage = CCO_CropCalendar:captureMapDefaults(false)
+        debug("calendar discovery: " .. tostring(calendarMessage))
+        if CCO_CropCalendar.setConfiguredShifts ~= nil then
+            CCO_CropCalendar:setConfiguredShifts(CCO._settings ~= nil and CCO._settings.calendarShifts or nil)
+            if CCO_CropCalendar.setConfiguredCustomOverrides ~= nil then
+                CCO_CropCalendar:setConfiguredCustomOverrides(CCO._settings ~= nil and CCO._settings.calendarCustomOverrides or nil)
             end
         end
-        debug("reapplied crop policy after loadMapFinished")
-        CCO:printStartupValidation()
-    end)
-    if not ok then warn("failed during loadMapFinished reapply: " .. tostring(e)) end
+        if CCO_CropCalendar.applyConfiguredShifts ~= nil then
+            local _, applyMessage = CCO_CropCalendar:applyConfiguredShifts()
+            debug("calendar overrides: " .. tostring(applyMessage))
+        end
+    end
+    debug("reapplied crop policy after loadMapFinished")
+    CCO:printStartupValidation()
 
     if results ~= nil then return unpack(results) end
 end
@@ -3070,10 +3010,7 @@ end)
 if FSBaseMission ~= nil and FSBaseMission.onConnectionFinishedLoading ~= nil then
     FSBaseMission.onConnectionFinishedLoading = Utils.appendedFunction(FSBaseMission.onConnectionFinishedLoading, function(mission, connection, ...)
         if g_server ~= nil and connection ~= nil then
-            local ok, e = pcall(function()
-                CCO:sendSettingsSnapshotToClient(connection, "clientFinishedLoading")
-            end)
-            if not ok then warn("failed to push CCO rules to joining client: " .. tostring(e)) end
+            CCO:sendSettingsSnapshotToClient(connection, "clientFinishedLoading")
         end
     end)
 end
@@ -3105,12 +3042,7 @@ function CCO:updatePendingValidationSync(dt)
     if self._pendingValidationSyncTimer > 0 then return end
 
     self._pendingValidationSyncTimer = nil
-    local ok, e = pcall(function()
-        self:sendSettingsSnapshotToClient(nil, "validationRefresh")
-    end)
-    if not ok then
-        warn("failed to refresh dedicated-server validation snapshot after field cleanup: " .. tostring(e))
-    end
+    self:sendSettingsSnapshotToClient(nil, "validationRefresh")
 end
 
 if FSBaseMission ~= nil and FSBaseMission.update ~= nil then
@@ -3146,14 +3078,9 @@ local function showCcoCustomGui(title, text, topic, page)
     text = text or ""
 
     if CropControlOverrideMenu ~= nil and CropControlOverrideMenu.show ~= nil then
-        local ok, shown = pcall(function()
-            return CropControlOverrideMenu.show(title, text, CCO.MOD_DIRECTORY or g_currentModDirectory, topic, page)
-        end)
-        if ok and shown then
+        local shown = CropControlOverrideMenu.show(title, text, CCO.MOD_DIRECTORY or g_currentModDirectory, topic, page)
+        if shown then
             return true
-        end
-        if not ok then
-            print("CCO GUI: custom screen failed: " .. tostring(shown))
         end
     else
         print("CCO GUI: CropControlOverrideMenu class is not available")
@@ -3168,7 +3095,10 @@ local function showCcoCustomGui(title, text, topic, page)
 end
 
 function CCO:consoleGuiTest()
-    return showCcoCustomGui("Crop Control Override - Dialog Test", "If you can read this, the custom CCO GUI screen is rendering correctly.\n\nThis screen replaces the experimental InfoDialog approach used in alpha.11-alpha.13.")
+    local body =
+        "If you can read this, the custom CCO GUI screen is rendering correctly.\n\n" ..
+        "This screen replaces the experimental InfoDialog approach used in alpha.11-alpha.13."
+    return showCcoCustomGui("Crop Control Override - Dialog Test", body)
 end
 
 function CCO:buildGuiStatusText()
@@ -3263,8 +3193,8 @@ function CCO:getGuiCalendarRows()
         local displayName = row.name
         local iconFilename = nil
         if g_fillTypeManager ~= nil and g_fillTypeManager.getFillTypeByName ~= nil then
-            local ok, fillType = pcall(function() return g_fillTypeManager:getFillTypeByName(row.name) end)
-            if ok and fillType ~= nil then
+            local fillType = g_fillTypeManager:getFillTypeByName(row.name)
+            if fillType ~= nil then
                 if fillType.title ~= nil and fillType.title ~= "" then displayName = fillType.title end
                 iconFilename = fillType.hudOverlayFilename
             end
@@ -3299,8 +3229,7 @@ local CCO_FIELD_STATE_KEYS = { "growthState", "growthStateIndex", "state", "frui
 local function getCalendarFieldGrowthState(field)
     local fieldState = field ~= nil and field.fieldState or nil
     if fieldState == nil and field ~= nil and field.getFieldState ~= nil then
-        local ok, value = pcall(field.getFieldState, field)
-        if ok then fieldState = value end
+        fieldState = field:getFieldState()
     end
     if type(fieldState) ~= "table" then return nil end
     for _, key in ipairs(CCO_FIELD_STATE_KEYS) do
@@ -3938,9 +3867,7 @@ function CCO:_refreshOpenGuiPermissionState(msg)
     end
 
     if controller ~= nil and controller.showTopic ~= nil then
-        pcall(function()
-            controller:showTopic(controller.currentTopic or "rules", controller.currentPage or 1)
-        end)
+        controller:showTopic(controller.currentTopic or "rules", controller.currentPage or 1)
     end
 
     if msg ~= nil then
@@ -3958,10 +3885,8 @@ function CCO:_setServerConnectionMasterUser(connection, isMasterUser)
     if isMasterUser == true then
         local user = true
         if g_currentMission ~= nil and g_currentMission.userManager ~= nil and g_currentMission.userManager.getUserByConnection ~= nil then
-            local okUser, resolvedUser = pcall(function()
-                return g_currentMission.userManager:getUserByConnection(connection)
-            end)
-            if okUser and resolvedUser ~= nil then
+            local resolvedUser = g_currentMission.userManager:getUserByConnection(connection)
+            if resolvedUser ~= nil then
                 user = resolvedUser
             end
         end
@@ -4036,15 +3961,15 @@ end
 
 function CCO:onMasterUserAdded(user)
     if user ~= nil and user.getConnection ~= nil then
-        local ok, connection = pcall(function() return user:getConnection() end)
-        if ok and connection ~= nil then
+        local connection = user:getConnection()
+        if connection ~= nil then
             self:_setServerConnectionMasterUser(connection, true)
         end
     end
 
     if g_currentMission ~= nil and user ~= nil and user.getId ~= nil then
-        local ok, userId = pcall(function() return user:getId() end)
-        if ok and userId == g_currentMission.playerUserId then
+        local userId = user:getId()
+        if userId == g_currentMission.playerUserId then
             self:_onLocalAdminStateChanged("masterUserAdded")
         end
     end
@@ -4058,10 +3983,10 @@ function CCO:onUserAdded(user)
     -- Local server/host authority is always trusted. Track that connection too,
     -- matching the EasyDevControls master-user model.
     if g_currentMission ~= nil and user.getId ~= nil then
-        local okId, userId = pcall(function() return user:getId() end)
-        if okId and userId == g_currentMission.playerUserId then
-            local okCon, connection = pcall(function() return user:getConnection() end)
-            if okCon and connection ~= nil then
+        local userId = user:getId()
+        if userId == g_currentMission.playerUserId then
+            local connection = user:getConnection()
+            if connection ~= nil then
                 self:_setServerConnectionMasterUser(connection, true)
             end
         end
@@ -4070,8 +3995,8 @@ end
 
 function CCO:onUserRemoved(user)
     if user ~= nil and user.getConnection ~= nil then
-        local ok, connection = pcall(function() return user:getConnection() end)
-        if ok and connection ~= nil then
+        local connection = user:getConnection()
+        if connection ~= nil then
             self:_setServerConnectionMasterUser(connection, false)
         end
     end
@@ -4119,8 +4044,8 @@ function CCO:getIsAdminConnection(connection)
         local connectionChecks = { "getIsMasterUser", "getIsAdmin", "getIsServerAdmin" }
         for _, fn in ipairs(connectionChecks) do
             if connection[fn] ~= nil then
-                local okCheck, value = pcall(function() return connection[fn](connection) end)
-                if okCheck and value == true then
+                local value = connection[fn](connection)
+                if value == true then
                     self:_setServerConnectionMasterUser(connection, true)
                     return true
                 end
@@ -4135,15 +4060,13 @@ function CCO:getIsAdminConnection(connection)
     -- Defensive fallback: if FS25 exposes the remote user and marks it directly
     -- as master/admin, honour that without requiring CCO to own an admin login.
     if g_currentMission ~= nil and g_currentMission.userManager ~= nil and g_currentMission.userManager.getUserByConnection ~= nil then
-        local ok, user = pcall(function()
-            return g_currentMission.userManager:getUserByConnection(connection)
-        end)
-        if ok and user ~= nil then
+        local user = g_currentMission.userManager:getUserByConnection(connection)
+        if user ~= nil then
             local checks = { "getIsMasterUser", "getIsAdmin", "getIsServerAdmin" }
             for _, fn in ipairs(checks) do
                 if user[fn] ~= nil then
-                    local okCheck, value = pcall(function() return user[fn](user) end)
-                    if okCheck and value == true then
+                    local value = user[fn](user)
+                    if value == true then
                         self:_setServerConnectionMasterUser(connection, true)
                         return true
                     end
@@ -4154,13 +4077,13 @@ function CCO:getIsAdminConnection(connection)
                 return true
             end
             if user.getId ~= nil then
-                local okId, userId = pcall(function() return user:getId() end)
-                if okId and userId ~= nil then
+                local userId = user:getId()
+                if userId ~= nil then
                     local missionChecks = { "getIsUserMasterUser", "getIsUserAdmin", "getIsMasterUser" }
                     for _, fn in ipairs(missionChecks) do
                         if g_currentMission[fn] ~= nil then
-                            local okMission, value = pcall(function() return g_currentMission[fn](g_currentMission, userId) end)
-                            if okMission and value == true then
+                            local value = g_currentMission[fn](g_currentMission, userId)
+                            if value == true then
                                 self:_setServerConnectionMasterUser(connection, true)
                                 return true
                             end
@@ -4169,8 +4092,8 @@ function CCO:getIsAdminConnection(connection)
                     local managerChecks = { "getIsUserMasterUser", "getIsUserAdmin", "getIsMasterUser" }
                     for _, fn in ipairs(managerChecks) do
                         if g_currentMission.userManager[fn] ~= nil then
-                            local okManager, value = pcall(function() return g_currentMission.userManager[fn](g_currentMission.userManager, userId) end)
-                            if okManager and value == true then
+                            local value = g_currentMission.userManager[fn](g_currentMission.userManager, userId)
+                            if value == true then
                                 self:_setServerConnectionMasterUser(connection, true)
                                 return true
                             end
@@ -4256,14 +4179,9 @@ function CCO:buildServerValidationPayload()
     }
 
     for _, row in ipairs(self:getBlockedFieldRows()) do
-        local candidateCrop, candidateReason = "NONE", "candidate unavailable"
-        local okCandidate, resolvedCrop, resolvedReason = pcall(function()
-            return self:getReseedCandidateTextForField(row.field, row.cropName)
-        end)
-        if okCandidate then
-            candidateCrop = resolvedCrop or "NONE"
-            candidateReason = resolvedReason or ""
-        end
+        local resolvedCrop, resolvedReason = self:getReseedCandidateTextForField(row.field, row.cropName)
+        local candidateCrop = resolvedCrop or "NONE"
+        local candidateReason = resolvedReason or ""
         table.insert(lines, table.concat({
             "@field",
             encodeMultiplayerFieldValue(row.fieldId),
@@ -4370,7 +4288,7 @@ end
 function CCO:sendSettingsSnapshotToClient(connection, reason)
     if self._rules == nil or not next(self._rules) then
         if not isClientOnlyMultiplayer() then
-            pcall(function() self:loadRulesForMission(g_currentMission and g_currentMission.missionInfo) end)
+            self:loadRulesForMission(g_currentMission and g_currentMission.missionInfo)
         end
     end
 
@@ -4471,7 +4389,14 @@ function CCO:_sendMultiplayerEvent(operation, a, b, c, d, e, f, g)
 
     if g_server ~= nil then
         local ok, msg, extra = self:handleMultiplayerEvent(operation, {a, b, c, d, e, f, g}, nil)
-        if operation ~= "requestSettings" and operation ~= "syncSettings" and operation ~= "calendarShiftPreview" and operation ~= "calendarCustomPreview" and operation ~= "regionalProfilePreview" and ok == true then
+        local isPreviewOperation =
+            operation == "calendarShiftPreview"
+            or operation == "calendarCustomPreview"
+            or operation == "regionalProfilePreview"
+        if operation ~= "requestSettings"
+            and operation ~= "syncSettings"
+            and not isPreviewOperation
+            and ok == true then
             self:sendSettingsSnapshotToClient(nil, operation)
         end
         return ok, msg, extra
@@ -4491,19 +4416,13 @@ function CCO:refreshOpenGuiAfterMultiplayerSync(operation, msg)
     if controller ~= nil and controller.showTopic ~= nil then
         local topic = controller.currentTopic or "rules"
         local page = controller.currentPage or 1
-        pcall(function()
-            controller:showTopic(topic, page)
-        end)
+        controller:showTopic(topic, page)
 
         if controller.selectedDirtyText ~= nil and controller.selectedDirtyText.setText ~= nil then
-            pcall(function()
-                controller.selectedDirtyText:setText("Settings synced from server.")
-            end)
+            controller.selectedDirtyText:setText("Settings synced from server.")
         end
         if controller.selectedInfoText ~= nil and controller.selectedInfoText.setText ~= nil then
-            pcall(function()
-                controller.selectedInfoText:setText(tostring(self._guiNotice or "Server settings applied."))
-            end)
+            controller.selectedInfoText:setText(tostring(self._guiNotice or "Server settings applied."))
         end
     end
 end
@@ -4569,7 +4488,7 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
     args = args or {}
     self._handlingMpEvent = true
 
-    local ok, r1, r2, r3, r4 = pcall(function()
+    local function dispatchOperation()
         if operation == "syncSettings" then
             return self:applyServerSettingsPayload(args[1], args[2], args[3], args[5], args[6])
         elseif operation == "operationResult" then
@@ -4644,16 +4563,10 @@ function CCO:handleMultiplayerEvent(operation, args, connection)
             return self:_consoleSetCropLocal(args[1], args[2], args[3], args[4])
         end
         return false, "Unknown CCO multiplayer operation: " .. tostring(operation)
-    end)
-
-    self._handlingMpEvent = false
-
-    if not ok then
-        local msg = "CCO multiplayer event failed: " .. tostring(r1)
-        warn(msg)
-        self._guiNotice = msg
-        return false, msg
     end
+
+    local r1, r2, r3, r4 = dispatchOperation()
+    self._handlingMpEvent = false
 
     if r1 == true and operation ~= "syncSettings" and operation ~= "operationResult" and g_client ~= nil and self.refreshOpenGuiAfterMultiplayerSync ~= nil then
         self:refreshOpenGuiAfterMultiplayerSync(operation, r2)
@@ -4899,11 +4812,17 @@ function CCO:registerGlobalActionEvents(player, inputBinding)
         return
     end
 
-    local ok, _, eventId = pcall(function()
-        return inputBinding:registerActionEvent(InputAction.CCO_OPEN_GUI, self, self.onInputOpenGui, false, true, false, true)
-    end)
+    local _, eventId = inputBinding:registerActionEvent(
+        InputAction.CCO_OPEN_GUI,
+        self,
+        self.onInputOpenGui,
+        false,
+        true,
+        false,
+        true
+    )
 
-    if ok and eventId ~= nil then
+    if eventId ~= nil then
         self._openGuiActionEventId = eventId
         if inputBinding.setActionEventText ~= nil and g_i18n ~= nil then
             inputBinding:setActionEventText(eventId, g_i18n:getText("input_CCO_OPEN_GUI"))
@@ -5019,7 +4938,14 @@ function CCO:consoleListConfigured(name)
             local r = self._rules[nameU]
             local ft = getFruitByName(nameU)
             print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s reseedWeight=%d discovered=%s"):format(
-                nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields), clampWeight(r.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT), tostring(ft ~= nil)))
+                nameU,
+                tostring(r.enabled),
+                tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed),
+                tonumber(r.npcMaxHa or 0),
+                tostring(r.resetNpcFields),
+                clampWeight(r.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT),
+                tostring(ft ~= nil)
+            ))
             printed = printed + 1
         end
     end
@@ -5041,7 +4967,13 @@ function CCO:consoleListUndiscovered()
     for _, nameU in ipairs(names) do
         local r = self._rules[nameU]
         print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s reseedWeight=%d"):format(
-            nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields), clampWeight(r.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT)))
+            nameU,
+            tostring(r.enabled),
+            tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed),
+            tonumber(r.npcMaxHa or 0),
+            tostring(r.resetNpcFields),
+            clampWeight(r.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT)
+        ))
     end
     print(("CCO: undiscovered crop list complete. count=%d"):format(#names))
 end
@@ -5742,7 +5674,15 @@ function CCO:resetBlockedFieldById(fieldId, dryRun, resetMode)
                     if dryRun == true then
                         local action, candidateCrop, candidateReason = self:getDryRunResetActionForField(field, cropName, resetMode)
                         print(("CCO: dry-run would reset field=%s crop=%s size=%.2fha reason=%s resetMode=%s action=%s reseedCandidate=%s candidateReason=%s"):format(
-                            tostring(getFieldId(field, idx)), cropName, getFieldSizeHa(field), tostring(reason), select(2, self:normaliseResetMode(resetMode)), tostring(action), tostring(candidateCrop), tostring(candidateReason)))
+                            tostring(getFieldId(field, idx)),
+                            cropName,
+                            getFieldSizeHa(field),
+                            tostring(reason),
+                            select(2, self:normaliseResetMode(resetMode)),
+                            tostring(action),
+                            tostring(candidateCrop),
+                            tostring(candidateReason)
+                        ))
                         return 1, 0
                     else
                         local removedMissions, purgeReason = self:purgeAvailableContractsForRegeneration()
@@ -6233,8 +6173,18 @@ function CCO:resolveRegenerationGrowthState(ft, periodsOverride)
             and harvestMin >= 1
             and harvestMin <= harvestMax
             and ft.useForFieldMissions ~= false then
-            return harvestMin, ("authoritative harvest-window fallback; source=%s harvestRange=%s-%s naturalOrigins=0 replayedOrigins=%d rejectedOrigins=%d rejectionReasons=%s fallbackUsed=true"):format(
-                tostring(harvestSource), tostring(harvestMin), tostring(harvestMax), replayedOrigins, rejectedOrigins, summarizeRejections()), true
+            local fallbackReason =
+                "authoritative harvest-window fallback; source=%s harvestRange=%s-%s " ..
+                "naturalOrigins=0 replayedOrigins=%d rejectedOrigins=%d " ..
+                "rejectionReasons=%s fallbackUsed=true"
+            return harvestMin, (fallbackReason):format(
+                tostring(harvestSource),
+                tostring(harvestMin),
+                tostring(harvestMax),
+                replayedOrigins,
+                rejectedOrigins,
+                summarizeRejections()
+            ), true
         end
 
         return nil, ("no authoritative mapped outcome for current period; harvestable=%s harvestRange=%s-%s"):format(
@@ -6248,9 +6198,21 @@ function CCO:resolveRegenerationGrowthState(ft, periodsOverride)
         return a.plantingPeriod < b.plantingPeriod
     end)
     local selected = outcomes[1]
-    return selected.state, ("authoritative seasonal growthMapping replay; plantedPeriod=%d steps=%d currentHarvestable=%s harvestReady=%s harvestRange=%s-%s naturalOrigins=%d replayedOrigins=%d rejectedOrigins=%d fallbackUsed=false"):format(
-        selected.plantingPeriod, selected.steps, tostring(currentHarvestable), tostring(selected.harvestReady),
-        tostring(harvestMin), tostring(harvestMax), #outcomes, replayedOrigins, rejectedOrigins), true
+    local replayReason =
+        "authoritative seasonal growthMapping replay; plantedPeriod=%d steps=%d " ..
+        "currentHarvestable=%s harvestReady=%s harvestRange=%s-%s naturalOrigins=%d " ..
+        "replayedOrigins=%d rejectedOrigins=%d fallbackUsed=false"
+    return selected.state, (replayReason):format(
+        selected.plantingPeriod,
+        selected.steps,
+        tostring(currentHarvestable),
+        tostring(selected.harvestReady),
+        tostring(harvestMin),
+        tostring(harvestMax),
+        #outcomes,
+        replayedOrigins,
+        rejectedOrigins
+    ), true
 end
 
 local function deterministicRegenerationValue(fieldId, period, year, totalWeight)
@@ -6396,8 +6358,7 @@ function CCO:getActiveContractCount()
     for _, mission in ipairs(g_missionManager:getMissions() or {}) do
         local wasStarted = false
         if mission.getWasStarted ~= nil then
-            local ok, value = pcall(mission.getWasStarted, mission)
-            wasStarted = ok and value == true
+            wasStarted = mission:getWasStarted() == true
         end
         if wasStarted or mission.farmId ~= nil or mission.activeMissionId ~= nil then
             count = count + 1
@@ -6414,8 +6375,7 @@ function CCO:getContractBoardSummary()
         summary.total = summary.total + 1
         local wasStarted = false
         if mission ~= nil and mission.getWasStarted ~= nil then
-            local ok, value = pcall(mission.getWasStarted, mission)
-            wasStarted = ok and value == true
+            wasStarted = mission:getWasStarted() == true
         end
         local active = mission ~= nil and (wasStarted or mission.farmId ~= nil or mission.activeMissionId ~= nil)
         if active then summary.active = summary.active + 1
@@ -6443,12 +6403,8 @@ function CCO:purgeAvailableContractsForRegeneration()
 
     local removed = 0
     for _, mission in ipairs(missions) do
-        local ok, err = pcall(function() mission:delete() end)
-        if ok then
-            removed = removed + 1
-        else
-            warn("failed deleting stale available contract: " .. tostring(err))
-        end
+        mission:delete()
+        removed = removed + 1
     end
     return removed, "ok"
 end
@@ -6580,21 +6536,17 @@ end
 function CCO:refreshRegeneratedFieldStates(state)
     local refreshed, failed = 0, 0
     for _, field in ipairs(state.fields or {}) do
-        local ok, err = pcall(function()
-            if field ~= nil and field.getFieldState ~= nil and field.getIndicatorPosition ~= nil then
-                local fieldState = field:getFieldState()
-                local posX, posZ = field:getIndicatorPosition()
-                if fieldState ~= nil and fieldState.update ~= nil and posX ~= nil and posZ ~= nil then
-                    fieldState:update(posX, posZ)
-                    refreshed = refreshed + 1
-                    return
-                end
+        if field ~= nil and field.getFieldState ~= nil and field.getIndicatorPosition ~= nil then
+            local fieldState = field:getFieldState()
+            local posX, posZ = field:getIndicatorPosition()
+            if fieldState ~= nil and fieldState.update ~= nil and posX ~= nil and posZ ~= nil then
+                fieldState:update(posX, posZ)
+                refreshed = refreshed + 1
+            else
+                failed = failed + 1
             end
+        else
             failed = failed + 1
-        end)
-        if not ok then
-            failed = failed + 1
-            warn("failed refreshing regenerated field state: " .. tostring(err))
         end
     end
     info(("refreshed regenerated field-state caches refreshed=%d failed=%d"):format(refreshed, failed))
@@ -6636,11 +6588,9 @@ local function getRegenerationFieldIdFromValue(value)
     for _, getter in ipairs(getters) do
         local fn = value[getter]
         if type(fn) == "function" then
-            local ok, result = pcall(fn, value)
-            if ok then
-                local resolved = normalizeRegenerationFieldId(result)
-                if resolved ~= nil then return resolved end
-            end
+            local result = fn(value)
+            local resolved = normalizeRegenerationFieldId(result)
+            if resolved ~= nil then return resolved end
         end
     end
 
@@ -6763,11 +6713,9 @@ local function getRegenerationMissionFieldId(mission)
     for _, getter in ipairs(getters) do
         local fn = mission[getter]
         if type(fn) == "function" then
-            local ok, result = pcall(fn, mission)
-            if ok then
-                local resolved = getRegenerationFieldIdFromValue(result)
-                if resolved ~= nil then return resolved, "mission:" .. getter .. "()" end
-            end
+            local result = fn(mission)
+            local resolved = getRegenerationFieldIdFromValue(result)
+            if resolved ~= nil then return resolved, "mission:" .. getter .. "()" end
         end
     end
 
@@ -6898,8 +6846,21 @@ function CCO:auditNpcMapRegenerationMissions(state)
         debug(("mission audit crop=%s ready=%d contracts=%d naturalReady=%d naturalContracts=%d fallbackReady=%d fallbackContracts=%d"):format(
             crop, stats.ready, stats.contracts, stats.naturalReady, stats.naturalContracts, stats.fallbackReady, stats.fallbackContracts))
     end
-    info(("mission audit summary harvestReadyFields=%d readyWithMission=%d readyWithoutMission=%d naturalReady=%d naturalContracts=%d fallbackReady=%d fallbackContracts=%d totalMissions=%d unmatchedMissionFields=%d"):format(
-        readyFields, readyWithMission, readyWithoutMission, naturalReady, naturalContracts, fallbackReady, fallbackContracts, #missions, unmatchedMissions))
+    local auditSummaryFormat =
+        "mission audit summary harvestReadyFields=%d readyWithMission=%d readyWithoutMission=%d " ..
+        "naturalReady=%d naturalContracts=%d fallbackReady=%d fallbackContracts=%d " ..
+        "totalMissions=%d unmatchedMissionFields=%d"
+    info((auditSummaryFormat):format(
+        readyFields,
+        readyWithMission,
+        readyWithoutMission,
+        naturalReady,
+        naturalContracts,
+        fallbackReady,
+        fallbackContracts,
+        #missions,
+        unmatchedMissions
+    ))
 end
 
 function CCO:finishNpcMapRegenerationMissionRefill(state, reason)
@@ -7010,7 +6971,10 @@ function CCO:confirmNpcMapRegeneration()
         return 0, 0
     end
     if tonumber(plan.unverified or 0) > 0 then
-        print(("CCO: regeneration confirmation blocked: %d planned field action(s) use unverified growth states. Run a new dry-run and ccoGrowthProbe for the affected crops."):format(tonumber(plan.unverified or 0)))
+        local message =
+            "CCO: regeneration confirmation blocked: %d planned field action(s) use unverified " ..
+            "growth states. Run a new dry-run and ccoGrowthProbe for the affected crops."
+        print((message):format(tonumber(plan.unverified or 0)))
         return 0, 0
     end
     if plan.period ~= getCurrentPeriodIndex() or plan.year ~= getCalendarYearToken() then
@@ -7158,7 +7122,13 @@ function CCO:consoleRegenerateNpcFields(modeArg)
     end
     print("CCO: usage ccoRegenerateNpcFields [dryrun|confirm|clear]")
 end
-addConsoleCommand("ccoRegenerateNpcFields", "Experimental: regenerate all NPC fields using weighted enabled crops at calendar-derived growth states. Usage: ccoRegenerateNpcFields [dryrun|confirm|clear]", "consoleRegenerateNpcFields", CCO)
+addConsoleCommand(
+    "ccoRegenerateNpcFields",
+    "Experimental: regenerate all NPC fields using weighted enabled crops at calendar-derived growth states. " ..
+        "Usage: ccoRegenerateNpcFields [dryrun|confirm|clear]",
+    "consoleRegenerateNpcFields",
+    CCO
+)
 
 function CCO:consoleCalendarCustomPreview(cropNameArg, plantingArg, harvestArg)
     if cropNameArg == nil or cropNameArg == "" or plantingArg == nil or harvestArg == nil then
@@ -7522,10 +7492,7 @@ function CCO:_applyRegionalProfileLocal(profileId)
     end
 
     self._regionalProfilePreview=nil
-    local refreshOk,refreshErr=pcall(function() self:refreshAllSowingMachines(false) end)
-    if not refreshOk then
-        debug("Regional profile seed-list refresh skipped: "..tostring(refreshErr))
-    end
+    self:refreshAllSowingMachines(false)
     local profile=CCO_RegionalProfiles:getProfile(normalized)
     local msg=("Regional profile applied: %s. Calendar updated; NPC regeneration forced for %d/%d planned field(s), skipped=%d. Contracts will rebuild after the settle delay."):format(
         tostring(profile.title or normalized),queued,planned,skipped)

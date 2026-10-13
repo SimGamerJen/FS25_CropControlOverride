@@ -27,8 +27,8 @@ end
 
 local function resolveUserProfileAppPath()
     if getUserProfileAppPath ~= nil then
-        local ok, value = pcall(getUserProfileAppPath)
-        if ok and value ~= nil and tostring(value) ~= "" then
+        local value = getUserProfileAppPath()
+        if value ~= nil and tostring(value) ~= "" then
             return ensureTrailingSlash(value)
         end
     end

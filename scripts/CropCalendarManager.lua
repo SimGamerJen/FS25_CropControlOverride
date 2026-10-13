@@ -191,8 +191,8 @@ local function getSeasonalSources(fruitType)
     if fruitType == nil then return sources end
 
     if fruitType.getSeasonalGrowthData ~= nil then
-        local ok, data = pcall(fruitType.getSeasonalGrowthData, fruitType)
-        if ok then addSeasonalSource(sources, seen, data, "getSeasonalGrowthData") end
+        local data = fruitType:getSeasonalGrowthData()
+        addSeasonalSource(sources, seen, data, "getSeasonalGrowthData")
     end
 
     addSeasonalSource(sources, seen, fruitType.growthDataSeasonal, "growthDataSeasonal")
@@ -1294,9 +1294,8 @@ end
 
 local function missionIsActive(mission)
     if mission == nil then return false end
-    if mission.getWasStarted ~= nil then
-        local ok, value = pcall(mission.getWasStarted, mission)
-        if ok and value == true then return true end
+    if mission.getWasStarted ~= nil and mission:getWasStarted() == true then
+        return true
     end
     return mission.farmId ~= nil or mission.activeMissionId ~= nil
 end
@@ -1583,7 +1582,11 @@ function Calendar:printReport(cropName)
     for _, row in ipairs(self:getRows()) do
         if wanted == nil or wanted == "" or row.name == wanted then
             found = true
-            print(("CCO CALENDAR: %-16s planting=%-20s harvest=%-20s periods=%d transitions=%d initial=%s initialSource=%s source=%s category=%s edit=%s lifecycle=%s status=%s mode=%s shift=%+d baselineChanged=%s"):format(
+            local formatText =
+                "CCO CALENDAR: %-16s planting=%-20s harvest=%-20s periods=%d transitions=%d " ..
+                "initial=%s initialSource=%s source=%s category=%s edit=%s lifecycle=%s " ..
+                "status=%s mode=%s shift=%+d baselineChanged=%s"
+            print((formatText):format(
                 row.name,
                 row.plantingText or "-",
                 row.harvestText or "-",
