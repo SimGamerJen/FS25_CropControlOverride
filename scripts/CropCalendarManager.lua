@@ -191,8 +191,8 @@ local function getSeasonalSources(fruitType)
     if fruitType == nil then return sources end
 
     if fruitType.getSeasonalGrowthData ~= nil then
-        local ok, data = pcall(fruitType.getSeasonalGrowthData, fruitType)
-        if ok then addSeasonalSource(sources, seen, data, "getSeasonalGrowthData") end
+        local data = fruitType:getSeasonalGrowthData()
+        addSeasonalSource(sources, seen, data, "getSeasonalGrowthData")
     end
 
     addSeasonalSource(sources, seen, fruitType.growthDataSeasonal, "growthDataSeasonal")
@@ -1294,9 +1294,8 @@ end
 
 local function missionIsActive(mission)
     if mission == nil then return false end
-    if mission.getWasStarted ~= nil then
-        local ok, value = pcall(mission.getWasStarted, mission)
-        if ok and value == true then return true end
+    if mission.getWasStarted ~= nil and mission:getWasStarted() == true then
+        return true
     end
     return mission.farmId ~= nil or mission.activeMissionId ~= nil
 end
