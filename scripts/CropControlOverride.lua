@@ -489,7 +489,10 @@ local function getSeasonalSowingStatus(ft)
         for _, key in ipairs(SEEDING_PERIOD_FIELDS) do
             local result = tableHasPeriod(ft.data[key], period)
             if result ~= nil then
-                return result == true, result == true and ("seasonal period " .. tostring(period) .. " allowed by data." .. key) or ("outside seasonal period " .. tostring(period) .. " via data." .. key), period
+                local seasonalMessage = result == true
+                    and ("seasonal period " .. tostring(period) .. " allowed by data." .. key)
+                    or ("outside seasonal period " .. tostring(period) .. " via data." .. key)
+                return result == true, seasonalMessage, period
             end
         end
 
@@ -1921,7 +1924,15 @@ function CCO:resetNpcFields(filterCrop, dryRun, resetMode)
                         wouldQueue = wouldQueue + 1
                         local action, candidateCrop, candidateReason = self:getDryRunResetActionForField(field, cropName, resetMode)
                         print(("CCO: dry-run would reset field=%s crop=%s size=%.2fha reason=%s resetMode=%s action=%s reseedCandidate=%s candidateReason=%s"):format(
-                            tostring(getFieldId(field, idx)), cropName, getFieldSizeHa(field), tostring(reason), select(2, self:normaliseResetMode(resetMode)), tostring(action), tostring(candidateCrop), tostring(candidateReason)))
+                            tostring(getFieldId(field, idx)),
+                            cropName,
+                            getFieldSizeHa(field),
+                            tostring(reason),
+                            select(2, self:normaliseResetMode(resetMode)),
+                            tostring(action),
+                            tostring(candidateCrop),
+                            tostring(candidateReason)
+                        ))
                     else
                         if removedMissions == nil then
                             local purgeReason
@@ -2143,11 +2154,23 @@ function CCO:stopBlockedSowingWorker(vehicle, fruitTypeIndex)
 
     local aiSpec = rootVehicle.spec_aiFieldWorker
     local job = rootVehicle.getCurrentAIJob ~= nil and rootVehicle:getCurrentAIJob() or nil
-    info(("SOW-BLOCK worker state crop=%s implement=%s root=%s aiActive=%s getIsAIActiveAvailable=%s specActive=%s currentJob=%s methods[stopCurrentAIJob=%s stopAIVehicle=%s setAIFieldWorkerActive=%s setIsAIActive=%s]"):format(
-        getSowingCropName(fruitTypeIndex), ccoObjectName(vehicle), ccoObjectName(rootVehicle), tostring(isAIActive),
-        tostring(getIsAIActiveAvailable), tostring(aiSpec ~= nil and aiSpec.isActive or nil), tostring(job),
-        tostring(rootVehicle.stopCurrentAIJob ~= nil), tostring(rootVehicle.stopAIVehicle ~= nil),
-        tostring(rootVehicle.setAIFieldWorkerActive ~= nil), tostring(rootVehicle.setIsAIActive ~= nil)))
+    local workerStateFormat =
+        "SOW-BLOCK worker state crop=%s implement=%s root=%s aiActive=%s " ..
+        "getIsAIActiveAvailable=%s specActive=%s currentJob=%s " ..
+        "methods[stopCurrentAIJob=%s stopAIVehicle=%s setAIFieldWorkerActive=%s setIsAIActive=%s]"
+    info((workerStateFormat):format(
+        getSowingCropName(fruitTypeIndex),
+        ccoObjectName(vehicle),
+        ccoObjectName(rootVehicle),
+        tostring(isAIActive),
+        tostring(getIsAIActiveAvailable),
+        tostring(aiSpec ~= nil and aiSpec.isActive or nil),
+        tostring(job),
+        tostring(rootVehicle.stopCurrentAIJob ~= nil),
+        tostring(rootVehicle.stopAIVehicle ~= nil),
+        tostring(rootVehicle.setAIFieldWorkerActive ~= nil),
+        tostring(rootVehicle.setIsAIActive ~= nil)
+    ))
 
     local stopSucceeded = false
     local attempts = {}
@@ -3072,7 +3095,10 @@ local function showCcoCustomGui(title, text, topic, page)
 end
 
 function CCO:consoleGuiTest()
-    return showCcoCustomGui("Crop Control Override - Dialog Test", "If you can read this, the custom CCO GUI screen is rendering correctly.\n\nThis screen replaces the experimental InfoDialog approach used in alpha.11-alpha.13.")
+    local body =
+        "If you can read this, the custom CCO GUI screen is rendering correctly.\n\n" ..
+        "This screen replaces the experimental InfoDialog approach used in alpha.11-alpha.13."
+    return showCcoCustomGui("Crop Control Override - Dialog Test", body)
 end
 
 function CCO:buildGuiStatusText()
@@ -4363,7 +4389,14 @@ function CCO:_sendMultiplayerEvent(operation, a, b, c, d, e, f, g)
 
     if g_server ~= nil then
         local ok, msg, extra = self:handleMultiplayerEvent(operation, {a, b, c, d, e, f, g}, nil)
-        if operation ~= "requestSettings" and operation ~= "syncSettings" and operation ~= "calendarShiftPreview" and operation ~= "calendarCustomPreview" and operation ~= "regionalProfilePreview" and ok == true then
+        local isPreviewOperation =
+            operation == "calendarShiftPreview"
+            or operation == "calendarCustomPreview"
+            or operation == "regionalProfilePreview"
+        if operation ~= "requestSettings"
+            and operation ~= "syncSettings"
+            and not isPreviewOperation
+            and ok == true then
             self:sendSettingsSnapshotToClient(nil, operation)
         end
         return ok, msg, extra
@@ -4905,7 +4938,14 @@ function CCO:consoleListConfigured(name)
             local r = self._rules[nameU]
             local ft = getFruitByName(nameU)
             print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s reseedWeight=%d discovered=%s"):format(
-                nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields), clampWeight(r.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT), tostring(ft ~= nil)))
+                nameU,
+                tostring(r.enabled),
+                tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed),
+                tonumber(r.npcMaxHa or 0),
+                tostring(r.resetNpcFields),
+                clampWeight(r.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT),
+                tostring(ft ~= nil)
+            ))
             printed = printed + 1
         end
     end
@@ -4927,7 +4967,13 @@ function CCO:consoleListUndiscovered()
     for _, nameU in ipairs(names) do
         local r = self._rules[nameU]
         print(("CCO: %s enabled=%s npcAllowed=%s npcMaxHa=%.2f resetNpcFields=%s reseedWeight=%d"):format(
-            nameU, tostring(r.enabled), tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed), tonumber(r.npcMaxHa or 0), tostring(r.resetNpcFields), clampWeight(r.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT)))
+            nameU,
+            tostring(r.enabled),
+            tostring(r.npcAllowed == nil and "mapDefault" or r.npcAllowed),
+            tonumber(r.npcMaxHa or 0),
+            tostring(r.resetNpcFields),
+            clampWeight(r.reseedWeight, DEFAULT_FRUIT_RESEED_WEIGHT)
+        ))
     end
     print(("CCO: undiscovered crop list complete. count=%d"):format(#names))
 end
@@ -5628,7 +5674,15 @@ function CCO:resetBlockedFieldById(fieldId, dryRun, resetMode)
                     if dryRun == true then
                         local action, candidateCrop, candidateReason = self:getDryRunResetActionForField(field, cropName, resetMode)
                         print(("CCO: dry-run would reset field=%s crop=%s size=%.2fha reason=%s resetMode=%s action=%s reseedCandidate=%s candidateReason=%s"):format(
-                            tostring(getFieldId(field, idx)), cropName, getFieldSizeHa(field), tostring(reason), select(2, self:normaliseResetMode(resetMode)), tostring(action), tostring(candidateCrop), tostring(candidateReason)))
+                            tostring(getFieldId(field, idx)),
+                            cropName,
+                            getFieldSizeHa(field),
+                            tostring(reason),
+                            select(2, self:normaliseResetMode(resetMode)),
+                            tostring(action),
+                            tostring(candidateCrop),
+                            tostring(candidateReason)
+                        ))
                         return 1, 0
                     else
                         local removedMissions, purgeReason = self:purgeAvailableContractsForRegeneration()
@@ -6119,8 +6173,18 @@ function CCO:resolveRegenerationGrowthState(ft, periodsOverride)
             and harvestMin >= 1
             and harvestMin <= harvestMax
             and ft.useForFieldMissions ~= false then
-            return harvestMin, ("authoritative harvest-window fallback; source=%s harvestRange=%s-%s naturalOrigins=0 replayedOrigins=%d rejectedOrigins=%d rejectionReasons=%s fallbackUsed=true"):format(
-                tostring(harvestSource), tostring(harvestMin), tostring(harvestMax), replayedOrigins, rejectedOrigins, summarizeRejections()), true
+            local fallbackReason =
+                "authoritative harvest-window fallback; source=%s harvestRange=%s-%s " ..
+                "naturalOrigins=0 replayedOrigins=%d rejectedOrigins=%d " ..
+                "rejectionReasons=%s fallbackUsed=true"
+            return harvestMin, (fallbackReason):format(
+                tostring(harvestSource),
+                tostring(harvestMin),
+                tostring(harvestMax),
+                replayedOrigins,
+                rejectedOrigins,
+                summarizeRejections()
+            ), true
         end
 
         return nil, ("no authoritative mapped outcome for current period; harvestable=%s harvestRange=%s-%s"):format(
@@ -6134,9 +6198,21 @@ function CCO:resolveRegenerationGrowthState(ft, periodsOverride)
         return a.plantingPeriod < b.plantingPeriod
     end)
     local selected = outcomes[1]
-    return selected.state, ("authoritative seasonal growthMapping replay; plantedPeriod=%d steps=%d currentHarvestable=%s harvestReady=%s harvestRange=%s-%s naturalOrigins=%d replayedOrigins=%d rejectedOrigins=%d fallbackUsed=false"):format(
-        selected.plantingPeriod, selected.steps, tostring(currentHarvestable), tostring(selected.harvestReady),
-        tostring(harvestMin), tostring(harvestMax), #outcomes, replayedOrigins, rejectedOrigins), true
+    local replayReason =
+        "authoritative seasonal growthMapping replay; plantedPeriod=%d steps=%d " ..
+        "currentHarvestable=%s harvestReady=%s harvestRange=%s-%s naturalOrigins=%d " ..
+        "replayedOrigins=%d rejectedOrigins=%d fallbackUsed=false"
+    return selected.state, (replayReason):format(
+        selected.plantingPeriod,
+        selected.steps,
+        tostring(currentHarvestable),
+        tostring(selected.harvestReady),
+        tostring(harvestMin),
+        tostring(harvestMax),
+        #outcomes,
+        replayedOrigins,
+        rejectedOrigins
+    ), true
 end
 
 local function deterministicRegenerationValue(fieldId, period, year, totalWeight)
@@ -6770,8 +6846,21 @@ function CCO:auditNpcMapRegenerationMissions(state)
         debug(("mission audit crop=%s ready=%d contracts=%d naturalReady=%d naturalContracts=%d fallbackReady=%d fallbackContracts=%d"):format(
             crop, stats.ready, stats.contracts, stats.naturalReady, stats.naturalContracts, stats.fallbackReady, stats.fallbackContracts))
     end
-    info(("mission audit summary harvestReadyFields=%d readyWithMission=%d readyWithoutMission=%d naturalReady=%d naturalContracts=%d fallbackReady=%d fallbackContracts=%d totalMissions=%d unmatchedMissionFields=%d"):format(
-        readyFields, readyWithMission, readyWithoutMission, naturalReady, naturalContracts, fallbackReady, fallbackContracts, #missions, unmatchedMissions))
+    local auditSummaryFormat =
+        "mission audit summary harvestReadyFields=%d readyWithMission=%d readyWithoutMission=%d " ..
+        "naturalReady=%d naturalContracts=%d fallbackReady=%d fallbackContracts=%d " ..
+        "totalMissions=%d unmatchedMissionFields=%d"
+    info((auditSummaryFormat):format(
+        readyFields,
+        readyWithMission,
+        readyWithoutMission,
+        naturalReady,
+        naturalContracts,
+        fallbackReady,
+        fallbackContracts,
+        #missions,
+        unmatchedMissions
+    ))
 end
 
 function CCO:finishNpcMapRegenerationMissionRefill(state, reason)
@@ -6882,7 +6971,10 @@ function CCO:confirmNpcMapRegeneration()
         return 0, 0
     end
     if tonumber(plan.unverified or 0) > 0 then
-        print(("CCO: regeneration confirmation blocked: %d planned field action(s) use unverified growth states. Run a new dry-run and ccoGrowthProbe for the affected crops."):format(tonumber(plan.unverified or 0)))
+        local message =
+            "CCO: regeneration confirmation blocked: %d planned field action(s) use unverified " ..
+            "growth states. Run a new dry-run and ccoGrowthProbe for the affected crops."
+        print((message):format(tonumber(plan.unverified or 0)))
         return 0, 0
     end
     if plan.period ~= getCurrentPeriodIndex() or plan.year ~= getCalendarYearToken() then
@@ -7030,7 +7122,13 @@ function CCO:consoleRegenerateNpcFields(modeArg)
     end
     print("CCO: usage ccoRegenerateNpcFields [dryrun|confirm|clear]")
 end
-addConsoleCommand("ccoRegenerateNpcFields", "Experimental: regenerate all NPC fields using weighted enabled crops at calendar-derived growth states. Usage: ccoRegenerateNpcFields [dryrun|confirm|clear]", "consoleRegenerateNpcFields", CCO)
+addConsoleCommand(
+    "ccoRegenerateNpcFields",
+    "Experimental: regenerate all NPC fields using weighted enabled crops at calendar-derived growth states. " ..
+        "Usage: ccoRegenerateNpcFields [dryrun|confirm|clear]",
+    "consoleRegenerateNpcFields",
+    CCO
+)
 
 function CCO:consoleCalendarCustomPreview(cropNameArg, plantingArg, harvestArg)
     if cropNameArg == nil or cropNameArg == "" or plantingArg == nil or harvestArg == nil then
