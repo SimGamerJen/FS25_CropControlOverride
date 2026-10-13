@@ -2078,19 +2078,19 @@ function CCO:showSowingNotPermitted(fruitTypeIndex)
         -- job has already been stopped, and may succeed without displaying text.
         local hud = g_currentMission.hud
         if hud ~= nil and hud.showBlinkingWarning ~= nil then
-            local ok, result = pcall(hud.showBlinkingWarning, hud, message, 5000)
-            info(("SOW-BLOCK warning display path=hud.showBlinkingWarning ok=%s result=%s message=%s"):format(
-                tostring(ok), tostring(result), tostring(message)))
-            if ok then return end
+            local result = hud:showBlinkingWarning(message, 5000)
+            info(("SOW-BLOCK warning display path=hud.showBlinkingWarning result=%s message=%s"):format(
+                tostring(result), tostring(message)))
+            return
         end
 
         -- Compatibility fallback for game builds/mod stacks exposing the method
         -- directly on the mission.
         if g_currentMission.showBlinkingWarning ~= nil then
-            local ok, result = pcall(g_currentMission.showBlinkingWarning, g_currentMission, message, 5000)
-            info(("SOW-BLOCK warning display path=mission.showBlinkingWarning ok=%s result=%s message=%s"):format(
-                tostring(ok), tostring(result), tostring(message)))
-            if ok then return end
+            local result = g_currentMission:showBlinkingWarning(message, 5000)
+            info(("SOW-BLOCK warning display path=mission.showBlinkingWarning result=%s message=%s"):format(
+                tostring(result), tostring(message)))
+            return
         end
 
         -- INGAME_NOTIFICATION_OK is already used elsewhere by CCO and is known to
@@ -2098,10 +2098,10 @@ function CCO:showSowingNotPermitted(fruitTypeIndex)
         -- critical constants, as a nil type creates a blank overlay in FS25.
         local notificationType = FSBaseMission ~= nil and FSBaseMission.INGAME_NOTIFICATION_OK or nil
         if type(notificationType) == "number" and g_currentMission.addIngameNotification ~= nil then
-            local ok, result = pcall(g_currentMission.addIngameNotification, g_currentMission, notificationType, message)
-            info(("SOW-BLOCK warning display path=addIngameNotification ok=%s result=%s type=%s message=%s"):format(
-                tostring(ok), tostring(result), tostring(notificationType), tostring(message)))
-            if ok then return end
+            local result = g_currentMission:addIngameNotification(notificationType, message)
+            info(("SOW-BLOCK warning display path=addIngameNotification result=%s type=%s message=%s"):format(
+                tostring(result), tostring(notificationType), tostring(message)))
+            return
         end
 
         info("SOW-BLOCK warning display failed message=" .. tostring(message))
@@ -2111,8 +2111,8 @@ end
 local function ccoObjectName(object)
     if object == nil then return "nil" end
     if object.getName ~= nil then
-        local ok, name = pcall(object.getName, object)
-        if ok and name ~= nil then return tostring(name) end
+        local name = object:getName()
+        if name ~= nil then return tostring(name) end
     end
     return tostring(object)
 end
@@ -2120,8 +2120,8 @@ end
 function CCO:stopBlockedSowingWorker(vehicle, fruitTypeIndex)
     local rootVehicle = vehicle
     if vehicle ~= nil and vehicle.getRootVehicle ~= nil then
-        local ok, result = pcall(vehicle.getRootVehicle, vehicle)
-        if ok and result ~= nil then rootVehicle = result end
+        local result = vehicle:getRootVehicle()
+        if result ~= nil then rootVehicle = result end
     end
 
     self:showSowingNotPermitted(fruitTypeIndex)
@@ -2131,20 +2131,21 @@ function CCO:stopBlockedSowingWorker(vehicle, fruitTypeIndex)
         return
     end
 
-    local getIsAIActiveOk, getIsAIActiveResult = false, nil
+    local getIsAIActiveAvailable = rootVehicle.getIsAIActive ~= nil
+    local getIsAIActiveResult = nil
     local isAIActive = false
-    if rootVehicle.getIsAIActive ~= nil then
-        getIsAIActiveOk, getIsAIActiveResult = pcall(rootVehicle.getIsAIActive, rootVehicle)
-        isAIActive = getIsAIActiveOk and getIsAIActiveResult == true
+    if getIsAIActiveAvailable then
+        getIsAIActiveResult = rootVehicle:getIsAIActive()
+        isAIActive = getIsAIActiveResult == true
     elseif rootVehicle.spec_aiFieldWorker ~= nil then
         isAIActive = rootVehicle.spec_aiFieldWorker.isActive == true
     end
 
     local aiSpec = rootVehicle.spec_aiFieldWorker
     local job = rootVehicle.getCurrentAIJob ~= nil and rootVehicle:getCurrentAIJob() or nil
-    info(("SOW-BLOCK worker state crop=%s implement=%s root=%s aiActive=%s getIsAIActiveOk=%s specActive=%s currentJob=%s methods[stopCurrentAIJob=%s stopAIVehicle=%s setAIFieldWorkerActive=%s setIsAIActive=%s]"):format(
+    info(("SOW-BLOCK worker state crop=%s implement=%s root=%s aiActive=%s getIsAIActiveAvailable=%s specActive=%s currentJob=%s methods[stopCurrentAIJob=%s stopAIVehicle=%s setAIFieldWorkerActive=%s setIsAIActive=%s]"):format(
         getSowingCropName(fruitTypeIndex), ccoObjectName(vehicle), ccoObjectName(rootVehicle), tostring(isAIActive),
-        tostring(getIsAIActiveOk), tostring(aiSpec ~= nil and aiSpec.isActive or nil), tostring(job),
+        tostring(getIsAIActiveAvailable), tostring(aiSpec ~= nil and aiSpec.isActive or nil), tostring(job),
         tostring(rootVehicle.stopCurrentAIJob ~= nil), tostring(rootVehicle.stopAIVehicle ~= nil),
         tostring(rootVehicle.setAIFieldWorkerActive ~= nil), tostring(rootVehicle.setIsAIActive ~= nil)))
 
@@ -2155,10 +2156,10 @@ function CCO:stopBlockedSowingWorker(vehicle, fruitTypeIndex)
             attempts[#attempts + 1] = name .. "=missing"
             return false
         end
-        local ok, result = pcall(fn, object, ...)
-        attempts[#attempts + 1] = name .. "[ok=" .. tostring(ok) .. ",result=" .. tostring(result) .. "]"
-        if ok then stopSucceeded = true end
-        return ok
+        local result = fn(object, ...)
+        attempts[#attempts + 1] = name .. "[called=true,result=" .. tostring(result) .. "]"
+        stopSucceeded = true
+        return true
     end
 
     if isAIActive or job ~= nil then
@@ -2172,7 +2173,8 @@ function CCO:stopBlockedSowingWorker(vehicle, fruitTypeIndex)
 
     local turnOffOk = false
     if vehicle ~= nil and vehicle.setIsTurnedOn ~= nil then
-        turnOffOk = pcall(vehicle.setIsTurnedOn, vehicle, false, true)
+        vehicle:setIsTurnedOn(false, true)
+        turnOffOk = true
     end
 
     info(("SOW-BLOCK stop result crop=%s root=%s success=%s turnOffOk=%s attempts=%s"):format(
@@ -2321,27 +2323,6 @@ end
 
 
 
-local function ccoCreateAIStopMessage()
-    local constructors = {
-        AIMessageErrorUnknown,
-        AIMessageErrorBlockedByObject,
-        AIMessageErrorCouldNotStart,
-    }
-    for _, class in ipairs(constructors) do
-        if class ~= nil and class.new ~= nil then
-            local ok, message = pcall(class.new, class)
-            if ok and message ~= nil then
-                return message
-            end
-            ok, message = pcall(class.new)
-            if ok and message ~= nil then
-                return message
-            end
-        end
-    end
-    return nil
-end
-
 local function ccoCollectSowingImplements(rootVehicle)
     local result = {}
     local seen = {}
@@ -2352,8 +2333,8 @@ local function ccoCollectSowingImplements(rootVehicle)
             result[#result + 1] = object
         end
         if object.getAttachedImplements ~= nil then
-            local ok, attached = pcall(object.getAttachedImplements, object)
-            if ok and attached ~= nil then
+            local attached = object:getAttachedImplements()
+            if attached ~= nil then
                 for _, entry in pairs(attached) do
                     add(entry.object or entry)
                 end
@@ -2386,8 +2367,8 @@ function CCO:scanAndStopBlockedSowingWorkers(dt)
         end
         if parameter ~= nil then
             if parameter.getVehicle ~= nil then
-                local ok, vehicle = pcall(parameter.getVehicle, parameter)
-                if ok and vehicle ~= nil then return vehicle end
+                local vehicle = parameter:getVehicle()
+                if vehicle ~= nil then return vehicle end
             end
             if parameter.vehicle ~= nil then return parameter.vehicle end
             if parameter.value ~= nil and type(parameter.value) == "table" then return parameter.value end
@@ -2415,8 +2396,7 @@ function CCO:scanAndStopBlockedSowingWorkers(dt)
         addJobsFrom(aiSystem.jobs)
         addJobsFrom(aiSystem.currentJobs)
         if aiSystem.getActiveJobs ~= nil then
-            local ok, activeJobs = pcall(aiSystem.getActiveJobs, aiSystem)
-            if ok then addJobsFrom(activeJobs) end
+            addJobsFrom(aiSystem:getActiveJobs())
         end
     end
 
@@ -2467,9 +2447,9 @@ function CCO:scanAndStopBlockedSowingWorkers(dt)
                             attempts[#attempts + 1] = name .. "=missing"
                             return
                         end
-                        local ok, result = pcall(fn, object, ...)
-                        attempts[#attempts + 1] = name .. "[ok=" .. tostring(ok) .. ",result=" .. tostring(result) .. "]"
-                        if ok then stopped = true end
+                        local result = fn(object, ...)
+                        attempts[#attempts + 1] = name .. "[called=true,result=" .. tostring(result) .. "]"
+                        stopped = true
                     end
 
                     -- Do not pass a fabricated AIMessage object. Courseplay and
@@ -2526,12 +2506,12 @@ function CCO:installSeedingGuards()
         warn("SowingMachine class not available; seed selector filter not installed")
     elseif SowingMachine.onPostLoad ~= nil then
         SowingMachine.onPostLoad = Utils.appendedFunction(SowingMachine.onPostLoad, function(vehicle, ...)
-            pcall(function() CCO:filterSowingMachineSeeds(vehicle) end)
+            CCO:filterSowingMachineSeeds(vehicle)
         end)
         debug("hooked SowingMachine.onPostLoad (seed list filter)")
     elseif SowingMachine.onLoad ~= nil then
         SowingMachine.onLoad = Utils.appendedFunction(SowingMachine.onLoad, function(vehicle, ...)
-            pcall(function() CCO:filterSowingMachineSeeds(vehicle) end)
+            CCO:filterSowingMachineSeeds(vehicle)
         end)
         debug("hooked SowingMachine.onLoad (seed list filter)")
     end
@@ -2615,8 +2595,7 @@ function CCO:discardInvalidSowMission(mission, failure)
     if g_missionManager ~= nil and g_missionManager.markMissionForDeletion ~= nil then
         g_missionManager:markMissionForDeletion(mission)
     elseif mission.delete ~= nil then
-        local ok, deleteError = pcall(mission.delete, mission)
-        if not ok then warn("failed deleting invalid SowMission: " .. tostring(deleteError)) end
+        mission:delete()
     end
 
     if g_missionManager ~= nil and g_missionManager.generationTimer ~= nil then
@@ -2648,23 +2627,9 @@ function CCO:applyLateHooks()
         debug("hooked SowMission.isAvailableForField")
     end
 
-    if SowMission ~= nil and SowMission.update ~= nil and not self._sowUpdateGuardApplied then
-        self._sowUpdateGuardApplied = true
-        SowMission.update = Utils.overwrittenFunction(SowMission.update, function(mission, superFunc, dt)
-            local ok, result = pcall(superFunc, mission, dt)
-            if ok then return result end
-
-            local failure = tostring(result)
-            if failure:find("attempt to index nil", 1, true) ~= nil
-                and failure:find("getIsPlantableInPeriod", 1, true) ~= nil then
-                CCO:discardInvalidSowMission(mission, failure)
-                return
-            end
-
-            error(result, 0)
-        end)
-        debug("hooked SowMission.update (invalid fruit recovery guard)")
-    end
+    -- Do not wrap SowMission.update in a protected call in the public build.
+    -- Invalid fruit missions are prevented by the planning and availability
+    -- guards above; any unexpected engine error must remain visible in the log.
 end
 
 -- Native Calendar-page integration ------------------------------------------
