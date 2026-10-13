@@ -43,9 +43,9 @@ end
 
 local function localize(key, fallback)
     if g_i18n ~= nil and g_i18n.getText ~= nil then
-        local ok, value = pcall(function() return g_i18n:getText(key) end)
+        local value = g_i18n:getText(key)
         local text = tostring(value or "")
-        if ok and text ~= "" and text ~= key and text:find("^Missing '") == nil then
+        if text ~= "" and text ~= key and text:find("^Missing '") == nil then
             return text
         end
     end
@@ -63,8 +63,8 @@ end
 local function normalizedText(value)
     local text = tostring(value or "")
     if utf8ToLower ~= nil then
-        local ok, lowered = pcall(utf8ToLower, text)
-        if ok and lowered ~= nil then return tostring(lowered) end
+        local lowered = utf8ToLower(text)
+        if lowered ~= nil then return tostring(lowered) end
     end
     return string.lower(text)
 end
@@ -99,12 +99,8 @@ function Sort:getDisplayName(fruitType)
     if g_fruitTypeManager ~= nil
         and g_fruitTypeManager.getFillTypeByFruitTypeIndex ~= nil
         and fruitType.index ~= nil then
-        local ok, fillType = pcall(
-            g_fruitTypeManager.getFillTypeByFruitTypeIndex,
-            g_fruitTypeManager,
-            fruitType.index
-        )
-        if ok and fillType ~= nil and fillType.title ~= nil and tostring(fillType.title) ~= "" then
+        local fillType = g_fruitTypeManager:getFillTypeByFruitTypeIndex(fruitType.index)
+        if fillType ~= nil and fillType.title ~= nil and tostring(fillType.title) ~= "" then
             return tostring(fillType.title)
         end
     end
@@ -120,8 +116,8 @@ function Sort:getSeasonalGrowthData(fruitType)
     if fruitType == nil then return nil end
 
     if fruitType.getSeasonalGrowthData ~= nil then
-        local ok, data = pcall(fruitType.getSeasonalGrowthData, fruitType)
-        if ok and type(data) == "table" and type(data.periods) == "table" then return data end
+        local data = fruitType:getSeasonalGrowthData()
+        if type(data) == "table" and type(data.periods) == "table" then return data end
     end
 
     if type(fruitType.growthDataSeasonal) == "table"
@@ -160,13 +156,11 @@ function Sort:getCurrentSeasonalPeriod()
         period = env.currentPeriod or env.period or env.currentSeasonPeriod
 
         if period == nil and env.getCurrentPeriod ~= nil then
-            local ok, result = pcall(function() return env:getCurrentPeriod() end)
-            if ok then period = result end
+            period = env:getCurrentPeriod()
         end
 
         if period == nil and env.getPeriod ~= nil then
-            local ok, result = pcall(function() return env:getPeriod() end)
-            if ok then period = result end
+            period = env:getPeriod()
         end
 
         if period == nil then
@@ -291,7 +285,7 @@ function Sort:getSettingsPath()
     if last ~= "/" and last ~= "\\" then base = base .. "/" end
 
     local directory = base .. SETTINGS_FOLDER
-    if createFolder ~= nil then pcall(createFolder, directory) end
+    if createFolder ~= nil then createFolder(directory) end
     return directory .. SETTINGS_FILE
 end
 
@@ -366,7 +360,7 @@ function Sort:showDialog(frame, onChanged)
             local changedCallback = type(args) == "table" and args[2] or nil
             local selectedFrame = type(args) == "table" and args[1] or frame
             if type(changedCallback) == "function" then
-                pcall(changedCallback, selectedFrame, mode.id)
+                changedCallback(selectedFrame, mode.id)
             end
         end
     end
@@ -376,29 +370,25 @@ function Sort:showDialog(frame, onChanged)
         return false
     end
 
-    local ok, err = pcall(function()
-        OptionDialog.createFromExistingGui({
-            options = options,
-            optionText = string.format(promptTemplate, self:getModeLabel(self.currentMode)),
-            optionTitle = title,
-            callbackFunc = callback,
-        }, "FS25_CropControlOverrideCalendarSortDialog")
+    OptionDialog.createFromExistingGui({
+        options = options,
+        optionText = string.format(promptTemplate, self:getModeLabel(self.currentMode)),
+        optionTitle = title,
+        callbackFunc = callback,
+    }, "FS25_CropControlOverrideCalendarSortDialog")
 
-        local dialog = OptionDialog.INSTANCE
-        if dialog == nil then error("OptionDialog.INSTANCE unavailable") end
-
-        if dialog.optionElement ~= nil and dialog.optionElement.setState ~= nil then
-            dialog.optionElement:setState(currentIndex or 1)
-        end
-
-        if dialog.setCallback ~= nil then
-            dialog:setCallback(callback, self, callbackArgs)
-        end
-    end)
-
-    if not ok then
-        debug("OptionDialog failed: " .. tostring(err))
+    local dialog = OptionDialog.INSTANCE
+    if dialog == nil then
+        debug("OptionDialog.INSTANCE unavailable")
         return false
+    end
+
+    if dialog.optionElement ~= nil and dialog.optionElement.setState ~= nil then
+        dialog.optionElement:setState(currentIndex or 1)
+    end
+
+    if dialog.setCallback ~= nil then
+        dialog:setCallback(callback, self, callbackArgs)
     end
 
     return true
