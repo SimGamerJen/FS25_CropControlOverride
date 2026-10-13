@@ -1582,7 +1582,11 @@ function Calendar:printReport(cropName)
     for _, row in ipairs(self:getRows()) do
         if wanted == nil or wanted == "" or row.name == wanted then
             found = true
-            print(("CCO CALENDAR: %-16s planting=%-20s harvest=%-20s periods=%d transitions=%d initial=%s initialSource=%s source=%s category=%s edit=%s lifecycle=%s status=%s mode=%s shift=%+d baselineChanged=%s"):format(
+            local formatText =
+                "CCO CALENDAR: %-16s planting=%-20s harvest=%-20s periods=%d transitions=%d " ..
+                "initial=%s initialSource=%s source=%s category=%s edit=%s lifecycle=%s " ..
+                "status=%s mode=%s shift=%+d baselineChanged=%s"
+            print((formatText):format(
                 row.name,
                 row.plantingText or "-",
                 row.harvestText or "-",
