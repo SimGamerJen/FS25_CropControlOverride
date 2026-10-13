@@ -1970,63 +1970,45 @@ end
 
 
 function CCO:generatePlannedFruitForField(superFunc, fieldManager, field)
-    local ok, proposedFruit = pcall(function()
-        return superFunc(fieldManager, field)
-    end)
+    local proposedFruit = superFunc(fieldManager, field)
 
-    if not ok then
-        warn("generatePlannedFruitForField original call failed: " .. tostring(proposedFruit))
-        -- Do not convert an engine planning failure into a nil fruit value that
-        -- can be stored on a mission and crash repeatedly during update.
-        error(proposedFruit, 0)
-    end
-
-    local ok2, selectedFruit = pcall(function()
-        if proposedFruit == nil or proposedFruit == FruitType.UNKNOWN then
-            return proposedFruit
-        end
-
-        if field ~= nil and not isNpcField(field) then
-            return proposedFruit
-        end
-
-        local ft = g_fruitTypeManager ~= nil and g_fruitTypeManager:getFruitTypeByIndex(proposedFruit) or nil
-        if ft == nil then
-            return proposedFruit
-        end
-
-        local cropName = upper(ft.name)
-        local fieldHa = getFieldSizeHa(field)
-        local allowed, reason = self:isNpcCropAllowedForField(fieldHa, cropName)
-        if allowed then
-            return proposedFruit
-        end
-
-        -- Mission planning must always return a registered fruit index. The
-        -- weighted "leave cultivated" outcome is valid for cleanup/regeneration,
-        -- but returning nil here creates a SowMission whose update later
-        -- dereferences a missing fruit descriptor.
-        local replacement, replacementReason = self:findReplacementNpcCropForField(field, cropName, false)
-        if replacement ~= nil and replacement.index ~= nil then
-            debug(("planned fruit replacement for field %s: %s -> %s (%.2f ha): %s"):format(
-                tostring(getFieldId(field)), cropName, upper(replacement.name), fieldHa, tostring(reason)))
-            return replacement.index
-        end
-
-        warn(("planned fruit replacement unavailable for field %s: %s (%.2f ha): %s; retaining engine fruit index %s so SowMission remains valid (%s)"):format(
-            tostring(getFieldId(field)), cropName, fieldHa, tostring(reason), tostring(proposedFruit), tostring(replacementReason)))
-        -- SowMission.isAvailableForField applies the policy rejection later.
-        -- Keeping the engine's valid proposal is safer than injecting nil into
-        -- the base-game mission lifecycle.
-        return proposedFruit
-    end)
-
-    if not ok2 then
-        warn("generatePlannedFruitForField CCO selection failed: " .. tostring(selectedFruit))
+    if proposedFruit == nil or proposedFruit == FruitType.UNKNOWN then
         return proposedFruit
     end
 
-    return selectedFruit
+    if field ~= nil and not isNpcField(field) then
+        return proposedFruit
+    end
+
+    local ft = g_fruitTypeManager ~= nil and g_fruitTypeManager:getFruitTypeByIndex(proposedFruit) or nil
+    if ft == nil then
+        return proposedFruit
+    end
+
+    local cropName = upper(ft.name)
+    local fieldHa = getFieldSizeHa(field)
+    local allowed, reason = self:isNpcCropAllowedForField(fieldHa, cropName)
+    if allowed then
+        return proposedFruit
+    end
+
+    -- Mission planning must always return a registered fruit index. The
+    -- weighted "leave cultivated" outcome is valid for cleanup/regeneration,
+    -- but returning nil here creates a SowMission whose update later
+    -- dereferences a missing fruit descriptor.
+    local replacement, replacementReason = self:findReplacementNpcCropForField(field, cropName, false)
+    if replacement ~= nil and replacement.index ~= nil then
+        debug(("planned fruit replacement for field %s: %s -> %s (%.2f ha): %s"):format(
+            tostring(getFieldId(field)), cropName, upper(replacement.name), fieldHa, tostring(reason)))
+        return replacement.index
+    end
+
+    warn(("planned fruit replacement unavailable for field %s: %s (%.2f ha): %s; retaining engine fruit index %s so SowMission remains valid (%s)"):format(
+        tostring(getFieldId(field)), cropName, fieldHa, tostring(reason), tostring(proposedFruit), tostring(replacementReason)))
+    -- SowMission.isAvailableForField applies the policy rejection later.
+    -- Keeping the engine's valid proposal is safer than injecting nil into
+    -- the base-game mission lifecycle.
+    return proposedFruit
 end
 
 -- Enhanced runtime sowing enforcement (v2.0.3.x) ----------------------------
