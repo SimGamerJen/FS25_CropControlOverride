@@ -337,12 +337,10 @@ local function getCurrentPeriodIndex()
     if env ~= nil then
         period = env.currentPeriod or env.period or env.currentSeasonPeriod
         if period == nil and env.getCurrentPeriod ~= nil then
-            local ok, result = pcall(function() return env:getCurrentPeriod() end)
-            if ok then period = result end
+            period = env:getCurrentPeriod()
         end
         if period == nil and env.getPeriod ~= nil then
-            local ok, result = pcall(function() return env:getPeriod() end)
-            if ok then period = result end
+            period = env:getPeriod()
         end
     end
 
@@ -684,15 +682,8 @@ function CCO:applyRules(rules, seedSyncMode)
     -- time, so a mid-session rule change (GUI APPLY, server sync on a remote
     -- client) never reached them. Rebuild those cached lists now.
     local preserveNetworkIndex = seedSyncMode == "serverSnapshot" and isClientOnlyMultiplayer()
-    local ok, e = pcall(function() self:refreshAllSowingMachines(preserveNetworkIndex) end)
-    if not ok then debug("refreshAllSowingMachines skipped: " .. tostring(e)) end
-
-    local calendarOk, calendarErr = pcall(function()
-        self:refreshNativeCalendarIfOpen()
-    end)
-    if not calendarOk then
-        debug("refreshNativeCalendarIfOpen skipped: " .. tostring(calendarErr))
-    end
+    self:refreshAllSowingMachines(preserveNetworkIndex)
+    self:refreshNativeCalendarIfOpen()
 end
 
 local function buildDefaultRules()
@@ -1397,9 +1388,9 @@ function CCO:filterSowingMachineSeeds(vehicle, preserveNetworkIndex)
         if isClientOnlyMultiplayer() then
             -- Never let a remote client's CCO cache refresh send a native
             -- SetSeedIndexEvent back to the authoritative server.
-            pcall(function() vehicle:setSeedIndex(newIndex, true) end)
+            vehicle:setSeedIndex(newIndex, true)
         else
-            pcall(function() vehicle:setSeedIndex(newIndex) end)
+            vehicle:setSeedIndex(newIndex)
         end
     elseif spec.currentSeed ~= nil then
         spec.currentSeed = math.min(math.max(1, newIndex), #spec.seeds)
@@ -1426,8 +1417,8 @@ function CCO:refreshAllSowingMachines(preserveNetworkIndex)
     local refreshed = 0
     for _, vehicle in pairs(iterMissionVehicles()) do
         if getSowingMachineSpec(vehicle) ~= nil then
-            local ok, changed = pcall(function() return self:filterSowingMachineSeeds(vehicle, preserveNetworkIndex) end)
-            if ok and changed == true then refreshed = refreshed + 1 end
+            local changed = self:filterSowingMachineSeeds(vehicle, preserveNetworkIndex)
+            if changed == true then refreshed = refreshed + 1 end
         end
     end
     if refreshed > 0 then
@@ -1686,8 +1677,7 @@ function CCO:setFieldReseeded(field, fruit, growthState)
 
     local groundType = nil
     if fruit.getGrowthStateGroundType ~= nil then
-        local okGround, resolvedGround = pcall(function() return fruit:getGrowthStateGroundType(state) end)
-        if okGround then groundType = resolvedGround end
+        groundType = fruit:getGrowthStateGroundType(state)
     end
     if groundType == nil and FieldGroundType ~= nil then
         groundType = FieldGroundType.SOWN or FieldGroundType.SEEDBED or FieldGroundType.CULTIVATED
@@ -1892,15 +1882,7 @@ function CCO:printStartupValidation()
     if self._startupValidationPrinted then return end
     self._startupValidationPrinted = true
 
-    local ok, summaryOrError = pcall(function()
-        return self:buildFieldSummary(nil)
-    end)
-    if not ok then
-        warn("startup validation skipped: " .. tostring(summaryOrError))
-        return
-    end
-
-    local summary = summaryOrError
+    local summary = self:buildFieldSummary(nil)
     if summary == nil then return end
     if summary.offending ~= nil and summary.offending > 0 then
         warn(("startup validation found %d blocked NPC field(s). Run ccoScanBlocked, then ccoResetBlocked dryrun if cleanup is intended."):format(summary.offending))
@@ -2708,9 +2690,9 @@ end
 -- by CCO. This adds a direct route from that page into the guarded CCO editor.
 local function ccoNativeCalendarButtonText()
     if g_i18n ~= nil and g_i18n.getText ~= nil then
-        local ok, value = pcall(function() return g_i18n:getText("cco_calendar_open_editor") end)
+        local value = g_i18n:getText("cco_calendar_open_editor")
         local text = tostring(value or "")
-        if ok and text ~= "" and text ~= "cco_calendar_open_editor" and text:find("^Missing '") == nil then
+        if text ~= "" and text ~= "cco_calendar_open_editor" and text:find("^Missing '") == nil then
             return value
         end
     end
@@ -2793,13 +2775,7 @@ function CCO:refreshNativeCalendarIfOpen()
         return false
     end
 
-    local ok, result = pcall(self.updateNativeCalendarContents, self, frame)
-    if not ok then
-        debug("native Calendar refresh failed: " .. tostring(result))
-        return false
-    end
-
-    return result == true
+    return self:updateNativeCalendarContents(frame) == true
 end
 
 function CCO:addNativeCalendarMenuButton(frame)
@@ -2876,12 +2852,12 @@ function CCO:addNativeCalendarMenuButton(frame)
     end
 
     if frame.setMenuButtonInfo ~= nil then
-        pcall(frame.setMenuButtonInfo, frame, buttons)
+        frame:setMenuButtonInfo(buttons)
     else
         frame.menuButtonInfo = buttons
     end
     frame.hasCustomMenuButtons = true
-    if frame.setMenuButtonInfoDirty ~= nil then pcall(frame.setMenuButtonInfoDirty, frame) end
+    if frame.setMenuButtonInfoDirty ~= nil then frame:setMenuButtonInfoDirty() end
 end
 
 function CCO:installNativeCalendarButtonHook()
@@ -3263,8 +3239,8 @@ function CCO:getGuiCalendarRows()
         local displayName = row.name
         local iconFilename = nil
         if g_fillTypeManager ~= nil and g_fillTypeManager.getFillTypeByName ~= nil then
-            local ok, fillType = pcall(function() return g_fillTypeManager:getFillTypeByName(row.name) end)
-            if ok and fillType ~= nil then
+            local fillType = g_fillTypeManager:getFillTypeByName(row.name)
+            if fillType ~= nil then
                 if fillType.title ~= nil and fillType.title ~= "" then displayName = fillType.title end
                 iconFilename = fillType.hudOverlayFilename
             end
@@ -3299,8 +3275,7 @@ local CCO_FIELD_STATE_KEYS = { "growthState", "growthStateIndex", "state", "frui
 local function getCalendarFieldGrowthState(field)
     local fieldState = field ~= nil and field.fieldState or nil
     if fieldState == nil and field ~= nil and field.getFieldState ~= nil then
-        local ok, value = pcall(field.getFieldState, field)
-        if ok then fieldState = value end
+        fieldState = field:getFieldState()
     end
     if type(fieldState) ~= "table" then return nil end
     for _, key in ipairs(CCO_FIELD_STATE_KEYS) do
@@ -3938,9 +3913,7 @@ function CCO:_refreshOpenGuiPermissionState(msg)
     end
 
     if controller ~= nil and controller.showTopic ~= nil then
-        pcall(function()
-            controller:showTopic(controller.currentTopic or "rules", controller.currentPage or 1)
-        end)
+        controller:showTopic(controller.currentTopic or "rules", controller.currentPage or 1)
     end
 
     if msg ~= nil then
@@ -4256,14 +4229,9 @@ function CCO:buildServerValidationPayload()
     }
 
     for _, row in ipairs(self:getBlockedFieldRows()) do
-        local candidateCrop, candidateReason = "NONE", "candidate unavailable"
-        local okCandidate, resolvedCrop, resolvedReason = pcall(function()
-            return self:getReseedCandidateTextForField(row.field, row.cropName)
-        end)
-        if okCandidate then
-            candidateCrop = resolvedCrop or "NONE"
-            candidateReason = resolvedReason or ""
-        end
+        local resolvedCrop, resolvedReason = self:getReseedCandidateTextForField(row.field, row.cropName)
+        local candidateCrop = resolvedCrop or "NONE"
+        local candidateReason = resolvedReason or ""
         table.insert(lines, table.concat({
             "@field",
             encodeMultiplayerFieldValue(row.fieldId),
@@ -4370,7 +4338,7 @@ end
 function CCO:sendSettingsSnapshotToClient(connection, reason)
     if self._rules == nil or not next(self._rules) then
         if not isClientOnlyMultiplayer() then
-            pcall(function() self:loadRulesForMission(g_currentMission and g_currentMission.missionInfo) end)
+            self:loadRulesForMission(g_currentMission and g_currentMission.missionInfo)
         end
     end
 
@@ -4491,19 +4459,13 @@ function CCO:refreshOpenGuiAfterMultiplayerSync(operation, msg)
     if controller ~= nil and controller.showTopic ~= nil then
         local topic = controller.currentTopic or "rules"
         local page = controller.currentPage or 1
-        pcall(function()
-            controller:showTopic(topic, page)
-        end)
+        controller:showTopic(topic, page)
 
         if controller.selectedDirtyText ~= nil and controller.selectedDirtyText.setText ~= nil then
-            pcall(function()
-                controller.selectedDirtyText:setText("Settings synced from server.")
-            end)
+            controller.selectedDirtyText:setText("Settings synced from server.")
         end
         if controller.selectedInfoText ~= nil and controller.selectedInfoText.setText ~= nil then
-            pcall(function()
-                controller.selectedInfoText:setText(tostring(self._guiNotice or "Server settings applied."))
-            end)
+            controller.selectedInfoText:setText(tostring(self._guiNotice or "Server settings applied."))
         end
     end
 end
@@ -4899,11 +4861,17 @@ function CCO:registerGlobalActionEvents(player, inputBinding)
         return
     end
 
-    local ok, _, eventId = pcall(function()
-        return inputBinding:registerActionEvent(InputAction.CCO_OPEN_GUI, self, self.onInputOpenGui, false, true, false, true)
-    end)
+    local _, eventId = inputBinding:registerActionEvent(
+        InputAction.CCO_OPEN_GUI,
+        self,
+        self.onInputOpenGui,
+        false,
+        true,
+        false,
+        true
+    )
 
-    if ok and eventId ~= nil then
+    if eventId ~= nil then
         self._openGuiActionEventId = eventId
         if inputBinding.setActionEventText ~= nil and g_i18n ~= nil then
             inputBinding:setActionEventText(eventId, g_i18n:getText("input_CCO_OPEN_GUI"))
@@ -7522,10 +7490,7 @@ function CCO:_applyRegionalProfileLocal(profileId)
     end
 
     self._regionalProfilePreview=nil
-    local refreshOk,refreshErr=pcall(function() self:refreshAllSowingMachines(false) end)
-    if not refreshOk then
-        debug("Regional profile seed-list refresh skipped: "..tostring(refreshErr))
-    end
+    self:refreshAllSowingMachines(false)
     local profile=CCO_RegionalProfiles:getProfile(normalized)
     local msg=("Regional profile applied: %s. Calendar updated; NPC regeneration forced for %d/%d planned field(s), skipped=%d. Contracts will rebuild after the settle delay."):format(
         tostring(profile.title or normalized),queued,planned,skipped)
